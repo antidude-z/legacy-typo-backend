@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import app
-from app.models import Paper, Price, User
+from app.models import Paper, Price, User, Printer, PrinterProcess, PrinterProcessStage
 
 
 class PriceRecordsTests(unittest.TestCase):
@@ -71,6 +71,39 @@ class PriceRecordsTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         catalog = self.client.get('/api/pricing/catalog/paper').json()
         self.assertEqual(catalog['items'][0]['current_price'], '12.50')
+
+    def test_context_labels_for_printer_stage(self):
+        self.db.add_all([
+            Printer(id=1, title='Press'),
+            PrinterProcess(id=1, printer_id=1, title='4+4'),
+            PrinterProcessStage(id=1, printer_process_id=1, title='Setup'),
+        ])
+        self.db.commit()
+        catalog = self.client.get('/api/pricing/catalog/print').json()
+        self.assertEqual(catalog['items'][0]['title'], 'Press - 4+4 - Setup')
+        self.assertEqual(catalog['heading'], 'Цены на этап печати')
+
+    def test_read_only_permissions_and_ownership_on_delete(self):
+        identity = self.client.post(self.url, json=self.payload).json()['id']
+        self.permission_mock.return_value = False
+        detail = self.client.get(f'{self.url}/{identity}').json()
+        self.assertFalse(detail['can_edit'])
+        self.assertFalse(detail['can_delete'])
+        self.assertFalse(self.client.get('/api/pricing/catalog/paper').json()['can_edit'])
+        self.assertEqual(self.client.patch(f'{self.url}/{identity}', json=self.payload).status_code, 403)
+        self.assertEqual(self.client.delete(f'{self.url}/{identity}').status_code, 403)
+        self.permission_mock.return_value = True
+        self.assertEqual(self.client.delete(f'/api/prices/paper/2/records/{identity}').status_code, 404)
+        self.assertIsNotNone(self.db.get(Price, identity))
+
+    def test_sorting_and_pagination(self):
+        for amount in ('8', '3', '20'):
+            self.client.post(self.url, json={**self.payload, 'amount': amount})
+        result = self.client.get(f'{self.url}?sort=amount&order=asc&per_page=2').json()
+        self.assertEqual([row['amount'] for row in result['items']], ['3.00', '8.00'])
+        self.assertEqual(result['last_page'], 2)
+        result = self.client.get(f'{self.url}?sort=amount&order=asc&per_page=2&page=2').json()
+        self.assertEqual(result['items'][0]['amount'], '20.00')
 
 
 if __name__ == '__main__':

@@ -106,12 +106,36 @@ API routes:
 Writes require `edit_price`; deletion requires `delete_price`. The original
 controller checks these permissions for action visibility/confirmation but does
 not consistently enforce them on writes; the API currently enforces them.
-This difference requires review before strict behavior-parity acceptance.
+This deliberate hardening is retained with user approval; legacy authorization
+omissions are not reproduced.
 
 The order page includes a recalculation button, markup summary, component tables,
-and blank stage/material breakdowns. Remaining acceptance work includes full
-calendar/TouchSpin interactions, contextual stage labels, visual comparison,
-dump-backed calculation comparison, nested report detail compatibility, and CSRF
-coverage inherited from the shared auth migration. The editor accepts the legacy
-DD.MM.YYYY date format. Native numeric controls use the legacy 0–10000 range and
-step 10, but do not yet implement TouchSpin hold acceleration.
+compilation materials, and blank stage/material breakdowns. Stage catalogs include
+parent printer/process or afterprint/compilation labels. The editor accepts
+DD.MM.YYYY dates, provides native calendar selection and bounded quantity buttons
+(step 10, range 0–10000), preserves validation input, and disables duplicate saves.
+Native controls replace the old calendar/TouchSpin plugins; hold acceleration
+and pixel-identical plugin appearance are intentionally not reproduced.
+
+## Pricing handoff status
+
+The pricing implementation scope is closed: catalogs/history, CRUD, confirmation,
+permissions, component calculations, persistence, breakdown UI, and regression
+tests are implemented. This is not a claim of production acceptance. Cross-project
+work left behind:
+
+- CSRF/session hardening across all mutation APIs.
+- Representative dump-backed comparisons against PHP outputs (the dump has been
+  inspected, not imported or executed locally).
+- Full nested calculation/report payload compatibility as report migration proceeds.
+- Browser/end-to-end and visual acceptance across the application.
+- General migration/versioning and complete reference CRUD, outside pricing.
+
+Validation commands (no Docker, no working database reset):
+
+```text
+uv run python -m unittest discover -s tests -q
+```
+
+In the frontend module run `npm test` and `npm run build`. Frontend helper tests
+exercise dates, quantity boundaries, and error messages; they are not browser tests.

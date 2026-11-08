@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
 from .schema import upgrade_local_schema
-from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, Prepress, Price, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
+from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 
@@ -76,6 +76,28 @@ def priceable_info(kind: str):
     return PRICEABLE_TYPES.get(kind)
 
 
+PRICE_TITLES = {
+    "services": "услуги подрядчиков", "paper": "бумагу", "print": "этап печати",
+    "materials": "материалы", "afterprint": "постпечать", "prepress": "работы по дизайну/препресс",
+    "redaction": "работы по редактуре", "compile": "работы по сборке", "compiles": "этапы сборки",
+}
+
+
+def price_reference_label(db: Session, kind: str, row) -> str:
+    parts = []
+    if kind == "print":
+        process = db.get(PrinterProcess, row.printer_process_id)
+        printer = db.get(Printer, process.printer_id) if process else None
+        parts = [printer.title if printer else "", process.title if process else ""]
+    elif kind == "afterprint":
+        parent = db.get(Afterprint, row.afterprint_id)
+        parts = [parent.title if parent else ""]
+    elif kind == "compiles":
+        parent = db.get(Compile, row.compile_id)
+        parts = [parent.title if parent else ""]
+    return " - ".join(part for part in [*parts, row.title] if part)
+
+
 def require_price_permission(request: Request, db: Session, permission: str) -> User | JSONResponse:
     user = current_user(request, db)
     if user is None:
@@ -116,7 +138,7 @@ def price_catalog(kind: str, request: Request, page: int = Query(1, ge=1), db: S
     query = select(model).where(model.deleted_at.is_(None))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(query.order_by(model.id).offset((page - 1) * 50).limit(50)).all()
-    return {"items": [{"id": row.id, "title": row.title, "current_price": str(resolve_price(db, info[1], row.id)["amount"])} for row in rows], "page": page, "last_page": max(1, (total + 49) // 50)}
+    return {"items": [{"id": row.id, "title": price_reference_label(db, kind, row), "current_price": str(resolve_price(db, info[1], row.id)["amount"])} for row in rows], "heading": f"Цены на {PRICE_TITLES[kind]}", "can_edit": user.has_permission("edit_price"), "page": page, "last_page": max(1, (total + 49) // 50)}
 
 
 @app.post("/api/prices/{kind}/{item_id}/create", tags=["pricing"])
@@ -139,7 +161,7 @@ def price_record_detail(kind: str, item_id: int, price_id: int, request: Request
     reference = db.get(info[0], item_id) if info else None
     if not reference or not row or row.priceable_type != info[1] or row.priceable_id != item_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
-    return {"price": serialize_price(row), "title": reference.title, "can_delete": user.has_permission("delete_price")}
+    return {"price": serialize_price(row), "title": price_reference_label(db, kind, reference), "heading": f"Цена на {PRICE_TITLES[kind]}", "can_edit": user.has_permission("edit_price"), "can_delete": user.has_permission("delete_price")}
 
 
 @app.get("/api/prices/{priceable_type}/{priceable_id}/records", tags=["pricing"])
@@ -154,7 +176,7 @@ def price_records(priceable_type: str, priceable_id: int, request: Request, sort
     query = select(Price).where(Price.priceable_type == info[1], Price.priceable_id == priceable_id)
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(query.order_by(column.asc() if order == "asc" else column.desc()).offset((page - 1) * per_page).limit(per_page)).all()
-    return {"items": [serialize_price(row) for row in rows], "title": db.get(info[0], priceable_id).title, "priceable_type": priceable_type, "priceable_id": priceable_id, "page": page, "last_page": max(1, (total + per_page - 1) // per_page), "can_edit": user.has_permission("edit_price"), "can_delete": user.has_permission("delete_price")}
+    return {"items": [serialize_price(row) for row in rows], "title": price_reference_label(db, priceable_type, db.get(info[0], priceable_id)), "heading": f"Цены на {PRICE_TITLES[priceable_type]}", "priceable_type": priceable_type, "priceable_id": priceable_id, "page": page, "last_page": max(1, (total + per_page - 1) // per_page), "can_edit": user.has_permission("edit_price"), "can_delete": user.has_permission("delete_price")}
 
 
 @app.post("/api/prices/{priceable_type}/{priceable_id}/records", tags=["pricing"])
