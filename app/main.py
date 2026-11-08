@@ -756,6 +756,8 @@ def blank_restore(order_id: int, blank_id: int, request: Request, db: Session = 
 
 # Resolve the user through this module at request time so dependency overrides
 # and the existing session authentication contract work for reference routes.
+from .permissions import register_permission_routes
+register_permission_routes(app, lambda request, db: current_user(request, db))
 from .reference_dictionaries import register_reference_routes
 register_reference_routes(app, lambda request, db: current_user(request, db))
 from .reference_printers import register_printer_routes
