@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import SESSION_COOKIE, SESSION_SECRET
+from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
 from .models import User
 from .navigation import build_navigation
@@ -48,6 +48,11 @@ def current_user(request: Request, db: Session) -> User | None:
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/system/database", tags=["system"])
+def database_status() -> dict[str, str]:
+    return {"mode": DATABASE_MODE, "url": DATABASE_URL.split("@")[-1] if DATABASE_MODE == "mysql" else DATABASE_URL}
 
 
 @app.get("/", tags=["compatibility"])
