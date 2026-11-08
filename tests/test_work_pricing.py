@@ -48,7 +48,7 @@ class WorkPricingTests(unittest.TestCase):
         self.assertEqual(Decimal(result["result"]), 65)
         self.assertEqual(Decimal(result["item"]), Decimal("6.5"))
         self.assertEqual(self.order.total, 1000)
-        self.assertEqual(result["pending_components"], ["compile", "other_works"])
+        self.assertEqual(result["pending_components"], ["other_works"])
         self.assertEqual(result["work_details"]["design"][0]["title"], "Design")
 
     def test_missing_prices_are_zero_and_explicit(self):
@@ -71,7 +71,7 @@ class WorkPricingTests(unittest.TestCase):
         self.db.get(Redaction, 1).deleted_at = datetime(2020, 1, 1)
         self.db.commit()
         result = calculate_order(self.db, self.order)
-        self.assertEqual(result["work_details"], {"design": [], "redaction": []})
+        self.assertEqual(result["work_details"], {"design": [], "redaction": [], "compile": []})
 
     def test_currency_conversion(self):
         self.price("Prepress", 2, currency="USD")

@@ -50,6 +50,10 @@ uv run python -m unittest discover -s tests -v
 
 Tests create and dispose of their own in-memory SQLite databases.
 
+Startup applies additive local SQLite compatibility changes before creating
+missing tables. This currently includes the legacy `compiles.fitting` column;
+no existing local data is dropped.
+
 ## Order calculation
 
 `POST /api/orders/{order_id}/recalculate` aggregates blank, prepress, and
@@ -57,6 +61,12 @@ redaction costs and applies active order markups without overwriting the stored
 sale total. Prepress/redaction follow the legacy `price()` defaults: current
 effective date and quantity threshold zero, multiplied by the operation quantity.
 Their stored `price_id` and the order date do not select the price.
-`work_details` contains their line-item breakdowns; missing prices are zero and
-reported in `missing`. Compilation and other-work pricing remain pending, so
-the response is still partial.
+`work_details` contains line-item breakdowns; missing prices are zero and
+reported in `missing`. Compilation uses its current threshold-zero price and
+cumulatively adds each work's fitting quantity before calculating blanks.
+Compilation-stage waste/material quantities are included in the breakdown;
+stage prices and material costs are not added to the returned compilation cost,
+matching the original PHP calculation. Material prices use the order date and
+material quantity. `production_printing` reports the adjusted quantity without
+changing the saved order quantity. Other-work pricing remains pending, so the
+response is still partial.

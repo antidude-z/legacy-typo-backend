@@ -8,7 +8,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from .models import (
-    Action, Afterprint, AfterprintParameter, AfterprintParameterValue, AfterprintStage, AfterprintStageMaterial, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
+    Action, Afterprint, AfterprintParameter, AfterprintParameterValue, AfterprintStage, AfterprintStageMaterial, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, CompileStageMaterial, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
     OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Rate, Redaction, Service, User,
 )
 
@@ -340,8 +340,8 @@ def calculate_wide_printer(db: Session, blank: Blank, count: int, on_date: date 
     return {"result": total, "pl_count": count, "status": "missing_prices" if missing else "calculated", "details": {"title": process.title, "stages": stages}}
 
 
-def calculate_blank(db: Session, blank: Blank, order: Order, currency: str = "RUB") -> dict:
-    printing = int(order.printing or 0)
+def calculate_blank(db: Session, blank: Blank, order: Order, currency: str = "RUB", printing_override: int | None = None) -> dict:
+    printing = int(order.printing or 0) if printing_override is None else printing_override
     details = {
         "title": blank.title, "printing": printing,
         "details_per_sheet": blank.details_per_sheet, "pages_per_sheet": blank.pages_per_sheet,
@@ -470,8 +470,69 @@ def calculate_order_work(db: Session, order_id: int, component: str, currency: s
     return {"result": total, "details": details, "missing": missing}
 
 
+def calculate_compilation(db: Session, order: Order, currency: str = "RUB") -> dict:
+    """Mirror Order::compile_calc(), including its breakdown-only materials."""
+    printing = int(order.printing or 0)
+    total, details, missing = Decimal("0"), [], []
+    rows = db.scalars(select(OrderCompile).join(Compile).where(
+        OrderCompile.order_id == order.id, OrderCompile.deleted_at.is_(None),
+        Compile.deleted_at.is_(None),
+    ).order_by(OrderCompile.id)).all()
+    for row in rows:
+        reference = row.compile
+        price = resolve_price(db, "App\\Compile", reference.id, 0, None, currency)
+        printing += reference.fitting or 0
+        quantity = Decimal(row.quantity)
+        unit_price = price["amount"]
+        cost = quantity * printing * unit_price
+        total += cost
+        if not price["found"]:
+            missing.append(f"compile:{reference.id}")
+        work_count = quantity * printing
+        stages = []
+        for stage in db.scalars(select(CompileStage).where(
+            CompileStage.compile_id == reference.id, CompileStage.deleted_at.is_(None),
+        ).order_by(CompileStage.id)).all():
+            if stage.together == 0:
+                raise ValueError(f"Compilation stage {stage.id} has zero together factor")
+            payment_count = ceil(work_count / stage.together)
+            work_count += stage.waste * work_count
+            stage_detail = {
+                "id": stage.id, "title": stage.title, "fitting": stage.fitting,
+                "waste": stage.waste, "together": stage.together,
+                "quantity": str(quantity), "work_count": str(work_count),
+                "payment_count": payment_count, "materials": {},
+            }
+            for material in db.scalars(select(CompileStageMaterial).where(
+                CompileStageMaterial.compile_stage_id == stage.id,
+                CompileStageMaterial.deleted_at.is_(None),
+            ).order_by(CompileStageMaterial.id)).all():
+                # PHP reuses quantity/price here; preserve their resulting detail values.
+                quantity = Decimal(material.quantity) * payment_count
+                material_price = resolve_price(db, "App\\Material", material.material_id, quantity, order.order_date, currency)
+                unit_price = material_price["amount"]
+                if not material_price["found"]:
+                    missing.append(f"material:{material.material_id}")
+                entry = stage_detail["materials"].setdefault(material.material_id, {
+                    "title": material.material.title if material.material else "",
+                    "quantity": Decimal("0"), "price": str(unit_price), "cost": Decimal("0"),
+                })
+                entry["quantity"] += quantity
+                entry["cost"] += quantity * unit_price
+            for entry in stage_detail["materials"].values():
+                entry["quantity"], entry["cost"] = str(entry["quantity"]), str(entry["cost"])
+            stages.append(stage_detail)
+        details.append({
+            "id": row.id, "title": reference.title, "quantity": str(quantity),
+            "printing": printing, "fitting": reference.fitting,
+            "price": str(unit_price), "cost": str(cost), "stages": stages,
+            "formula": f"quantity * printing * price = {quantity} * {printing} * {unit_price}",
+        })
+    return {"result": total, "printing": printing, "details": details, "missing": missing}
+
+
 def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
-    """Aggregate migrated costs; compilation and other-work remain pending."""
+    """Aggregate migrated costs; other-work remains pending."""
     component_totals = {
         "design": Decimal("0"), "redaction": Decimal("0"), "paper": Decimal("0"),
         "imagesetter": Decimal("0"), "print": Decimal("0"), "afterprint": Decimal("0"),
@@ -485,8 +546,12 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
         component_totals[component] = calculation["result"]
         work_details[component] = calculation["details"]
         missing.extend(calculation["missing"])
+    compilation = calculate_compilation(db, order, currency)
+    component_totals["compile"] = compilation["result"]
+    work_details["compile"] = compilation["details"]
+    missing.extend(compilation["missing"])
     for blank in db.scalars(select(Blank).where(Blank.order_id == order.id, Blank.deleted_at.is_(None))).all():
-        calculation = calculate_blank(db, blank, order, currency)
+        calculation = calculate_blank(db, blank, order, currency, compilation["printing"])
         blank_details[blank.id] = {"cost": str(calculation["result"]), "status": calculation["status"], "details": calculation["details"]}
         for key in ("paper", "imagesetter", "print", "afterprint"):
             component_totals[key] += calculation.get(key, Decimal("0"))
@@ -516,13 +581,14 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
     stored_total = Decimal(order.total or 0)
     manager_markup = Decimal("0") if total_total == 0 else Decimal("100") * (stored_total - total_total) / total_total
     printing = max(int(order.printing or 1), 1)
-    pending = ["compile", "other_works"]
+    pending = ["other_works"]
     return {
         "result": str(total_total),
         "base": str(total_base),
         "item": str(total_total / printing),
         "manager_markup": str(manager_markup),
         "stored_total": str(stored_total),
+        "production_printing": compilation["printing"],
         "status": "missing_prices" if missing else "partial",
         "missing": sorted(set(missing)),
         "pending_components": pending,

@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
+from .schema import upgrade_local_schema
 from .models import Action, Afterprint, Blank, BlankAfterprint, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
@@ -17,6 +18,7 @@ from .orders import blank_metadata, calculate_afterprint, calculate_blank, calcu
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    upgrade_local_schema()
     Base.metadata.create_all(bind=engine)
     yield
 

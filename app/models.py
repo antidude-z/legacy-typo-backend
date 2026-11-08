@@ -134,6 +134,7 @@ class Compile(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(String(50), nullable=False)
+    fitting = Column(Integer, nullable=False, default=0)
     production_book = Column(Boolean, default=False)
     production_poly = Column(Boolean, default=False)
     production_wide = Column(Boolean, default=False)
@@ -147,6 +148,28 @@ class OtherWork(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(50), nullable=False)
     deleted_at = Column(DateTime, nullable=True)
+
+
+class CompileStage(Base):
+    __tablename__ = "compile_stages"
+    id = Column(Integer, primary_key=True)
+    compile_id = Column(Integer, ForeignKey("compiles.id"), nullable=False)
+    title = Column(String(255), nullable=False)
+    together = Column(Integer, nullable=False)
+    waste = Column(Integer, nullable=False, default=0)
+    weight = Column(Integer, nullable=False, default=0)
+    fitting = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class CompileStageMaterial(Base):
+    __tablename__ = "compile_stage_materials"
+    id = Column(Integer, primary_key=True)
+    compile_stage_id = Column(Integer, ForeignKey("compile_stages.id"), nullable=False)
+    material_id = Column(Integer, ForeignKey("materials.id"), nullable=False)
+    quantity = Column(Numeric(10, 4), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    material = relationship("Material")
 
 
 class Redaction(Base):
