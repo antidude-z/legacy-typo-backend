@@ -2,6 +2,26 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Accounting — nested payments
+
+Payments now support submission-based create/edit, confirmation, soft deletion,
+restore and permanent deletion under `/accounting/bills/{id}/payments/...`.
+APIs mirror that hierarchy under `/api`, with `/form` supplying creation defaults.
+Dates accept ISO/DD.MM.YYYY, amounts retain decimal(10,2) precision, and every
+request verifies the parent bill. Writes require bill-edit permission; restore
+and permanent deletion additionally require their shared permissions.
+
+Payment create/update returns to the bill editor. Cancel/delete/restore returns
+to bill detail. Opening payment creation/edit from the bill editor first saves
+the bill; failed saves retain inputs and block navigation. Deleted payments are
+visible only with trash permission and never contribute to active payment sums.
+Manual paid/closed/filed flags are not inferred from payment amounts.
+
+Creation/update under deleted bills is rejected. Payment screens use native
+calendar selection with Russian text dates instead of old datepicker plugins.
+Browser save/navigation acceptance, Reports integration, Orders bill-search
+selector integration, and general CSRF/session hardening remain outstanding.
+
 ## Accounting — bills slice
 
 `/accounting/bills` supports sorting/pagination and session-persisted number,

@@ -776,4 +776,6 @@ from .accounting_payers import register_payer_routes
 register_payer_routes(app, lambda request, db: current_user(request, db))
 from .accounting_bills import register_bill_routes
 register_bill_routes(app, lambda request, db: current_user(request, db))
+from .accounting_payments import register_payment_routes
+register_payment_routes(app, lambda request, db: current_user(request, db))
 register_inventory_routes(app, lambda request, db: current_user(request, db))
