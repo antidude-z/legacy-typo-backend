@@ -2,6 +2,21 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Orders–Accounting navigation integration
+
+The Orders editor uses a single bill selector backed by the existing bill search
+API. Input is debounced 250 ms, requires one character, cancels stale requests,
+and preserves the selected bill independently of search text. Clearing selection
+persists an unassigned bill. Manager selection now maps to the update API's
+`user_id` field. Save failures retain form input rather than reloading it.
+
+Orders and bill editors honor same-origin application `destination` URLs after
+save/cancel. List edit links carry their current list query, and the lists reload
+their query parameters. External/malformed destinations fall back to their list;
+arbitrary legacy redirects are deliberately not reproduced. The native search
+results control replaces Select2, so keyboard/visual browser acceptance is still
+required. Tests cover persistence and navigation helpers, not browser clicks.
+
 ## Accounting — nested payments
 
 Payments now support submission-based create/edit, confirmation, soft deletion,
