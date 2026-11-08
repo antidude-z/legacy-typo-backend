@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.db import Base
-from app.models import Blank, Compile, CompileStage, CompileStageMaterial, Material, Order, OrderCompile, OrderMarkup, Paper, Price
+from app.models import Blank, Compile, CompileStage, CompileStageMaterial, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork, OtherWork, Paper, Price, Rate
 from app.orders import calculate_order
 
 
@@ -33,8 +33,8 @@ class OrderCalculationTests(unittest.TestCase):
         self.assertEqual(result["components"]["paper"], "200.00")
         self.assertAlmostEqual(float(result["markups"]["paper"]["total"]), 220.0)
         self.assertAlmostEqual(float(result["result"]), 220.0)
-        self.assertEqual(result["status"], "partial")
-        self.assertEqual(result["pending_components"], ["other_works"])
+        self.assertEqual(result["status"], "calculated")
+        self.assertEqual(result["pending_components"], [])
 
     def test_compilation_fitting_stages_and_material_breakdown(self):
         self.order.printing = 10
@@ -56,7 +56,7 @@ class OrderCalculationTests(unittest.TestCase):
         stage_result = result["work_details"]["compile"][0]["stages"][0]
         self.assertEqual(stage_result["payment_count"], 15)
         self.assertEqual(Decimal(stage_result["materials"][1]["cost"]), 120)
-        self.assertEqual(result["pending_components"], ["other_works"])
+        self.assertEqual(result["pending_components"], [])
 
     def test_cumulative_fitting_changes_blanks_not_saved_quantity(self):
         self.db.add_all([
@@ -86,6 +86,45 @@ class OrderCalculationTests(unittest.TestCase):
         result = calculate_order(self.db, self.order)
         self.assertIn("compile:1", result["missing"])
         self.assertEqual(Decimal(result["components"]["compile"]), 0)
+
+    def test_other_work_uses_assigned_price_and_current_rate(self):
+        self.db.add_all([self.order, OtherWork(id=1, title="Delivery"),
+                         OrderOtherWork(order_id=1, other_work_id=1, quantity=3, price_id=7),
+                         Price(id=7, priceable_id=1, priceable_type="OtherWork", amount=2, currency="USD", actual_from=999, actual_since=date(2099, 1, 1)),
+                         Rate(usd=100, eur=110, actual_since=date(2020, 1, 1))])
+        self.db.commit()
+        result = calculate_order(self.db, self.order)
+        self.assertEqual(Decimal(result["components"]["other_works"]), 600)
+        self.assertEqual(Decimal(result["work_details"]["other_works"][0]["cost"]), 600)
+        self.assertEqual(result["status"], "calculated")
+
+    def test_other_work_missing_assigned_price_is_explicit(self):
+        self.db.add_all([self.order, OtherWork(id=1, title="Delivery"),
+                         OrderOtherWork(order_id=1, other_work_id=1, quantity=1, price_id=999)])
+        self.db.commit()
+        result = calculate_order(self.db, self.order)
+        self.assertEqual(result["components"]["other_works"], "0")
+        self.assertIn("other_works:1:price:999", result["missing"])
+        self.assertEqual(result["status"], "missing_prices")
+
+    def test_other_work_markup_and_deleted_assignment(self):
+        from datetime import datetime
+
+        self.db.add_all([
+            self.order, OtherWork(id=1, title="Delivery"),
+            Price(id=1, priceable_type="App\\OtherWork", priceable_id=1,
+                  amount=10, currency="RUB", actual_since=date(2020, 1, 1)),
+            OrderOtherWork(order_id=1, other_work_id=1, quantity=2, price_id=1),
+            OrderOtherWork(order_id=1, other_work_id=1, quantity=100, price_id=1,
+                           deleted_at=datetime(2020, 1, 1)),
+            OrderMarkup(order_id=1, markup_type="other_works", value=25, active=True),
+        ])
+        self.db.commit()
+        result = calculate_order(self.db, self.order)
+        self.assertEqual(Decimal(result["components"]["other_works"]), 20)
+        self.assertEqual(Decimal(result["result"]), 25)
+        self.assertEqual(len(result["work_details"]["other_works"]), 1)
+        self.assertEqual(self.order.total, 250)
 
     def test_additive_schema_upgrade_preserves_existing_rows(self):
         from unittest.mock import patch

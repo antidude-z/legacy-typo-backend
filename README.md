@@ -40,7 +40,8 @@ remain zero, as in the legacy application, and are identified in `missing`.
 The compatibility implementation intentionally preserves two PHP behaviors:
 currency conversion uses the current exchange rate even for historical prices;
 afterprint material costs appear in the breakdown but are not added to the
-returned stage subtotal. Full order markups/compilation are not included yet.
+returned stage subtotal. Order aggregation and markups are handled by the
+separate order recalculation endpoint.
 
 Run repeatable tests without modifying the working SQLite database:
 
@@ -68,5 +69,10 @@ Compilation-stage waste/material quantities are included in the breakdown;
 stage prices and material costs are not added to the returned compilation cost,
 matching the original PHP calculation. Material prices use the order date and
 material quantity. `production_printing` reports the adjusted quantity without
-changing the saved order quantity. Other-work pricing remains pending, so the
-response is still partial.
+changing the saved order quantity. Other-work pricing reads its assigned
+`price_id` directly, converts at the current exchange rate, and multiplies by
+quantity; it does not apply effective-date or quantity-tier selection. A missing
+assigned price returns a zero diagnostic line and `missing_prices`, not a
+substitute price. All component categories are now wired into aggregation;
+`calculated` means no missing prices were detected, not complete UI/import parity.
+Calculation-detail persistence and frontend integration remain pending.

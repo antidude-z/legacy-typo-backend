@@ -531,8 +531,32 @@ def calculate_compilation(db: Session, order: Order, currency: str = "RUB") -> d
     return {"result": total, "printing": printing, "details": details, "missing": missing}
 
 
+def calculate_other_work(db: Session, order_id: int, currency: str = "RUB") -> dict:
+    """Use the assigned price directly, like OrderOtherWork::cost()."""
+    total, details, missing = Decimal("0"), [], []
+    rows = db.scalars(select(OrderOtherWork).where(
+        OrderOtherWork.order_id == order_id, OrderOtherWork.deleted_at.is_(None),
+    ).order_by(OrderOtherWork.id)).all()
+    for row in rows:
+        price = db.get(Price, row.price_id) if row.price_id is not None else None
+        if price is None:
+            missing.append(f"other_works:{row.id}:price:{row.price_id}")
+        # Price does not use SoftDeletes in PHP: an assigned row is read directly.
+        unit_price = Decimal(price.amount) * currency_rate(db, price.currency, currency) if price else Decimal("0")
+        quantity = Decimal(row.quantity)
+        cost = unit_price * quantity
+        total += cost
+        details.append({
+            "id": row.id, "title": row.other_work.title if row.other_work else "",
+            "price_id": row.price_id, "quantity": str(quantity),
+            "price": str(unit_price), "cost": str(cost), "price_found": price is not None,
+            "formula": f"quantity * price = {quantity} * {unit_price}",
+        })
+    return {"result": total, "details": details, "missing": missing}
+
+
 def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
-    """Aggregate migrated costs; other-work remains pending."""
+    """Aggregate order components using the legacy markup rules."""
     component_totals = {
         "design": Decimal("0"), "redaction": Decimal("0"), "paper": Decimal("0"),
         "imagesetter": Decimal("0"), "print": Decimal("0"), "afterprint": Decimal("0"),
@@ -550,6 +574,10 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
     component_totals["compile"] = compilation["result"]
     work_details["compile"] = compilation["details"]
     missing.extend(compilation["missing"])
+    other_work = calculate_other_work(db, order.id, currency)
+    component_totals["other_works"] = other_work["result"]
+    work_details["other_works"] = other_work["details"]
+    missing.extend(other_work["missing"])
     for blank in db.scalars(select(Blank).where(Blank.order_id == order.id, Blank.deleted_at.is_(None))).all():
         calculation = calculate_blank(db, blank, order, currency, compilation["printing"])
         blank_details[blank.id] = {"cost": str(calculation["result"]), "status": calculation["status"], "details": calculation["details"]}
@@ -581,7 +609,7 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
     stored_total = Decimal(order.total or 0)
     manager_markup = Decimal("0") if total_total == 0 else Decimal("100") * (stored_total - total_total) / total_total
     printing = max(int(order.printing or 1), 1)
-    pending = ["other_works"]
+    pending = []
     return {
         "result": str(total_total),
         "base": str(total_base),
@@ -589,7 +617,7 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
         "manager_markup": str(manager_markup),
         "stored_total": str(stored_total),
         "production_printing": compilation["printing"],
-        "status": "missing_prices" if missing else "partial",
+        "status": "missing_prices" if missing else "calculated",
         "missing": sorted(set(missing)),
         "pending_components": pending,
         "components": {key: str(value) for key, value in component_totals.items()},
