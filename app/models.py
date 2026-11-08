@@ -25,6 +25,33 @@ customer_payer = Table(
 )
 
 
+class Report(Base):
+    __tablename__ = "reports"
+    id = Column(String(50), primary_key=True)
+    program = Column(String(255), nullable=False, default="ipc")
+    kind = Column(String(10), nullable=True)
+    form = Column(Boolean, nullable=False, default=False)
+    title = Column(String(255), nullable=False)
+    model = Column(String(255), nullable=False)
+    model_title = Column(String(255), nullable=False, default="")
+    format = Column(String(255), nullable=False, default="A4")
+    orientation = Column(String(255), nullable=False, default="P")
+    download = Column(Boolean, nullable=False, default=False)
+    prohibitions = Column(String(255), nullable=False, default="")
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class ReportParam(Base):
+    __tablename__ = "report_params"
+    id = Column(Integer, primary_key=True)
+    alias = Column(String(50), nullable=False)
+    report_id = Column(String(50), ForeignKey("reports.id"), nullable=False)
+    title = Column(String(255), nullable=False)
+    value = Column(Text, nullable=False)
+    html = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
 class Permission(Base):
     __tablename__ = "permissions"
 

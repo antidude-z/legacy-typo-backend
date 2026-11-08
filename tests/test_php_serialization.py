@@ -1,7 +1,7 @@
 import unittest
 from decimal import Decimal
 
-from app.php_serialization import dumps
+from app.php_serialization import dumps, loads
 
 
 class PhpSerializationTests(unittest.TestCase):
@@ -13,3 +13,12 @@ class PhpSerializationTests(unittest.TestCase):
     def test_non_finite_values_are_rejected(self):
         with self.assertRaises(ValueError):
             dumps(Decimal('NaN'))
+
+    def test_safe_roundtrip_with_russian_text_and_nested_arrays(self):
+        value = {'title':'Бумага', 'blanks':{2:{'price':Decimal('12.50'), 'active':True}}, 'empty':None}
+        self.assertEqual(loads(dumps(value)),value)
+
+    def test_objects_references_truncated_and_oversized_arrays_rejected(self):
+        for value in ('O:3:"Foo":0:{}', 'R:1;', 'a:1:{i:0;}', 's:10:"short";', 'a:999999:{}', 'i:1;trailing'):
+            with self.subTest(value=value), self.assertRaises((ValueError, UnicodeError)):
+                loads(value)

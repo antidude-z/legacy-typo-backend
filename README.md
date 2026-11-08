@@ -2,6 +2,36 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Reports — initial implementation slice
+
+Report/parameter models mirror the deployed dump schema. `/options/reports`
+provides settings and scoped variable editing; APIs are under `/api/report-settings`.
+Settings require the report-options permission; original controller omissions
+are not reproduced. Model-scoped report discovery uses
+`/api/reports/for/{orders|bills}/{id}`, reporting status blocks and renderer
+availability rather than supplying broken export links.
+
+The first renderer is IPC `order_transcript`, kind HTML, at the original URL
+`/reports/order_transcript/item/{id}`. It reads stored calculation details only
+(no implicit recalculation), safely decodes scalar PHP arrays with depth/size/node
+limits, and escapes a print_r-style presentation. Earlier JSON calculation data
+is accepted as a compatibility fallback. PHP objects/references are rejected.
+The output uses the legacy transcript's Arial/8pt base and 1.5em preformatted text;
+print_r whitespace and exact browser layout still need comparison.
+
+Vite and Nginx proxy `/reports/` to FastAPI. Download requests use safe ASCII
+filenames; responses are no-store/nosniff. Definitions/variables are not invented
+or auto-imported: fresh SQLite report catalogs remain empty until populated.
+
+Not yet implemented: PDF rendering, XLS layout/parser/export, order-type variants,
+report input forms, passport/economy/design/payment/shipping templates, and payroll
+reports. Unsupported generation returns 501 and discovery marks it unavailable.
+The bill's "Документы по заказам" action opens passport/economy reports for linked
+orders in legacy; it remains deferred until those two formats/templates actually
+work, rather than opening broken or substitute documents. HTML-enabled variables
+currently use a text editor, not CKEditor. Exact output, seed/import handling,
+browser testing and real-data acceptance remain pending.
+
 ## Accounting handoff
 
 The standalone payer/bill/payment implementation is closed. Bill detail includes
