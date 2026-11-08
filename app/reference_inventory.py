@@ -41,7 +41,23 @@ def auth_user(request, current_user, db):
     return user, None if user else JSONResponse({"error": "unauthorized"}, status_code=401)
 
 
+def form_options(kind, db):
+    if kind == "paper":
+        return {
+            "types": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperType).where(PaperType.deleted_at.is_(None)).order_by(PaperType.id)).all()],
+            "formats": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperFormat).where(PaperFormat.deleted_at.is_(None)).order_by(PaperFormat.id)).all()],
+        }
+    return {"measures": [{"id": x.id, "title": x.title} for x in db.scalars(select(Measure).where(Measure.deleted_at.is_(None)).order_by(Measure.id)).all()], "work_types": WORK_TYPES}
+
+
 def register_inventory_routes(app, current_user):
+    @app.get("/api/references/{kind}/form/options", tags=["references"])
+    def inventory_options(kind: str, request: Request, db: Session = Depends(get_db)):
+        user, error = auth_user(request, current_user, db)
+        if error: return error
+        if kind not in {"paper", "materials"}: return JSONResponse({"error": "not_found"}, status_code=404)
+        return {"metadata": form_options(kind, db)}
+
     @app.get("/api/references/{kind}/{identity}", tags=["references"])
     def inventory_detail(kind: str, identity: int, request: Request, db: Session = Depends(get_db)):
         user, error = auth_user(request, current_user, db)
@@ -51,7 +67,7 @@ def register_inventory_routes(app, current_user):
         if row is None or (row.deleted_at and not user.has_permission("view_trashed")):
             return JSONResponse({"error": "not_found"}, status_code=404)
         fields = ("title", "type_id", "format_id", "weight", "markup") if kind == "paper" else ("title", "description", "measure_id", "work_type", "production_book", "production_poly", "production_souvenir", "production_wide")
-        return {"item": {"id": row.id, "deleted": row.deleted_at is not None, **{field: getattr(row, field) for field in fields}}}
+        return {"item": {"id": row.id, "deleted": row.deleted_at is not None, **{field: getattr(row, field) for field in fields}}, "metadata": form_options(kind, db), "can_restore": user.has_permission("restore_trashed"), "can_delete_trashed": user.has_permission("delete_trashed")}
 
     @app.get("/api/references/paper", tags=["references"])
     def paper_list(request: Request, page: int = Query(1, ge=1), per_page: int = Query(30, ge=1), sort: str = "id", order: str = "desc", db: Session = Depends(get_db)):
