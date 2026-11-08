@@ -307,3 +307,43 @@ class BlankImagesetter(Base):
     plates = Column(Integer, default=0)
     self = Column(Boolean, default=False)
     fix = Column(Boolean, default=False)
+
+
+class Afterprint(Base):
+    __tablename__ = "afterprints"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    production = Column(String(20), nullable=True)
+    tooltip = Column(String(255), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class AfterprintParameter(Base):
+    __tablename__ = "afterprint_parameters"
+    id = Column(Integer, primary_key=True)
+    afterprint_id = Column(Integer, ForeignKey("afterprints.id"), nullable=False)
+    title = Column(String(50), nullable=False)
+    value = Column(String(50), nullable=True)
+    parameter_type = Column(String(20), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class AfterprintParameterValue(Base):
+    __tablename__ = "afterprint_parameter_values"
+    id = Column(Integer, primary_key=True)
+    afterprint_parameter_id = Column(Integer, ForeignKey("afterprint_parameters.id"), nullable=False)
+    value = Column(String(50), nullable=False)
+    weight = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class BlankAfterprint(Base):
+    __tablename__ = "blank_afterprints"
+    id = Column(Integer, primary_key=True)
+    blank_id = Column(Integer, ForeignKey("blanks.id"), nullable=False)
+    afterprint_id = Column(Integer, ForeignKey("afterprints.id"), nullable=False)
+    active = Column(Boolean, nullable=False, default=False)
+    parameters = Column(Text, nullable=True)
+    price = Column(Numeric(8, 2), nullable=True, default=0)
+    deleted_at = Column(DateTime, nullable=True)
+    afterprint = relationship("Afterprint")

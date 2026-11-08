@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
-from .models import Action, Blank, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
+from .models import Action, Afterprint, Blank, BlankAfterprint, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
 from .orders import blank_metadata, create_order, list_metadata, orders_query, serialize_blank, serialize_history, serialize_order, serialize_order_detail
 
@@ -399,7 +399,7 @@ def blanks(order_id: int, request: Request, db: Session = Depends(get_db)):
     if db.get(Order, order_id) is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     items = db.scalars(select(Blank).where(Blank.order_id == order_id, Blank.deleted_at.is_(None)).order_by(Blank.id)).all()
-    return {"items": [serialize_blank(item) for item in items], "metadata": blank_metadata(db), "calculation": "stored_cost"}
+    return {"items": [serialize_blank(item, db) for item in items], "metadata": blank_metadata(db), "calculation": "stored_cost"}
 
 
 @app.post("/api/orders/{order_id}/blanks", tags=["orders"])
@@ -415,6 +415,8 @@ def blank_create(order_id: int, request: Request, payload: dict, db: Session = D
     imagesetter = BlankImagesetter(blank_id=item.id, plates=payload.get("plates", 0), fix=bool(payload.get("fix_plates", False)))
     setattr(imagesetter, "self", bool(payload.get("self_print", False)))
     db.add(imagesetter)
+    for afterprint in payload.get("afterprints", []):
+        db.add(BlankAfterprint(blank_id=item.id, afterprint_id=afterprint.get("id"), active=bool(afterprint.get("active", False)), parameters=afterprint.get("parameters", "")))
     db.add(Action(user_id=user.id, module="Заказы", item_id=order_id, comment=f"Добавлена заготовка: {item.title}", url=f"orders/{order_id}#blanks"))
     db.commit()
     return {"id": item.id, "status": "ok"}
@@ -437,6 +439,13 @@ def blank_update(order_id: int, blank_id: int, request: Request, payload: dict, 
         image.plates = payload.get("plates", image.plates)
         image.self = payload.get("self_print", image.self)
         image.fix = payload.get("fix_plates", image.fix)
+    for afterprint in payload.get("afterprints", []):
+        row = db.scalar(select(BlankAfterprint).where(BlankAfterprint.blank_id == item.id, BlankAfterprint.afterprint_id == afterprint.get("id")))
+        if row is None:
+            row = BlankAfterprint(blank_id=item.id, afterprint_id=afterprint.get("id"), parameters=afterprint.get("parameters", ""))
+            db.add(row)
+        row.active = bool(afterprint.get("active", False))
+        row.parameters = afterprint.get("parameters", row.parameters or "")
     db.add(Action(user_id=user.id, module="Заказы", item_id=order_id, comment=f"Изменена заготовка: {item.title}", url=f"orders/{order_id}#blanks"))
     db.commit()
     return {"status": "ok"}
@@ -451,5 +460,42 @@ def blank_delete(order_id: int, blank_id: int, request: Request, db: Session = D
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item.deleted_at = __import__("datetime").datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/orders/{order_id}/blanks/{blank_id}/copy", tags=["orders"])
+def blank_copy(order_id: int, blank_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    source = db.get(Blank, blank_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if source is None or source.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    values = {field: getattr(source, field) for field in ("title", "printer_id", "printer_process_id", "paper_id", "material_id", "cutting", "width", "height", "colors_front", "colors_back", "details_per_sheet", "pages_per_sheet", "details_per_blank", "different_details", "comments", "paper_price", "cost")}
+    values["title"] = f"{source.title} (копия)"
+    clone = Blank(order_id=order_id, **values)
+    db.add(clone)
+    db.flush()
+    image = db.scalar(select(BlankImagesetter).where(BlankImagesetter.blank_id == source.id))
+    if image:
+        clone_image = BlankImagesetter(blank_id=clone.id, plates=image.plates, fix=image.fix)
+        setattr(clone_image, "self", getattr(image, "self", False))
+        db.add(clone_image)
+    for row in db.scalars(select(BlankAfterprint).where(BlankAfterprint.blank_id == source.id, BlankAfterprint.deleted_at.is_(None))).all():
+        db.add(BlankAfterprint(blank_id=clone.id, afterprint_id=row.afterprint_id, active=row.active, parameters=row.parameters, price=row.price))
+    db.commit()
+    return {"id": clone.id, "status": "ok"}
+
+
+@app.post("/api/orders/{order_id}/blanks/{blank_id}/restore", tags=["orders"])
+def blank_restore(order_id: int, blank_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Blank, blank_id)
+    if user is None or not user.has_permission("restore_trashed"):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item.deleted_at = None
     db.commit()
     return {"status": "ok"}
