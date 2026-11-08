@@ -443,13 +443,35 @@ def calculate_blank(db: Session, blank: Blank, order: Order, currency: str = "RU
     return {"result": total, **components, "status": "missing_prices" if missing else "calculated", "missing": sorted(set(missing)), "details": details}
 
 
-def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
-    """Aggregate currently migrated blank costs using the legacy markup rules.
+def calculate_order_work(db: Session, order_id: int, component: str, currency: str = "RUB") -> dict:
+    """Mirror Order::prepress_calc/redaction_calc: current price, count zero."""
+    model, reference, relation, foreign_key, price_type = {
+        "design": (OrderPrepress, Prepress, "prepress", "prepress_id", "App\\Prepress"),
+        "redaction": (OrderRedaction, Redaction, "redaction", "redaction_id", "App\\Redaction"),
+    }[component]
+    rows = db.scalars(select(model).join(reference).where(
+        model.order_id == order_id, model.deleted_at.is_(None), reference.deleted_at.is_(None),
+    ).order_by(model.id)).all()
+    total, details, missing = Decimal("0"), [], []
+    for row in rows:
+        identity = getattr(row, foreign_key)
+        price = resolve_price(db, price_type, identity, 0, None, currency)
+        quantity = Decimal(row.quantity)
+        cost = quantity * price["amount"]
+        total += cost
+        if not price["found"]:
+            missing.append(f"{component}:{identity}")
+        details.append({
+            "id": row.id, "title": getattr(row, relation).title,
+            "quantity": str(quantity), "price": str(price["amount"]), "cost": str(cost),
+            "formula": f"quantity * price = {quantity} * {price['amount']}",
+            "price_found": price["found"],
+        })
+    return {"result": total, "details": details, "missing": missing}
 
-    The legacy calculate() method also includes prepress, redaction, compile,
-    and other-work pricing. Those components are reported as pending here until
-    their reference/calculation modules are migrated.
-    """
+
+def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
+    """Aggregate migrated costs; compilation and other-work remain pending."""
     component_totals = {
         "design": Decimal("0"), "redaction": Decimal("0"), "paper": Decimal("0"),
         "imagesetter": Decimal("0"), "print": Decimal("0"), "afterprint": Decimal("0"),
@@ -457,6 +479,12 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
     }
     blank_details = {}
     missing = []
+    work_details = {}
+    for component in ("design", "redaction"):
+        calculation = calculate_order_work(db, order.id, component, currency)
+        component_totals[component] = calculation["result"]
+        work_details[component] = calculation["details"]
+        missing.extend(calculation["missing"])
     for blank in db.scalars(select(Blank).where(Blank.order_id == order.id, Blank.deleted_at.is_(None))).all():
         calculation = calculate_blank(db, blank, order, currency)
         blank_details[blank.id] = {"cost": str(calculation["result"]), "status": calculation["status"], "details": calculation["details"]}
@@ -488,7 +516,7 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
     stored_total = Decimal(order.total or 0)
     manager_markup = Decimal("0") if total_total == 0 else Decimal("100") * (stored_total - total_total) / total_total
     printing = max(int(order.printing or 1), 1)
-    pending = ["design", "redaction", "compile", "other_works"]
+    pending = ["compile", "other_works"]
     return {
         "result": str(total_total),
         "base": str(total_base),
@@ -501,4 +529,5 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
         "components": {key: str(value) for key, value in component_totals.items()},
         "markups": markup_details,
         "blanks": blank_details,
+        "work_details": work_details,
     }
