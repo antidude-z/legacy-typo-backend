@@ -751,3 +751,9 @@ def blank_restore(order_id: int, blank_id: int, request: Request, db: Session = 
     item.deleted_at = None
     db.commit()
     return {"status": "ok"}
+
+
+# Resolve the user through this module at request time so dependency overrides
+# and the existing session authentication contract work for reference routes.
+from .reference_dictionaries import register_reference_routes
+register_reference_routes(app, lambda request, db: current_user(request, db))

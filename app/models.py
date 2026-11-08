@@ -289,6 +289,14 @@ class PaperType(Base):
     deleted_at = Column(DateTime, nullable=True)
 
 
+class Measure(Base):
+    __tablename__ = "measures"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(255), nullable=False)
+    short = Column(String(50), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
 class PaperFormat(Base):
     __tablename__ = "paper_formats"
     id = Column(Integer, primary_key=True)

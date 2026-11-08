@@ -2,6 +2,31 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Reference dictionaries (first references slice)
+
+Implemented paper types, paper formats, and measures at the original browser
+paths `/options/paper-type`, `/options/paper-format`, and `/options/measures`.
+Create/edit/delete-confirmation/restore screens use their legacy URL suffixes.
+Paper types/formats create a persisted blank draft before editing; measures are
+inserted only after submitting the new form. Cancelling a draft does not remove it.
+
+Their APIs use `/api/options/{kind}` (GET list, POST store),
+`/api/options/{kind}/create` (POST draft/form defaults),
+`/api/options/{kind}/{id}` (GET, PATCH, DELETE), and
+`/api/options/{kind}/{id}/restore` (POST). Lists default to ID descending and 30
+rows per page; deleted entries require `view_trashed`, restoration requires
+`restore_trashed`, and deleting an already deleted row requires `delete_trashed`.
+Mutations require authentication, matching these legacy controllers. Broader
+CSRF hardening is still tracked at the project level.
+
+The measure abbreviation sort uses its actual `short` column, rather than the
+legacy model's erroneous `width` column. Abbreviations are rendered as escaped
+text rather than executable HTML. Paper-format dimensions are validated as
+integers to match the stored schema. Exact browser visual acceptance is pending.
+
+Not included in this slice: paper inventory, materials, printers/fields/processes/
+stages, production-work definitions, customer directories, or employee management.
+
 ## Database modes
 
 The default local database is SQLite:
