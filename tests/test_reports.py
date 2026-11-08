@@ -1,6 +1,7 @@
 import unittest
+from pypdf import PdfReader
 from tests import test_reference_dictionaries as fixtures
-from app.models import Bill, Order, OrderStatus, Report, ReportParam
+from app.models import Bill, Blank, Order, OrderStatus, Report, ReportParam
 from app.php_serialization import dumps
 
 
@@ -46,11 +47,31 @@ class ReportTests(unittest.TestCase):
     def test_status_blocking_and_unported_formats_explicit(self):
         self.seed()
         actions=self.client.get('/api/reports/for/orders/1').json()['items']
-        self.assertFalse(next(x for x in actions if x['id']=='order_passport')['available'])
-        self.assertEqual(self.client.get('/reports/order_passport/item/1').status_code,501)
+        self.assertTrue(next(x for x in actions if x['id']=='order_passport')['available'])
+        passport = self.client.get('/reports/order_passport/item/1')
+        self.assertEqual(passport.status_code,200,passport.text)
+        self.assertEqual(passport.headers['content-type'],'application/pdf')
         report=self.db.get(Report,'order_transcript'); report.prohibitions='1'; self.db.commit()
         self.assertEqual(self.client.get('/reports/order_transcript/item/1').status_code,403)
         self.assertTrue(next(x for x in self.client.get('/api/reports/for/orders/1').json()['items'] if x['id']=='order_transcript')['blocked'])
+
+    def test_passport_pdf_contains_core_order_data(self):
+        self.seed()
+        report = self.db.get(Report, 'order_passport')
+        report.download = True
+        self.db.add(Blank(id=1, order_id=1, title='Обложка', colors_front=4, colors_back=0, cost=12))
+        self.db.commit()
+        self.db.get(Order, 1).calc_details = dumps({'blanks': {'1': {'cost': 12, 'details': {'paper': {'print_list_count': 3}}}}})
+        self.db.commit()
+        response = self.client.get('/reports/order_passport/item/1')
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers['content-type'], 'application/pdf')
+        self.assertIn('attachment', response.headers['content-disposition'])
+        reader = PdfReader(__import__('io').BytesIO(response.content))
+        self.assertEqual(len(reader.pages), 1)
+        text = reader.pages[0].extract_text()
+        self.assertIn('Паспорт заказа', text)
+        self.assertIn('Обложка', text)
 
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()
