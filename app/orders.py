@@ -4,7 +4,10 @@ from decimal import Decimal
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from .models import Bill, Customer, Order, OrderStatus, User
+from .models import (
+    Bill, Compile, Customer, Order, OrderCompile, OrderMarkup, OrderOtherWork,
+    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Prepress, Redaction, User,
+)
 
 
 ORDER_TYPES = {
@@ -88,4 +91,66 @@ def serialize_order(item: Order) -> dict:
         "order_date": item.order_date.isoformat() if item.order_date else None,
         "total": str(item.total if item.total is not None else Decimal("0.00")),
         "deleted": item.deleted_at is not None,
+    }
+
+
+MARKUP_TYPES = {
+    "book": ["design", "redaction", "paper", "imagesetter", "print", "afterprint", "compile", "other_works", "manager"],
+    "poly": ["design", "paper", "imagesetter", "print", "afterprint", "compile", "other_works", "manager"],
+    "wide": ["design", "paper", "print", "afterprint", "compile", "other_works", "manager"],
+    "souvenir": ["design", "paper", "imagesetter", "print", "afterprint", "compile", "other_works", "manager"],
+}
+
+
+def create_order(db: Session, user_id: int, order_type: str, values: dict, source: Order | None = None) -> Order:
+    order_type = order_type if order_type in MARKUP_TYPES else "poly"
+    default_printing = 1 if order_type == "wide" else 1000
+    order = Order(
+        title=values.get("title") or "Новый заказ",
+        order_type=order_type,
+        status_id=int(values.get("status_id") or 1),
+        bill_id=int(values.get("bill_id") or 0),
+        printing=int(values.get("printing") or default_printing),
+        volume=values.get("volume") or "",
+        format=values.get("format") or "",
+        width=values.get("width") or 0,
+        height=values.get("height") or 0,
+        order_date=_date(values.get("order_date")) or date.today(),
+        user_id=int(values.get("user_id") or user_id),
+        customer_id=int(values["customer_id"]) if values.get("customer_id") else None,
+        total=values.get("total") or (source.total if source else 0),
+    )
+    if order_type == "wide":
+        order.format = f"{order.width}x{order.height}"
+        order.volume = str((order.width or 0) * (order.height or 0))
+    db.add(order)
+    db.flush()
+    for markup_type in MARKUP_TYPES[order_type]:
+        db.add(OrderMarkup(order_id=order.id, markup_type=markup_type, value=10, active=False))
+    return order
+
+
+def serialize_operation(item, title_field: str, title: str) -> dict:
+    related = getattr(item, title_field, None)
+    return {"id": item.id, "title": getattr(related, "title", ""), "quantity": item.quantity, "section": title, "deleted": item.deleted_at is not None}
+
+
+def serialize_order_detail(db: Session, order: Order, include_deleted: bool = False) -> dict:
+    def active(model):
+        query = select(model).where(model.order_id == order.id)
+        if not include_deleted:
+            query = query.where(model.deleted_at.is_(None))
+        return db.scalars(query).all()
+    markups = db.scalars(select(OrderMarkup).where(OrderMarkup.order_id == order.id, OrderMarkup.deleted_at.is_(None))).all()
+    return {
+        "order": serialize_order(order),
+        "metadata": list_metadata(db),
+        "markups": [{"type": item.markup_type, "value": str(item.value), "active": item.active} for item in markups],
+        "operations": {
+            "prepresses": [serialize_operation(item, "prepress", "design") for item in active(OrderPrepress)],
+            "compiles": [serialize_operation(item, "compile", "compile") for item in active(OrderCompile)],
+            "other_works": [serialize_operation(item, "other_work", "other_works") for item in active(OrderOtherWork)],
+            "redactions": [serialize_operation(item, "redaction", "redaction") for item in active(OrderRedaction)],
+        },
+        "calculation": {"total": str(order.total or 0), "status": "stored_total", "message": "Legacy calculation dependencies are not yet migrated."},
     }

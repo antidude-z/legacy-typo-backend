@@ -9,9 +9,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
-from .models import User
+from .models import User, Order, OrderCompile, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
-from .orders import list_metadata, orders_query, serialize_order
+from .orders import create_order, list_metadata, orders_query, serialize_order, serialize_order_detail
 
 
 @asynccontextmanager
@@ -186,3 +186,167 @@ def filter_orders(
             "filter_text": filter_text or "",
         }
     return {"status": "ok", "filter": request.session.get("orders_filter", {})}
+
+
+@app.get("/api/orders/add/{order_type}", tags=["orders"])
+def order_create_metadata(order_type: str, request: Request, db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return {"order_type": order_type, "defaults": {"printing": 1 if order_type == "wide" else 1000}, "metadata": list_metadata(db)}
+
+
+@app.post("/api/orders/add/{order_type}", tags=["orders"])
+def order_create(
+    order_type: str,
+    request: Request,
+    order_title: str = Form("Новый заказ"),
+    order_format: str = Form(""),
+    order_printing: int = Form(1000),
+    order_volume: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    item = create_order(db, user.id, order_type, {"title": order_title, "format": order_format, "printing": order_printing, "volume": order_volume})
+    db.commit()
+    return {"id": item.id, "location": f"/orders/{item.id}"}
+
+
+@app.get("/api/orders/{order_id}", tags=["orders"])
+def order_detail(order_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    item = db.get(Order, order_id)
+    if item is None or (item.deleted_at is not None and not user.has_permission("view_trashed")):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return serialize_order_detail(db, item, user.has_permission("view_trashed"))
+
+
+@app.put("/api/orders/{order_id}", tags=["orders"])
+@app.post("/api/orders/{order_id}", tags=["orders"], include_in_schema=False)
+def order_update(order_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Order, order_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if item is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    values = payload.get("order", payload)
+    for source, target in [("title", "title"), ("format", "format"), ("volume", "volume"), ("printing", "printing"), ("status_id", "status_id"), ("width", "width"), ("height", "height"), ("customer_id", "customer_id"), ("user_id", "user_id"), ("bill_id", "bill_id"), ("total", "total")]:
+        if source in values:
+            setattr(item, target, values[source])
+    if values.get("order_date"):
+        item.order_date = __import__("datetime").datetime.strptime(values["order_date"], "%Y-%m-%d").date()
+    if item.order_type == "wide":
+        item.format = f"{item.width}x{item.height}"
+        item.volume = str((item.width or 0) * (item.height or 0))
+    db.commit()
+    return serialize_order_detail(db, item)
+
+
+@app.post("/api/orders/{order_id}/copy", tags=["orders"])
+def order_copy(order_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    source = db.get(Order, order_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if source is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item = create_order(db, user.id, source.order_type, {"title": payload.get("title", source.title), "format": payload.get("format", source.format), "printing": payload.get("printing", source.printing), "volume": payload.get("volume", source.volume), "total": source.total}, source)
+    db.commit()
+    return {"id": item.id, "location": f"/orders/{item.id}"}
+
+
+@app.delete("/api/orders/{order_id}", tags=["orders"])
+def order_delete(order_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Order, order_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if item is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    if item.deleted_at is not None and user.has_permission("delete_trashed"):
+        db.delete(item)
+    else:
+        item.deleted_at = __import__("datetime").datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/orders/{order_id}/restore", tags=["orders"])
+def order_restore(order_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Order, order_id)
+    if user is None or not user.has_permission("restore_trashed"):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    if item is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item.deleted_at = None
+    db.commit()
+    return {"status": "ok"}
+
+
+OPERATION_MODELS = {
+    "prepresses": (OrderPrepress, "prepress_id"),
+    "compiles": (OrderCompile, "compile_id"),
+    "others": (OrderOtherWork, "other_work_id"),
+    "redactions": (OrderRedaction, "redaction_id"),
+}
+
+
+@app.post("/api/orders/{order_id}/{operation}", tags=["orders"])
+def operation_create(order_id: int, operation: str, request: Request, payload: dict, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    model_info = OPERATION_MODELS.get(operation)
+    order = db.get(Order, order_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if model_info is None or order is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    model, foreign_key = model_info
+    related_id = payload.get(foreign_key)
+    if not related_id:
+        return JSONResponse({"error": f"{foreign_key} is required"}, status_code=422)
+    values = {"order_id": order_id, foreign_key: related_id, "quantity": payload.get("quantity", 1), "price_id": payload.get("price_id")}
+    if model is OrderCompile:
+        values["fitting"] = payload.get("fitting")
+    item = model(**values)
+    db.add(item)
+    db.commit()
+    return {"id": item.id, "status": "ok"}
+
+
+@app.patch("/api/orders/{order_id}/{operation}/{item_id}", tags=["orders"])
+def operation_update(order_id: int, operation: str, item_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    model_info = OPERATION_MODELS.get(operation)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if model_info is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item = db.get(model_info[0], item_id)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    for key in (model_info[1], "quantity", "price_id", "fitting"):
+        if key in payload:
+            setattr(item, key, payload[key])
+    db.commit()
+    return {"id": item.id, "status": "ok"}
+
+
+@app.delete("/api/orders/{order_id}/{operation}/{item_id}", tags=["orders"])
+def operation_delete(order_id: int, operation: str, item_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    model_info = OPERATION_MODELS.get(operation)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if model_info is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item = db.get(model_info[0], item_id)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item.deleted_at = __import__("datetime").datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}

@@ -103,3 +103,99 @@ class Order(Base):
     manager = relationship("User", foreign_keys=[user_id])
     customer = relationship("Customer")
     bill = relationship("Bill")
+
+
+class OrderMarkup(Base):
+    __tablename__ = "order_markups"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    markup_type = Column(String(50), nullable=False)
+    value = Column(Numeric(10, 2), nullable=False, default=10)
+    active = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class Prepress(Base):
+    __tablename__ = "prepresses"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class Compile(Base):
+    __tablename__ = "compiles"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    production_book = Column(Boolean, default=False)
+    production_poly = Column(Boolean, default=False)
+    production_wide = Column(Boolean, default=False)
+    production_souvenir = Column(Boolean, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class OtherWork(Base):
+    __tablename__ = "other_works"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class Redaction(Base):
+    __tablename__ = "redactions"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class OrderPrepress(Base):
+    __tablename__ = "order_prepresses"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    prepress_id = Column(Integer, ForeignKey("prepresses.id"), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    price_id = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    prepress = relationship("Prepress")
+
+
+class OrderCompile(Base):
+    __tablename__ = "order_compiles"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    compile_id = Column(Integer, ForeignKey("compiles.id"), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    fitting = Column(Integer, nullable=True)
+    price_id = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    compile = relationship("Compile")
+
+
+class OrderOtherWork(Base):
+    __tablename__ = "order_other_works"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    other_work_id = Column(Integer, ForeignKey("other_works.id"), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    price_id = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    other_work = relationship("OtherWork")
+
+
+class OrderRedaction(Base):
+    __tablename__ = "order_redactions"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    redaction_id = Column(Integer, ForeignKey("redactions.id"), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    price_id = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    redaction = relationship("Redaction")
