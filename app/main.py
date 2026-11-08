@@ -1,9 +1,9 @@
 from contextlib import asynccontextmanager
 
 import bcrypt
-from fastapi import Depends, FastAPI, Form, Request
+from fastapi import Depends, FastAPI, Form, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -11,6 +11,7 @@ from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
 from .models import User
 from .navigation import build_navigation
+from .orders import list_metadata, orders_query, serialize_order
 
 
 @asynccontextmanager
@@ -101,8 +102,87 @@ def logout(request: Request):
     return RedirectResponse("/auth/login", status_code=303)
 
 
-@app.get("/orders", tags=["compatibility"])
-def orders(request: Request, db: Session = Depends(get_db)):
-    if current_user(request, db) is None:
+def order_filters(request: Request, **values) -> dict:
+    stored = request.session.get("orders_filter", {})
+    if values:
+        stored.update({key: value for key, value in values.items() if value not in (None, "", [])})
+    return stored
+
+
+def orders_response(
+    request: Request,
+    db: Session,
+    page: int,
+    per_page: int,
+    sort: str,
+    order: str,
+    filters: dict,
+) -> dict:
+    user = current_user(request, db)
+    if user is None:
+        return {"error": "unauthorized"}
+    per_page = per_page if 1 <= per_page <= 100 else 30
+    page = max(page, 1)
+    statement = orders_query(db, filters, sort, order)
+    total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    items = db.scalars(statement.offset((page - 1) * per_page).limit(per_page)).unique().all()
+    return {
+        "title": "Заказы",
+        "items": [serialize_order(item) for item in items],
+        "pagination": {"page": page, "per_page": per_page, "total": total, "last_page": max((total + per_page - 1) // per_page, 1)},
+        "sort": sort if sort in {"id", "title", "order_type", "bill_id", "user_id", "customer_id", "status_id", "printing", "order_date", "total"} else "id",
+        "order": order if order in {"asc", "desc"} else "desc",
+        "filter": filters,
+        "metadata": list_metadata(db),
+    }
+
+
+@app.get("/api/orders", tags=["orders"])
+@app.get("/orders", tags=["compatibility"], include_in_schema=False)
+def orders(
+    request: Request,
+    page: int = Query(1),
+    per_page: int = Query(30),
+    sort: str = Query("id"),
+    order: str = Query("desc"),
+    db: Session = Depends(get_db),
+):
+    result = orders_response(request, db, page, per_page, sort, order, order_filters(request))
+    if result.get("error"):
         return RedirectResponse("/auth/login", status_code=303)
-    return {"title": "Заказы", "status": "not_migrated", "message": "Orders feature is pending parity port."}
+    return result
+
+
+@app.post("/api/orders/filter", tags=["orders"])
+@app.post("/orders/filter", tags=["compatibility"], include_in_schema=False)
+def filter_orders(
+    request: Request,
+    filter_status: list[int] | None = Form(None),
+    filter_date_from: str | None = Form(None),
+    filter_date_to: str | None = Form(None),
+    filter_number: str | None = Form(None),
+    filter_bill: str | None = Form(None),
+    filter_manager: str | None = Form(None),
+    filter_customer: str | None = Form(None),
+    filter_type: str | None = Form(None),
+    filter_text: str | None = Form(None),
+    flush: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if flush:
+        request.session.pop("orders_filter", None)
+    else:
+        request.session["orders_filter"] = {
+            "filter_status": filter_status or [],
+            "filter_date_from": filter_date_from or "",
+            "filter_date_to": filter_date_to or "",
+            "filter_number": filter_number or "",
+            "filter_bill": filter_bill or "",
+            "filter_manager": filter_manager or "",
+            "filter_customer": filter_customer or "",
+            "filter_type": filter_type or "",
+            "filter_text": filter_text or "",
+        }
+    return {"status": "ok", "filter": request.session.get("orders_filter", {})}
