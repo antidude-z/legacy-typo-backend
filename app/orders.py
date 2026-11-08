@@ -5,7 +5,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from .models import (
-    Action, Afterprint, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
+    Action, Afterprint, AfterprintParameter, AfterprintParameterValue, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
     OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Printer, PrinterProcess, Redaction, User,
 )
 
@@ -191,7 +191,7 @@ def blank_metadata(db: Session) -> dict:
         "paper_formats": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperFormat).where(PaperFormat.deleted_at.is_(None)).order_by(PaperFormat.title)).all()],
         "papers": [{"id": x.id, "title": x.title, "type_id": x.type_id, "format_id": x.format_id, "weight": x.weight} for x in db.scalars(select(Paper).where(Paper.deleted_at.is_(None)).order_by(Paper.title)).all()],
         "materials": [{"id": x.id, "title": x.title} for x in db.scalars(select(Material).where(Material.deleted_at.is_(None)).order_by(Material.title)).all()],
-        "afterprints": [{"id": x.id, "title": x.title, "tooltip": x.tooltip or ""} for x in db.scalars(select(Afterprint).where(Afterprint.deleted_at.is_(None)).order_by(Afterprint.title)).all()],
+        "afterprints": [{"id": x.id, "title": x.title, "tooltip": x.tooltip or "", "parameters": [{"id": p.id, "title": p.title, "value": p.value or "", "type": p.parameter_type or "text", "values": [{"id": v.id, "value": v.value} for v in db.scalars(select(AfterprintParameterValue).where(AfterprintParameterValue.afterprint_parameter_id == p.id, AfterprintParameterValue.deleted_at.is_(None)).order_by(AfterprintParameterValue.weight)).all()]} for p in db.scalars(select(AfterprintParameter).where(AfterprintParameter.afterprint_id == x.id, AfterprintParameter.deleted_at.is_(None))).all()]} for x in db.scalars(select(Afterprint).where(Afterprint.deleted_at.is_(None)).order_by(Afterprint.title)).all()],
     }
 
 
@@ -200,4 +200,5 @@ def serialize_blank(item: Blank, db: Session | None = None) -> dict:
     if db is not None:
         rows = db.scalars(select(BlankAfterprint).where(BlankAfterprint.blank_id == item.id, BlankAfterprint.deleted_at.is_(None))).all()
         afterprints = [{"id": row.afterprint_id, "title": row.afterprint.title if row.afterprint else "", "active": row.active, "parameters": row.parameters or ""} for row in rows]
-    return {"id": item.id, "title": item.title, "printer": item.printer.title if item.printer else "Без печати", "paper": item.paper.title if item.paper else (item.material.title if item.material else ""), "printer_id": item.printer_id, "printer_process_id": item.printer_process_id, "paper_id": item.paper_id, "material_id": item.material_id, "colors_front": item.colors_front, "colors_back": item.colors_back, "cutting": item.cutting, "width": str(item.width or 0), "height": str(item.height or 0), "details_per_sheet": item.details_per_sheet, "pages_per_sheet": item.pages_per_sheet, "details_per_blank": item.details_per_blank, "different_details": item.different_details, "comments": item.comments or "", "plates": 0, "self_print": False, "fix_plates": False, "afterprints": afterprints, "cost": str(item.cost or 0), "deleted": item.deleted_at is not None}
+    image = db.scalar(select(BlankImagesetter).where(BlankImagesetter.blank_id == item.id)) if db is not None else None
+    return {"id": item.id, "title": item.title, "printer": item.printer.title if item.printer else "Без печати", "paper": item.paper.title if item.paper else (item.material.title if item.material else ""), "printer_id": item.printer_id, "printer_process_id": item.printer_process_id, "paper_id": item.paper_id, "material_id": item.material_id, "colors_front": item.colors_front, "colors_back": item.colors_back, "cutting": item.cutting, "width": str(item.width or 0), "height": str(item.height or 0), "details_per_sheet": item.details_per_sheet, "pages_per_sheet": item.pages_per_sheet, "details_per_blank": item.details_per_blank, "different_details": item.different_details, "comments": item.comments or "", "plates": image.plates if image else 0, "self_print": bool(getattr(image, "self", False)) if image else False, "fix_plates": bool(image.fix) if image else False, "afterprints": afterprints, "cost": str(item.cost or 0), "deleted": item.deleted_at is not None}

@@ -451,6 +451,17 @@ def blank_update(order_id: int, blank_id: int, request: Request, payload: dict, 
     return {"status": "ok"}
 
 
+@app.get("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])
+def blank_detail(order_id: int, blank_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Blank, blank_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return {"item": serialize_blank(item, db), "metadata": blank_metadata(db), "calculation": "stored_cost"}
+
+
 @app.delete("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])
 def blank_delete(order_id: int, blank_id: int, request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
@@ -460,6 +471,21 @@ def blank_delete(order_id: int, blank_id: int, request: Request, db: Session = D
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item.deleted_at = __import__("datetime").datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.delete("/api/orders/{order_id}/blanks/{blank_id}/permanent", tags=["orders"])
+def blank_permanent_delete(order_id: int, blank_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Blank, blank_id)
+    if user is None or not user.has_permission("delete_trashed"):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    db.query(BlankAfterprint).filter(BlankAfterprint.blank_id == item.id).delete()
+    db.query(BlankImagesetter).filter(BlankImagesetter.blank_id == item.id).delete()
+    db.delete(item)
     db.commit()
     return {"status": "ok"}
 
