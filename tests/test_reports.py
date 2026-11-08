@@ -1,4 +1,5 @@
 import unittest
+import xlrd
 from pypdf import PdfReader
 from tests import test_reference_dictionaries as fixtures
 from app.models import Bill, Blank, Order, OrderStatus, Report, ReportParam
@@ -16,13 +17,14 @@ class ReportTests(unittest.TestCase):
                   calc_details=dumps({'printing':10,'title':'<script>bad</script>','paper':{'cost':12}})),
             Report(id='order_transcript',program='ipc',kind='html',title='Расшифровка расчета',model='App\\Order',model_title='Заказ'),
             Report(id='order_passport',program='ipc',kind='pdf',title='Passport',model='App\\Order',model_title='Заказ'),
+            Report(id='order_economy',program='ipc',kind='xls',title='Экономика',model='App\\Order',model_title='Заказ'),
             ReportParam(id=1,alias='company',report_id='order_transcript',title='Company',value='Original'),
         ])
         self.db.commit()
 
     def test_catalog_settings_and_parameter_scope(self):
         self.seed()
-        self.assertEqual(len(self.client.get('/api/report-settings').json()['items']),2)
+        self.assertEqual(len(self.client.get('/api/report-settings').json()['items']),3)
         self.assertEqual(self.client.patch('/api/report-settings/order_transcript',json={
             'title':'Updated','format':'A3','orientation':'L','download':True,'prohibitions':['1']
         }).status_code,200)
@@ -72,6 +74,26 @@ class ReportTests(unittest.TestCase):
         text = reader.pages[0].extract_text()
         self.assertIn('Паспорт заказа', text)
         self.assertIn('Обложка', text)
+
+    def test_economy_workbook_contains_sections_and_totals(self):
+        self.seed()
+        self.db.get(Order, 1).calc_details = dumps({
+            'blanks': {'1': {'cost': 12, 'details': {'title': 'Лист', 'paper': {'paper_list_count': 3}, 'print': {'colors_front': 4, 'colors_back': 0}}}},
+            'design': [{'title': 'Макет', 'quantity': 1, 'cost': 5}],
+            'other_works': [{'title': 'Упаковка', 'quantity': 2, 'cost': 4}],
+        })
+        self.db.commit()
+        response = self.client.get('/reports/order_economy/item/1')
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers['content-type'], 'application/vnd.ms-excel')
+        workbook = xlrd.open_workbook(file_contents=response.content)
+        sheet = workbook.sheet_by_name('Экономика')
+        values = sheet._cell_values
+        values = [cell for row in values for cell in row]
+        self.assertIn('Заготовки и печать', values)
+        self.assertIn('Работы', values)
+        self.assertIn('ИТОГО рассчитанная стоимость', values)
+        self.assertIn('Макет', values)
 
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()

@@ -13,6 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
+import xlwt
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -53,6 +54,80 @@ def _date(value):
 
 def _safe_pdf_value(value):
     return "" if value is None else str(value)
+
+
+def _number(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def build_economy_xls(order, report, calc_details):
+    """Build a legacy-compatible BIFF8 workbook from stored calculation details."""
+    workbook = xlwt.Workbook(encoding="utf-8")
+    sheet = workbook.add_sheet("Экономика")
+    title = xlwt.easyxf("font: name Arial, height 280, bold on; align: horiz center")
+    section_style = xlwt.easyxf("font: name Arial, height 220, bold on; pattern: pattern solid, fore_colour light_blue; borders: left thin, right thin, top thin, bottom thin")
+    header_style = xlwt.easyxf("font: name Arial, height 200, bold on; pattern: pattern solid, fore_colour pale_blue; borders: left thin, right thin, top thin, bottom thin; align: horiz center, vert centre, wrap on")
+    body_style = xlwt.easyxf("font: name Arial, height 200; borders: left thin, right thin, top thin, bottom thin; align: vert top, wrap on")
+    currency_style = xlwt.easyxf("font: name Arial, height 200; borders: left thin, right thin, top thin, bottom thin")
+    currency_style.num_format_str = "#,##0.00"
+    total_style = xlwt.easyxf("font: name Arial, height 200, bold on; borders: left thin, right thin, top thin, bottom thin")
+    total_style.num_format_str = "#,##0.00"
+    for col, width in enumerate((4500, 8000, 4000, 4000, 4000, 4000, 4000, 4500)):
+        sheet.col(col).width = width
+    sheet.write_merge(0, 0, 0, 7, _safe_pdf_value(report.title), title)
+    def write_row(row, values, style):
+        for column, value in enumerate(values): sheet.write(row, column, value, style)
+    write_row(1, ["Счёт №", _safe_pdf_value(order.bill.number if order.bill else ""), "Заказ №", order.id, "Заказчик", _safe_pdf_value(order.customer.title if order.customer else "")], body_style)
+    write_row(2, ["Название", _safe_pdf_value(order.title), "Тип продукции", _safe_pdf_value(order.order_type), "Тираж", order.printing], body_style)
+    write_row(3, ["Объём", _safe_pdf_value(order.volume), "Формат", _safe_pdf_value(order.format), "Хранённый итог", _number(order.total)], body_style)
+    row_number = 5
+    totals = {}
+
+    def safe_cell(value):
+        # Never allow user/reference text beginning with an Excel formula marker.
+        return "'" + value if isinstance(value, str) and value.startswith(("=", "+", "-", "@")) else value
+
+    def section(title_text, headers, rows, key):
+        nonlocal row_number
+        sheet.write_merge(row_number, row_number, 0, len(headers) - 1, safe_cell(title_text), section_style)
+        row_number += 1
+        for column, value in enumerate(headers): sheet.write(row_number, column, safe_cell(value), header_style)
+        row_number += 1
+        subtotal = 0.0
+        for values in rows:
+            for column, value in enumerate(values): sheet.write(row_number, column, safe_cell(value), currency_style if column == len(values) - 1 else body_style)
+            subtotal += _number(values[-1]); row_number += 1
+        for column in range(len(headers) - 2): sheet.write(row_number, column, "", total_style)
+        sheet.write(row_number, len(headers) - 2, "ИТОГО", total_style)
+        sheet.write(row_number, len(headers) - 1, subtotal, total_style)
+        row_number += 2; totals[key] = subtotal
+
+    details = calc_details if isinstance(calc_details, dict) else {}
+    markups = details.get("markups", {}) if isinstance(details.get("markups", {}), dict) else {}
+    def marked_cost(value, key):
+        markup = markups.get(key, {}) if isinstance(markups.get(key, {}), dict) else {}
+        return _number(value) * (1 + _number(markup.get("markup")) / 100) if markup.get("active") else _number(value)
+    blank_rows = []
+    for identity, blank in (details.get("blanks", {}) or {}).items():
+        if not isinstance(blank, dict): continue
+        info = blank.get("details", {}) if isinstance(blank.get("details"), dict) else {}
+        paper = info.get("paper", {}) if isinstance(info.get("paper"), dict) else {}
+        printing = info.get("print", {}) if isinstance(info.get("print"), dict) else {}
+        blank_rows.append([identity, info.get("title", ""), paper.get("paper_list_count", ""), printing.get("colors_front", ""), printing.get("colors_back", ""), "", "", marked_cost(blank.get("cost"), "print")])
+    section("Заготовки и печать", ["ID", "Заготовка", "Листы", "Цветность лицевая", "Цветность оборот", "", "", "Стоимость"], blank_rows or [["", "Нет данных", "", "", "", "", "", 0]], "blanks")
+    work_rows = []
+    for key, label in (("design", "Дизайн/препресс"), ("redaction", "Редактура"), ("compile", "Сборка"), ("other_works", "Прочие работы")):
+        values = details.get(key, []); values = list(values.values()) if isinstance(values, dict) else values
+        for item in values if isinstance(values, list) else []:
+            if isinstance(item, dict): work_rows.append([label, item.get("title", ""), item.get("quantity", ""), "", "", "", "", marked_cost(item.get("cost"), key)])
+    section("Работы", ["Раздел", "Наименование", "Количество", "", "", "", "", "Стоимость"], work_rows or [["", "Нет данных", "", "", "", "", "", 0]], "works")
+    grand_total = sum(totals.values())
+    sheet.write(row_number, 0, "ИТОГО рассчитанная стоимость", total_style); sheet.write(row_number, 7, grand_total, total_style); row_number += 1
+    sheet.write(row_number, 0, "Стоимость за 1 шт.", total_style); sheet.write(row_number, 7, grand_total / max(int(order.printing or 1), 1), total_style)
+    output = BytesIO(); workbook.save(output); return output.getvalue()
 
 
 def build_passport_pdf(order, report, blanks, calc_details):
@@ -209,7 +284,7 @@ def register_report_routes(app, current_user):
         if not item or item.deleted_at: raise HTTPException(404)
         rows = db.scalars(select(Report).where(Report.model == model_name,Report.deleted_at.is_(None)).order_by(Report.id)).all()
         return {"items":[serialize_report(row) | {
-            "available":((row.id == "order_transcript" and row.program == "ipc" and row.kind == "html") or (row.id == "order_passport" and row.program == "ipc" and row.kind == "pdf")) and not row.form,
+            "available":((row.id == "order_transcript" and row.program == "ipc" and row.kind == "html") or (row.id == "order_passport" and row.program == "ipc" and row.kind == "pdf") or (row.id == "order_economy" and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and not row.form,
             "blocked":str(getattr(item,"status_id","")) in row.prohibitions.split(","),
             "url":f"/reports/{row.id}/item/{identity}",
         } for row in rows]}
@@ -222,6 +297,21 @@ def register_report_routes(app, current_user):
         item = db.get(Order,identity)
         if not item or item.deleted_at: raise HTTPException(404)
         if str(item.status_id) in report.prohibitions.split(","): raise HTTPException(403,"Документ недоступен при текущем статусе.")
+        if report.id == "order_economy" and report.program == "ipc" and report.kind in {"xls", "xlsx"}:
+            raw = item.calc_details or ""
+            if not raw:
+                raise HTTPException(422,"Сохранённый расчёт отсутствует или повреждён. Пересчитайте заказ.")
+            try:
+                if len(raw) > 5_000_000: raise ValueError("Calculation too large")
+                decoded = json.loads(raw) if raw.lstrip().startswith("{") else loads(raw)
+                if not isinstance(decoded, dict): raise ValueError("Expected array")
+            except (ValueError, UnicodeError, ArithmeticError, RecursionError):
+                raise HTTPException(422,"Сохранённый расчёт отсутствует или повреждён. Пересчитайте заказ.")
+            workbook = build_economy_xls(item, report, decoded)
+            headers = {"Cache-Control":"no-store", "X-Content-Type-Options":"nosniff"}
+            if report.download:
+                headers["Content-Disposition"] = f'attachment; filename="order-economy-{identity}.xls"'
+            return Response(workbook, media_type="application/vnd.ms-excel", headers=headers)
         if report.id == "order_passport" and report.kind == "pdf":
             raw = item.calc_details or ""
             if not raw:
