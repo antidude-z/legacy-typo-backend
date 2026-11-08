@@ -248,6 +248,72 @@ def build_payment_xls(bill, report, orders, params, actor, variables=None):
     output = BytesIO(); workbook.save(output); return output.getvalue()
 
 
+def build_shipping_pdf(bill, report, orders, params, variables=None):
+    """Render the supported core of the legacy bill shipping document."""
+    variables = variables or {}
+    assets = Path(__file__).parent / "assets"
+    if "Shipping" not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont("Shipping", str(assets / "DejaVuSans.ttf")))
+        pdfmetrics.registerFont(TTFont("ShippingBold", str(assets / "DejaVuSans-Bold.ttf")))
+    page = {"A3": A3, "A4": A4, "A5": A5}.get(report.format)
+    if page is None:
+        raise HTTPException(501, "Формат бумаги этого шаблона ещё не поддерживается.")
+    if report.orientation == "L":
+        page = landscape(page)
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=page, title=report.title,
+                            rightMargin=8 * mm, leftMargin=8 * mm,
+                            topMargin=8 * mm, bottomMargin=8 * mm)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="ShippingSmall", parent=styles["Normal"], fontName="Shipping", fontSize=7, leading=9))
+    styles.add(ParagraphStyle(name="ShippingTitle", parent=styles["Title"], fontName="ShippingBold", fontSize=12, leading=14, alignment=1))
+    styles.add(ParagraphStyle(name="ShippingHeading", parent=styles["Heading2"], fontName="ShippingBold", fontSize=9, leading=11))
+
+    def cell(value="", bold=False):
+        style = styles["ShippingSmall"]
+        if bold:
+            style = ParagraphStyle(name="ShippingCellBold", parent=style, fontName="ShippingBold")
+        return Paragraph(escape(_safe_pdf_value(value)).replace("\n", "<br/>"), style)
+
+    params = params or {}
+    story = [Paragraph("ТРЕБОВАНИЕ-НАКЛАДНАЯ № ____", styles["ShippingTitle"]), Spacer(1, 2 * mm)]
+    header = [
+        [cell("Учреждение", True), cell('ФГАОУ ВО "УрФУ имени первого Президента России Б.Н.Ельцина"'), cell("Форма по ОКУД", True), cell("0504204")],
+        [cell("Подразделение-отправитель", True), cell("Издательско-полиграфический центр УрФУ"), cell("Счет №", True), cell(bill.number)],
+        [cell("Дата счета", True), cell(_date(bill.bill_date)), cell("Единица измерения", True), cell("руб. (383)")],
+    ]
+    header_table = Table(header, colWidths=[34 * mm, 82 * mm, 34 * mm, 34 * mm])
+    header_table.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), .4, colors.black), ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#eeeeee")), ("BACKGROUND", (2, 0), (2, -1), colors.HexColor("#eeeeee")), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story.extend([header_table, Spacer(1, 3 * mm), Paragraph("Материальные ценности", styles["ShippingHeading"])])
+    rows = [[cell("Наименование", True), cell("Номер", True), cell("Ед.", True), cell("Цена", True), cell("Количество", True), cell("Сумма (без НДС)", True), cell("Примечание", True)]]
+    total = Decimal("0")
+    for order in orders:
+        amount = Decimal(str(order.total or 0))
+        quantity = order.printing or 0
+        unit = amount / quantity if quantity else Decimal("0")
+        rows.append([cell(order.title), cell(order.id), cell("шт"), cell(f"{unit:.2f}"), cell(quantity), cell(f"{amount:.2f}"), cell("")])
+        total += amount
+    rows.append([cell("Итого:", True), cell(""), cell(""), cell("X"), cell("X"), cell(f"{total:.2f}", True), cell("")])
+    table = Table(rows, colWidths=[48 * mm, 14 * mm, 12 * mm, 23 * mm, 25 * mm, 32 * mm, 25 * mm], repeatRows=1)
+    table.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), .4, colors.black), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dddddd")), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story.extend([table, Spacer(1, 5 * mm)])
+    manager = ""
+    if orders and orders[0].manager:
+        manager = " ".join(x for x in [orders[0].manager.surname, orders[0].manager.name] if x)
+    signatures = [
+        [cell("Отпустил", True), cell("Ответственный исполнитель", True)],
+        [cell(params.get("pto", {}).get("title", "")), cell("Менеджер")],
+        [cell(params.get("pto", {}).get("value", "")), cell(manager)],
+        [cell("Бухгалтер"), cell(variables.get("buh", ""))],
+        [cell("Получил"), cell("")],
+    ]
+    signature_table = Table(signatures, colWidths=[85 * mm, 94 * mm])
+    signature_table.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), .4, colors.black), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eeeeee")), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story.append(signature_table)
+    doc.build(story)
+    return buffer.getvalue()
+
+
 def build_passport_pdf(order, report, blanks, calc_details):
     """Build the portable core of the legacy IPC order passport.
 
@@ -425,7 +491,7 @@ def register_report_routes(app, current_user):
         if not item or item.deleted_at: raise HTTPException(404)
         rows = db.scalars(select(Report).where(Report.model == model_name,Report.deleted_at.is_(None)).order_by(Report.id)).all()
         return {"items":[serialize_report(row) | {
-            "available":((row.id in {"order_transcript"} and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide", "order_design"} and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_payment" and row.model == "App\\Bill" and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and (row.id == "order_payment" or not row.form),
+            "available":((row.id in {"order_transcript"} and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide", "order_design"} and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_payment" and row.model == "App\\Order" and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_shipping" and row.model == "App\\Bill" and row.program == "ipc" and row.kind == "pdf")) and (row.id == "order_payment" or not row.form),
             "blocked":str(getattr(item,"status_id","")) in row.prohibitions.split(","),
             "url":f"/reports/{row.id}/item/{identity}",
         } for row in rows]}
@@ -438,7 +504,7 @@ def register_report_routes(app, current_user):
         if not bill or bill.deleted_at:
             raise HTTPException(404)
         reports = db.scalars(select(Report).where(
-            Report.id.in_(["order_passport", "order_economy", "order_economy_wide"]),
+            Report.id.in_(["order_passport", "order_economy", "order_economy_wide", "order_shipping"]),
             Report.model == "App\\Order", Report.deleted_at.is_(None),
         ).order_by(Report.id)).all()
         orders = db.scalars(select(Order).where(Order.bill_id == identity, Order.deleted_at.is_(None)).order_by(Order.id)).all()
@@ -447,7 +513,8 @@ def register_report_routes(app, current_user):
             "title": order.title,
             "reports": [serialize_report(report) | {
                 "available": ((report.id == "order_passport" and report.kind == "pdf") or
-                              (report.id in {"order_economy", "order_economy_wide"} and report.kind in {"xls", "xlsx"})) and
+                              (report.id in {"order_economy", "order_economy_wide"} and report.kind in {"xls", "xlsx"}) or
+                              (report.id == "order_shipping" and report.kind == "pdf")) and
                              report.program == "ipc" and not report.form,
                 "blocked": str(order.status_id) in report.prohibitions.split(","),
                 "url": f"/reports/{report.id}/item/{order.id}",
@@ -455,8 +522,23 @@ def register_report_routes(app, current_user):
         } for order in orders]}
 
     @app.api_route("/reports/{report_id}/item/{identity}", methods=["GET", "POST"], tags=["reports"])
-    def generate(report_id: str, identity: int, request: Request, payload: dict | None = None, institute: str | None = Form(None, alias="vars[institute]"), customer: str | None = Form(None, alias="vars[customer]"), db: Session = Depends(get_db)):
+    def generate(report_id: str, identity: int, request: Request, payload: dict | None = None, institute: str | None = Form(None, alias="vars[institute]"), customer: str | None = Form(None, alias="vars[customer]"), buh: str | None = Form(None, alias="vars[buh]"), db: Session = Depends(get_db)):
         user = actor(request,db); report = report_for(report_id,db)
+        if report.id == "order_shipping" and report.model == "App\\Bill" and report.program == "ipc" and report.kind == "pdf":
+            bill = db.get(Bill, identity)
+            if not bill or bill.deleted_at:
+                raise HTTPException(404)
+            if getattr(bill, "status_id", None) is not None and str(bill.status_id) in report.prohibitions.split(","):
+                raise HTTPException(403, "Документ недоступен при текущем статусе.")
+            params = {row.alias: {"title": row.title, "value": row.value} for row in params_for(report_id, db)}
+            orders = db.scalars(select(Order).where(Order.bill_id == identity, Order.deleted_at.is_(None)).order_by(Order.id)).all()
+            variables = payload.get("vars", {}) if isinstance(payload, dict) and isinstance(payload.get("vars", {}), dict) else {}
+            variables = {"buh": buh if buh is not None else variables.get("buh", params.get("buh", {}).get("value", ""))}
+            content = build_shipping_pdf(bill, report, orders, params, variables)
+            headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+            if report.download:
+                headers["Content-Disposition"] = f'attachment; filename="order-shipping-{identity}.pdf"'
+            return Response(content, media_type="application/pdf", headers=headers)
         if report.id == "order_payment" and report.model == "App\\Bill" and report.program == "ipc" and report.kind in {"xls", "xlsx"}:
             bill = db.get(Bill, identity)
             if not bill or bill.deleted_at: raise HTTPException(404)

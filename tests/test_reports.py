@@ -188,6 +188,37 @@ class ReportTests(unittest.TestCase):
         posted_sheet = xlrd.open_workbook(file_contents=posted.content).sheet_by_name('Заявка на оплату')
         self.assertTrue(any('Институт' in str(cell) for row in posted_sheet._cell_values for cell in row))
 
+    def test_shipping_pdf_uses_bill_orders_and_signatory_parameters(self):
+        self.seed()
+        bill = Bill(id=30, number='INV-30', bill_date=__import__('datetime').date(2024, 3, 4), amount=275)
+        manager = User(id=31, name='Manager', surname='Shipping', email='shipping', password='unused', phone='123')
+        orders = [
+            Order(id=32, title='Shipment one', status_id=1, printing=5, total=125, bill_id=30, user_id=31),
+            Order(id=33, title='Shipment two', status_id=1, printing=10, total=150, bill_id=30, user_id=31),
+        ]
+        shipping = Report(id='order_shipping', program='ipc', kind='pdf', title='Документ на отгрузку', model='App\\Bill', model_title='Счет', format='A4', orientation='P', download=True)
+        params = [
+            ReportParam(id=10, alias='boss', report_id='order_shipping', title='Директор', value='Director'),
+            ReportParam(id=11, alias='pto', report_id='order_shipping', title='Начальник производства', value='Production'),
+            ReportParam(id=12, alias='buh', report_id='order_shipping', title='Бухгалтер', value='Accountant'),
+        ]
+        self.db.add_all([bill, manager, *orders, shipping, *params])
+        self.db.commit()
+        response = self.client.get('/reports/order_shipping/item/30')
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers['content-type'], 'application/pdf')
+        self.assertIn('attachment', response.headers['content-disposition'])
+        text = PdfReader(__import__('io').BytesIO(response.content)).pages[0].extract_text()
+        self.assertIn('ТРЕБОВАНИЕ-НАКЛАДНАЯ', text)
+        self.assertIn('Shipment one', text)
+        self.assertIn('Shipment two', text)
+        self.assertIn('275.00', text)
+        self.assertIn('Production', text)
+        self.assertIn('Accountant', text)
+
+        actions = self.client.get('/api/reports/for/bills/30').json()['items']
+        self.assertTrue(next(item for item in actions if item['id'] == 'order_shipping')['available'])
+
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()
         self.db.get(Order,1).calc_details='O:3:"Foo":0:{}'; self.db.commit()
