@@ -12,7 +12,7 @@ from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
 from .models import Action, Afterprint, Blank, BlankAfterprint, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
-from .orders import blank_metadata, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
+from .orders import blank_metadata, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 
 
 @asynccontextmanager
@@ -471,6 +471,19 @@ def price_lookup(priceable_type: str, priceable_id: int, request: Request, quant
     result = resolve_price(db, priceable_type, priceable_id, quantity, effective, currency)
     result["amount"] = str(result["amount"])
     result["rate"] = str(result["rate"])
+    return result
+
+
+@app.get("/api/pricing/printers/{printer_id}/calculate", tags=["pricing"])
+def printer_calculate(printer_id: int, request: Request, printing: int = Query(...), colors_front: int = Query(1), colors_back: int = Query(0), process_id: int | None = Query(None), price_date: str | None = Query(None), currency: str = Query("RUB"), db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    effective = __import__("datetime").datetime.strptime(price_date, "%Y-%m-%d").date() if price_date else None
+    result = calculate_printer(db, printer_id, printing, colors_front, colors_back, effective, process_id, currency)
+    result["result"] = str(result["result"])
+    for stage in result["details"]["stages"]:
+        stage["price"] = str(stage["price"])
+        stage["cost"] = str(stage["cost"])
     return result
 
 

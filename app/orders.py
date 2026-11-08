@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .models import (
     Action, Afterprint, AfterprintParameter, AfterprintParameterValue, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
-    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterProcess, Rate, Redaction, User,
+    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Rate, Redaction, User,
 )
 
 
@@ -223,3 +223,38 @@ def resolve_price(db: Session, priceable_type: str, priceable_id: int, quantity:
         return {"amount": Decimal("0"), "currency": currency, "source_currency": None, "rate": Decimal("1"), "found": False}
     rate = currency_rate(db, price.currency, currency, effective)
     return {"amount": Decimal(price.amount or 0) * rate, "currency": currency, "source_currency": price.currency, "rate": rate, "found": True, "price_id": price.id}
+
+
+def calculate_printer(db: Session, printer_id: int, printing: int, colors_front: int, colors_back: int, order_date: date | None = None, process_id: int | None = None, currency: str = "RUB") -> dict:
+    printer = db.get(Printer, printer_id)
+    if printer is None:
+        return {"result": Decimal("0"), "pl_count": printing, "details": {"title": "Без печати", "stages": []}, "status": "missing_printer"}
+    processes = select(PrinterProcess).where(PrinterProcess.printer_id == printer_id, PrinterProcess.deleted_at.is_(None))
+    if process_id:
+        processes = processes.where(PrinterProcess.id == process_id)
+    else:
+        processes = processes.where(PrinterProcess.colors_front >= colors_front, PrinterProcess.colors_back >= colors_back).order_by(PrinterProcess.colors_front.asc(), PrinterProcess.colors_back.asc())
+    process = db.scalar(processes)
+    separate = False
+    if process is None and not process_id:
+        process = db.scalar(select(PrinterProcess).where(PrinterProcess.printer_id == printer_id, PrinterProcess.deleted_at.is_(None), PrinterProcess.colors_front <= colors_front).order_by(PrinterProcess.colors_front.desc()))
+        separate = process is not None
+    if process is None:
+        return {"result": Decimal("0"), "pl_count": printing, "details": {"title": "Процесс печати не найден", "stages": []}, "status": "missing_process"}
+    stages = db.scalars(select(PrinterProcessStage).where(PrinterProcessStage.printer_process_id == process.id, PrinterProcessStage.deleted_at.is_(None)).order_by(PrinterProcessStage.weight.desc() if not separate else PrinterProcessStage.weight.asc())).all()
+    total = Decimal("0")
+    pl_count = printing
+    stage_details = []
+    passes = [("front", colors_front), ("back", colors_back)] if separate else [("front_back", max(colors_front, colors_back))]
+    for side, colors in passes:
+        for stage in stages:
+            stage_colors = max(stage.colors, 1)
+            repeats = (colors + stage_colors - 1) // stage_colors
+            pl_count += stage.waste * repeats
+            together = max(stage.together, 1)
+            payment_count = ((pl_count + together - 1) // together) * repeats
+            price = resolve_price(db, "App\\PrinterProcessStage", stage.id, payment_count, order_date, currency)
+            cost = price["amount"] * payment_count
+            total += cost
+            stage_details.append({"side": side, "title": stage.title, "pl_count": pl_count, "repeats": repeats, "together": together, "payment_count": payment_count, "price": str(price["amount"]), "cost": str(cost), "price_found": price["found"]})
+    return {"result": total, "pl_count": pl_count, "details": {"title": ("Печать отдельно лица и оборота: " if separate else "Печать в один проход (лицо+оборот): ") + process.title, "stages": stage_details}, "status": "calculated" if all(item["price_found"] for item in stage_details) else "missing_prices"}

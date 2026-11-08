@@ -234,8 +234,28 @@ class PrinterProcess(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(50), nullable=False)
     printer_id = Column(Integer, ForeignKey("printers.id"), nullable=True)
+    together = Column(Integer, nullable=False, default=1)
+    colors = Column(Integer, nullable=False, default=1)
+    colors_front = Column(Integer, nullable=True)
+    colors_back = Column(Integer, nullable=True)
+    rejection = Column(Integer, nullable=True)
+    waste = Column(Integer, nullable=False, default=0)
+    resolution = Column(Integer, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     printer = relationship("Printer")
+
+
+class PrinterProcessStage(Base):
+    __tablename__ = "printer_process_stages"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    printer_process_id = Column(Integer, ForeignKey("printer_processes.id"), nullable=False)
+    together = Column(Integer, nullable=False, default=1)
+    colors = Column(Integer, nullable=False, default=1)
+    waste = Column(Integer, nullable=False, default=0)
+    weight = Column(Integer, nullable=False, default=0)
+    deleted_at = Column(DateTime, nullable=True)
+    printer_process = relationship("PrinterProcess")
 
 
 class PaperType(Base):
