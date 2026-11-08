@@ -24,6 +24,7 @@ class BillTests(unittest.TestCase):
         self.assertEqual(result['item']['paid_sum'],'10.00')
         self.assertFalse(result['item']['paid'])
         self.assertEqual(result['orders'][0]['price'],'0')
+        self.assertEqual(result['orders_total'],'5.00')
         self.assertEqual(self.client.patch(target,json={**payload,'bill_closed':True}).status_code,200)
         self.assertTrue(self.db.get(Bill,identity).closed)
 
@@ -55,6 +56,22 @@ class BillTests(unittest.TestCase):
 
     def seed_payload(self):
         return {'number':'x','bill_date':'2024-01-01','amount':'1'}
+
+    def test_invalid_filter_never_replaces_valid_session_filter(self):
+        self.client.post('/api/accounting/bills',json=self.seed())
+        self.client.post('/api/accounting/bills/filter',json={'filter_text':'001'})
+        for changes in ({'filter_date_from':['invalid']}, {'filter_manager':-1},
+                        {'filter_date_from':'2024-02-01','filter_date_to':'2024-01-01'}):
+            self.assertEqual(self.client.post('/api/accounting/bills/filter',json=changes).status_code,422)
+        self.assertEqual(self.client.get('/api/accounting/bills').json()['filter']['filter_text'],'001')
+
+    def test_customer_payer_relationship_storage_without_invented_editor(self):
+        from app.models import Customer
+        payer = Payer(title='Company')
+        customer = Customer(title='Client',payers=[payer])
+        self.db.add(customer); self.db.commit(); self.db.expire_all()
+        self.assertEqual(self.db.get(Customer,customer.id).payers[0].title,'Company')
+        self.assertEqual(self.db.get(Payer,payer.id).customers[0].title,'Client')
 
     def test_existing_bill_upgrade_preserves_number(self):
         from unittest.mock import patch

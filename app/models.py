@@ -15,6 +15,16 @@ role_permissions = Table(
 )
 
 
+customer_payer = Table(
+    "customer_payer", Base.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("customer_id", ForeignKey("customers.id"), nullable=False, index=True),
+    Column("payer_id", ForeignKey("payers.id"), nullable=False, index=True),
+    Column("created_at", DateTime, nullable=True),
+    Column("updated_at", DateTime, nullable=True),
+)
+
+
 class Permission(Base):
     __tablename__ = "permissions"
 
@@ -77,6 +87,7 @@ class Customer(Base):
     customer_group_id = Column(Integer, ForeignKey("customer_groups.id"), nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     group = relationship("CustomerGroup")
+    payers = relationship("Payer", secondary=customer_payer, back_populates="customers")
 
 
 class CustomerGroup(Base):
@@ -96,6 +107,7 @@ class Payer(Base):
     description = Column(Text, nullable=True)
     profit = Column(Integer, nullable=False, default=0)
     deleted_at = Column(DateTime, nullable=True)
+    customers = relationship("Customer", secondary=customer_payer, back_populates="payers")
 
 
 class Bill(Base):

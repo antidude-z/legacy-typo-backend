@@ -2,6 +2,25 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Accounting handoff
+
+The standalone payer/bill/payment implementation is closed. Bill detail includes
+active linked-order totals and active-payment totals separately from manual paid
+flags. Read-only bill views offer an edit action but do not expose payment mutation
+buttons; the editor saves before payment navigation. Money displays use two
+decimal places. Malformed/reversed date filters return validation errors without
+overwriting the previous session filter.
+
+The customer_payer pivot and bidirectional model relationships are retained for
+data compatibility. An audit of legacy controllers/views found no editor or
+mutation workflow for that relationship; no new association editor was added.
+
+Not completed here: report buttons, exports, and opening order documents from a
+bill. Those require the Reports engine and are not replaced with inert actions.
+Browser/E2E/visual acceptance, representative dump-backed comparisons, complete
+database migration/import, and shared CSRF/session hardening remain project
+acceptance work. Internal notes track deviations separately from this handoff.
+
 ## Orders–Accounting navigation integration
 
 The Orders editor uses a single bill selector backed by the existing bill search

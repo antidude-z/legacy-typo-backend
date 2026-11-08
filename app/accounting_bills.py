@@ -97,12 +97,16 @@ def register_bill_routes(app, current_user):
         actor(request,db)
         values = {key:payload.get(key, "") for key in ("filter_manager","filter_payer","filter_text","filter_date_from","filter_date_to")}
         if not payload.get("flush"):
+            if any(not isinstance(values[key], str) for key in ("filter_text", "filter_date_from", "filter_date_to")):
+                raise HTTPException(422, "Некорректные поля фильтра.")
             for key in ("filter_date_from","filter_date_to"):
-                if values[key]: bill_date(values[key])
+                if values[key]: values[key] = bill_date(values[key]).isoformat()
             for key in ("filter_manager","filter_payer"):
                 try: values[key] = integer(values[key]) if values[key] else ""
                 except (ValueError, TypeError, InvalidOperation): raise HTTPException(422)
-            if not isinstance(values["filter_text"],str): raise HTTPException(422)
+                if values[key] != "" and values[key] < 0: raise HTTPException(422)
+            if values["filter_date_from"] and values["filter_date_to"] and values["filter_date_from"] > values["filter_date_to"]:
+                raise HTTPException(422, "Дата начала не может быть позже даты окончания.")
         request.session["bills_filter"] = {} if payload.get("flush") else values
         return {"status":"ok"}
 
@@ -120,7 +124,7 @@ def register_bill_routes(app, current_user):
         for token in search.split():
             query = query.where(or_(Bill.number.ilike(f"{token}%"),User.name.ilike(f"{token}%"),User.surname.ilike(f"{token}%"),Payer.title.ilike(f"%{token}%")))
         for row in db.scalars(query.order_by(Bill.number).limit(20)).all():
-            manager = f" ({row.manager.surname} {row.manager.name[:1]}.)" if row.manager else ""
+            manager = f" ({row.manager.surname or ''} {row.manager.name[:1]}.)" if row.manager else ""
             date = row.bill_date.strftime("%d.%m.%Y г.") if row.bill_date else ""
             result.append({"id":row.id,"text":f"{row.number} от {date}{manager}" + (f", {row.payer.title}" if row.payer else "")})
         return result
@@ -131,7 +135,7 @@ def register_bill_routes(app, current_user):
         orders = db.scalars(select(Order).where(Order.bill_id == identity,Order.deleted_at.is_(None)).order_by(Order.id)).all()
         query = select(Payment).where(Payment.bill_id == identity)
         if not user.has_permission("view_trashed"): query = query.where(Payment.deleted_at.is_(None))
-        return {"item":serialize(row,db),"metadata":options(db),"orders":[{"id":x.id,"title":x.title,"printing":x.printing,"total":str(x.total),"price":str(x.total/x.printing if x.printing else 0)} for x in orders],
+        return {"item":serialize(row,db),"metadata":options(db),"orders_total":str(sum((x.total for x in orders), Decimal("0.00"))),"orders":[{"id":x.id,"title":x.title,"printing":x.printing,"total":str(x.total),"price":str(x.total/x.printing if x.printing else 0)} for x in orders],
                 "payments":[{"id":x.id,"payment_date":x.payment_date.isoformat(),"amount":str(x.amount),"deleted":x.deleted_at is not None} for x in db.scalars(query.order_by(Payment.id)).all()],**flags(user)}
 
     @app.post("/api/accounting/bills", tags=["accounting"])
