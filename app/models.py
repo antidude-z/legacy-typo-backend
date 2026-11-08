@@ -314,6 +314,7 @@ class Paper(Base):
     format_id = Column(Integer, ForeignKey("paper_formats.id"), nullable=True)
     weight = Column(Integer, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
+    markup = Column(Integer, nullable=False, default=10)
     paper_type = relationship("PaperType")
     paper_format = relationship("PaperFormat")
 
@@ -322,7 +323,15 @@ class Material(Base):
     __tablename__ = "materials"
     id = Column(Integer, primary_key=True)
     title = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    measure_id = Column(Integer, ForeignKey("measures.id"), nullable=True)
+    work_type = Column(String(30), nullable=True, default="print")
+    production_book = Column(Boolean, nullable=False, default=False)
+    production_poly = Column(Boolean, nullable=False, default=False)
+    production_souvenir = Column(Boolean, nullable=False, default=False)
+    production_wide = Column(Boolean, nullable=False, default=False)
     deleted_at = Column(DateTime, nullable=True)
+    measure = relationship("Measure")
 
 
 class Service(Base):

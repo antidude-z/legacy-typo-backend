@@ -757,3 +757,5 @@ def blank_restore(order_id: int, blank_id: int, request: Request, db: Session = 
 # and the existing session authentication contract work for reference routes.
 from .reference_dictionaries import register_reference_routes
 register_reference_routes(app, lambda request, db: current_user(request, db))
+from .reference_inventory import register_inventory_routes
+register_inventory_routes(app, lambda request, db: current_user(request, db))
