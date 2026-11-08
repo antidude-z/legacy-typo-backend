@@ -113,6 +113,20 @@ class ReportTests(unittest.TestCase):
         self.assertEqual({item['id'] for item in reports}, {'order_economy', 'order_passport'})
         self.assertTrue(all(item['available'] for item in reports))
 
+    def test_wide_economy_report_adds_wide_section(self):
+        self.seed()
+        self.db.get(Order, 1).order_type = 'wide'
+        self.db.get(Order, 1).calc_details = dumps({
+            'blanks': {'1': {'cost': 18, 'details': {'title': 'Панель', 'width': 1000, 'height': 500, 'paper': {'material_count': 2}, 'print': {'steps_count': 1}}}},
+        })
+        self.db.commit()
+        response = self.client.get('/reports/order_economy/item/1')
+        self.assertEqual(response.status_code, 200, response.text)
+        sheet = xlrd.open_workbook(file_contents=response.content).sheet_by_name('Экономика')
+        values = [cell for row in sheet._cell_values for cell in row]
+        self.assertIn('Широкоформатная печать', values)
+        self.assertIn('Панель', values)
+
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()
         self.db.get(Order,1).calc_details='O:3:"Foo":0:{}'; self.db.commit()

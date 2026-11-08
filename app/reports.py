@@ -124,6 +124,15 @@ def build_economy_xls(order, report, calc_details):
         for item in values if isinstance(values, list) else []:
             if isinstance(item, dict): work_rows.append([label, item.get("title", ""), item.get("quantity", ""), "", "", "", "", marked_cost(item.get("cost"), key)])
     section("Работы", ["Раздел", "Наименование", "Количество", "", "", "", "", "Стоимость"], work_rows or [["", "Нет данных", "", "", "", "", "", 0]], "works")
+    if order.order_type == "wide" or report.id == "order_economy_wide":
+        wide_rows = []
+        for identity, blank in (details.get("blanks", {}) or {}).items():
+            if not isinstance(blank, dict): continue
+            info = blank.get("details", {}) if isinstance(blank.get("details"), dict) else {}
+            paper = info.get("paper", {}) if isinstance(info.get("paper"), dict) else {}
+            printing = info.get("print", {}) if isinstance(info.get("print"), dict) else {}
+            wide_rows.append([identity, info.get("title", ""), info.get("width", ""), info.get("height", ""), paper.get("material_count", ""), printing.get("steps_count", ""), "", marked_cost(blank.get("cost"), "print")])
+        section("Широкоформатная печать", ["ID", "Заготовка", "Ширина", "Высота", "Площадь/материал", "Проходы", "", "Стоимость"], wide_rows or [["", "Нет данных", "", "", "", "", "", 0]], "wide")
     grand_total = sum(totals.values())
     sheet.write(row_number, 0, "ИТОГО рассчитанная стоимость", total_style); sheet.write(row_number, 7, grand_total, total_style); row_number += 1
     sheet.write(row_number, 0, "Стоимость за 1 шт.", total_style); sheet.write(row_number, 7, grand_total / max(int(order.printing or 1), 1), total_style)
@@ -284,7 +293,7 @@ def register_report_routes(app, current_user):
         if not item or item.deleted_at: raise HTTPException(404)
         rows = db.scalars(select(Report).where(Report.model == model_name,Report.deleted_at.is_(None)).order_by(Report.id)).all()
         return {"items":[serialize_report(row) | {
-            "available":((row.id == "order_transcript" and row.program == "ipc" and row.kind == "html") or (row.id == "order_passport" and row.program == "ipc" and row.kind == "pdf") or (row.id == "order_economy" and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and not row.form,
+            "available":((row.id == "order_transcript" and row.program == "ipc" and row.kind == "html") or (row.id == "order_passport" and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide"} and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and not row.form,
             "blocked":str(getattr(item,"status_id","")) in row.prohibitions.split(","),
             "url":f"/reports/{row.id}/item/{identity}",
         } for row in rows]}
@@ -297,7 +306,7 @@ def register_report_routes(app, current_user):
         if not bill or bill.deleted_at:
             raise HTTPException(404)
         reports = db.scalars(select(Report).where(
-            Report.id.in_(["order_passport", "order_economy"]),
+            Report.id.in_(["order_passport", "order_economy", "order_economy_wide"]),
             Report.model == "App\\Order", Report.deleted_at.is_(None),
         ).order_by(Report.id)).all()
         orders = db.scalars(select(Order).where(Order.bill_id == identity, Order.deleted_at.is_(None)).order_by(Order.id)).all()
@@ -306,7 +315,7 @@ def register_report_routes(app, current_user):
             "title": order.title,
             "reports": [serialize_report(report) | {
                 "available": ((report.id == "order_passport" and report.kind == "pdf") or
-                              (report.id == "order_economy" and report.kind in {"xls", "xlsx"})) and
+                              (report.id in {"order_economy", "order_economy_wide"} and report.kind in {"xls", "xlsx"})) and
                              report.program == "ipc" and not report.form,
                 "blocked": str(order.status_id) in report.prohibitions.split(","),
                 "url": f"/reports/{report.id}/item/{order.id}",
@@ -321,7 +330,7 @@ def register_report_routes(app, current_user):
         item = db.get(Order,identity)
         if not item or item.deleted_at: raise HTTPException(404)
         if str(item.status_id) in report.prohibitions.split(","): raise HTTPException(403,"Документ недоступен при текущем статусе.")
-        if report.id == "order_economy" and report.program == "ipc" and report.kind in {"xls", "xlsx"}:
+        if report.id in {"order_economy", "order_economy_wide"} and report.program == "ipc" and report.kind in {"xls", "xlsx"}:
             raw = item.calc_details or ""
             if not raw:
                 raise HTTPException(422,"Сохранённый расчёт отсутствует или повреждён. Пересчитайте заказ.")
