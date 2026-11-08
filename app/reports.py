@@ -216,6 +216,29 @@ def build_passport_pdf(order, report, blanks, calc_details):
     material_table = Table(cells(material_rows), colWidths=widths([75,35,35,70]), repeatRows=1)
     material_table.setStyle(TableStyle([("GRID", (0,0), (-1,-1), .4, colors.black), ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#dddddd")), ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"), ("FONTSIZE", (0,0), (-1,-1), 7)]))
     story.append(material_table)
+    if order.order_type == "wide" or report.id == "order_passport_wide":
+        story.extend([Spacer(1, 4*mm), Paragraph("Широкоформатное производство", styles["Heading"])])
+        wide_rows = [["Заготовка", "Материал", "Ширина", "Высота", "Расход", "Проходы", "Машина"]]
+        for blank in blanks:
+            detail = details_blanks.get(str(blank.id), details_blanks.get(blank.id, {}))
+            detail = detail if isinstance(detail, dict) else {}
+            nested = detail.get("details", {}) if isinstance(detail.get("details", {}), dict) else {}
+            paper = nested.get("paper", {}) if isinstance(nested.get("paper", {}), dict) else {}
+            printing = nested.get("print", {}) if isinstance(nested.get("print", {}), dict) else {}
+            wide_rows.append([
+                blank.title,
+                _safe_pdf_value(blank.material.title if blank.material else paper.get("title", "")),
+                _safe_pdf_value(nested.get("width", blank.width)),
+                _safe_pdf_value(nested.get("height", blank.height)),
+                _safe_pdf_value(paper.get("material_count", paper.get("area", ""))),
+                _safe_pdf_value(printing.get("steps_count", nested.get("steps_count", ""))),
+                _safe_pdf_value(blank.printer.title if blank.printer else ""),
+            ])
+        if len(wide_rows) == 1:
+            wide_rows.append(["Нет заготовок", "", "", "", "", "", ""])
+        wide_table = Table(cells(wide_rows), colWidths=widths([32,45,25,25,30,25,38]), repeatRows=1)
+        wide_table.setStyle(TableStyle([("GRID", (0,0), (-1,-1), .4, colors.black), ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#dddddd")), ("FONTSIZE", (0,0), (-1,-1), 7), ("VALIGN", (0,0), (-1,-1), "MIDDLE")]))
+        story.append(wide_table)
     doc.build(story)
     return buffer.getvalue()
 
@@ -293,7 +316,7 @@ def register_report_routes(app, current_user):
         if not item or item.deleted_at: raise HTTPException(404)
         rows = db.scalars(select(Report).where(Report.model == model_name,Report.deleted_at.is_(None)).order_by(Report.id)).all()
         return {"items":[serialize_report(row) | {
-            "available":((row.id == "order_transcript" and row.program == "ipc" and row.kind == "html") or (row.id == "order_passport" and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide"} and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and not row.form,
+            "available":((row.id == "order_transcript" and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide"} and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and not row.form,
             "blocked":str(getattr(item,"status_id","")) in row.prohibitions.split(","),
             "url":f"/reports/{row.id}/item/{identity}",
         } for row in rows]}
@@ -345,7 +368,7 @@ def register_report_routes(app, current_user):
             if report.download:
                 headers["Content-Disposition"] = f'attachment; filename="order-economy-{identity}.xls"'
             return Response(workbook, media_type="application/vnd.ms-excel", headers=headers)
-        if report.id == "order_passport" and report.kind == "pdf":
+        if report.id in {"order_passport", "order_passport_wide"} and report.kind == "pdf":
             raw = item.calc_details or ""
             if not raw:
                 raise HTTPException(422,"Сохранённый расчёт отсутствует или повреждён. Пересчитайте заказ.")

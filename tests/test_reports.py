@@ -127,6 +127,21 @@ class ReportTests(unittest.TestCase):
         self.assertIn('Широкоформатная печать', values)
         self.assertIn('Панель', values)
 
+    def test_wide_passport_pdf_adds_wide_section(self):
+        self.seed()
+        self.db.get(Order, 1).order_type = 'wide'
+        self.db.add(Blank(id=1, order_id=1, title='Панель', width=1000, height=500, colors_front=1, colors_back=0))
+        self.db.commit()
+        self.db.get(Order, 1).calc_details = dumps({
+            'blanks': {'1': {'cost': 18, 'details': {'width': 1000, 'height': 500, 'paper': {'material_count': 2}, 'print': {'steps_count': 1}}}},
+        })
+        self.db.commit()
+        response = self.client.get('/reports/order_passport/item/1')
+        self.assertEqual(response.status_code, 200, response.text)
+        text = PdfReader(__import__('io').BytesIO(response.content)).pages[0].extract_text()
+        self.assertIn('Широкоформатное производство', text)
+        self.assertIn('Панель', text)
+
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()
         self.db.get(Order,1).calc_details='O:3:"Foo":0:{}'; self.db.commit()
