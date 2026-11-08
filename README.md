@@ -2,6 +2,24 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Prepress/redaction references
+
+The name-only directories are available at `/references/prepresses` and
+`/references/redactions`, with create, edit, delete-confirmation, and restore
+browser routes. Both save on submission; opening/cancelling a new form does not
+create a draft. Lists preserve ID/name sorting, ID-descending defaults and
+30-row pagination. Browser sort/page query parameters survive reloads.
+
+Their APIs use `/api/reference-works/{prepresses|redactions}` for GET/POST,
+`/{id}` for GET/PATCH/DELETE and `/{id}/restore` for POST. Original form field
+names (`prepress_title`, `redaction_title`) are accepted. Titles are required and
+limited to the stored 50-character schema. Trash visibility, restore and
+permanent deletion use the shared permissions; deleted rows cannot be updated.
+The legacy reference views have no pricing links, so pricing stays accessible
+through the existing pricing catalog rather than adding new reference actions.
+Calculations and prices are unchanged. Browser visual acceptance, shared CSRF,
+and dump-backed data validation remain project-level tasks.
+
 ## Compilation references
 
 `/references/compiles` now supports definition lists, submission-based creation,

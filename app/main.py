@@ -766,4 +766,6 @@ from .reference_afterprints import register_afterprint_routes
 register_afterprint_routes(app, lambda request, db: current_user(request, db))
 from .reference_compiles import register_compile_routes
 register_compile_routes(app, lambda request, db: current_user(request, db))
+from .reference_works import register_work_routes
+register_work_routes(app, lambda request, db: current_user(request, db))
 register_inventory_routes(app, lambda request, db: current_user(request, db))
