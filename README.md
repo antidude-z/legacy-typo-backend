@@ -2,6 +2,28 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Afterprint references
+
+`/references/afterprints` now lists pre-seeded definitions with sorting and
+pagination. Definition editors update title/tooltip and show parameters and
+select values read-only: the original route set has no definition create/delete
+or parameter/value management actions, so those were not invented.
+
+Nested stage and stage-material screens retain the original create/edit/delete/
+restore URL hierarchy under `/references/afterprints/{id}/stages/{stage_id}`.
+Both are saved on submission (no drafts). Stages receive the next active weight;
+blank/zero maximum density is stored as NULL. Material options are filtered by
+overlapping production flags and quantities retain four-decimal precision.
+Parent ownership, trash visibility, restoration and permanent-delete permissions
+are checked. Pricing-history links use the existing pricing module.
+
+SQLite startup adds missing afterprint production flags/ordering columns without
+dropping rows. New local databases contain no invented seeded definitions;
+reference population/import remains part of the general data migration.
+Dedicated confirmation screens replace legacy modal variants. Browser visual
+acceptance and dump-backed integration remain pending. Calculation formulas
+are unchanged by this reference-management slice.
+
 ## Printer child references
 
 Printer fields, processes, and process stages now have scoped list, create,

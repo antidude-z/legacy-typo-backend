@@ -10,6 +10,11 @@ def upgrade_local_schema() -> None:
     inspector = inspect(engine)
     with engine.begin() as connection:
         additions = {
+            "afterprints": {
+                "production_book": "BOOLEAN NOT NULL DEFAULT 0", "production_poly": "BOOLEAN NOT NULL DEFAULT 0",
+                "production_souvenir": "BOOLEAN NOT NULL DEFAULT 0", "production_wide": "BOOLEAN NOT NULL DEFAULT 0",
+                "weight": "INTEGER NOT NULL DEFAULT 0",
+            },
             "papers": {"markup": "INTEGER NOT NULL DEFAULT 10"},
             "materials": {
                 "description": "TEXT", "measure_id": "INTEGER", "work_type": "VARCHAR(30) DEFAULT 'print'",
