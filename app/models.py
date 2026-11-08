@@ -86,6 +86,18 @@ class CustomerGroup(Base):
     deleted_at = Column(DateTime, nullable=True)
 
 
+class Payer(Base):
+    __tablename__ = "payers"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(100), nullable=False)
+    inn = Column(String(12), nullable=True)
+    phone = Column(String(200), nullable=True)
+    address = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    profit = Column(Integer, nullable=False, default=0)
+    deleted_at = Column(DateTime, nullable=True)
+
+
 class Bill(Base):
     __tablename__ = "bills"
 

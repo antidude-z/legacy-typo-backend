@@ -772,4 +772,6 @@ from .reference_customers import register_customer_routes
 register_customer_routes(app, lambda request, db: current_user(request, db))
 from .reference_users import register_user_reference_routes
 register_user_reference_routes(app, lambda request, db: current_user(request, db))
+from .accounting_payers import register_payer_routes
+register_payer_routes(app, lambda request, db: current_user(request, db))
 register_inventory_routes(app, lambda request, db: current_user(request, db))

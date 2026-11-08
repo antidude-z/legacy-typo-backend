@@ -2,6 +2,18 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Accounting — payer slice
+
+Payers have list/create/edit/confirmation/restore screens at `/accounting/payers`.
+APIs use `/api/accounting/payers` (GET/POST), `/form` (GET), `/{id}`
+(GET/PATCH/DELETE), and `/{id}/restore` (POST). Forms save on submission, with
+no draft side effect. Original payer_* field names and normalized JSON fields
+are accepted. INN remains text, commission uses stored small-integer precision.
+Lists sort by ID/name/commission and default to 30 rows, ID descending.
+Trash visibility, restore, and permanent-delete permissions are enforced.
+Bills, nested payments, bill filters/search, order links and reports remain the
+next Accounting slices. SQLite stays the local database; no dump import occurs.
+
 ## References implementation handoff
 
 The implemented legacy reference directories now include paper types/formats,
