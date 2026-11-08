@@ -2,6 +2,26 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Accounting — bills slice
+
+`/accounting/bills` supports sorting/pagination and session-persisted number,
+manager, payer, and date-range filters. Create/edit/view/confirmation/restore
+routes retain the legacy URL structure; view is read-only, unlike edit.
+APIs use `/api/accounting/bills`, `/form`, `/filter`, `/search`, `/{id}`, and
+`/{id}/restore`. Search preserves the zero/unselected option and matches all
+tokens across bill number, manager names, and payer title (20 results maximum).
+
+Bill fields include date/number, amount/currency, manager/payer, and manual
+paid/closed/filed flags. Active payment sums are separate from those flags;
+detail includes linked active orders and payments. Dates accept ISO and Russian
+DD.MM.YYYY formats; amounts retain two-decimal precision. Read/write permissions
+are enforced on APIs rather than reproducing controller omissions. Existing
+SQLite bills receive additive columns without dropping records.
+
+Payments are currently summary-only. Payment mutations, report actions, complete
+save-and-open-payment/destination behavior, order bill-selector integration and
+browser/visual acceptance remain subsequent Accounting work.
+
 ## Accounting — payer slice
 
 Payers have list/create/edit/confirmation/restore screens at `/accounting/payers`.

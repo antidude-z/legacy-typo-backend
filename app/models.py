@@ -104,9 +104,25 @@ class Bill(Base):
     id = Column(Integer, primary_key=True)
     number = Column(String(20), nullable=False)
     bill_date = Column(Date, nullable=True)
+    amount = Column(Numeric(10, 2), nullable=False, default=0)
+    currency = Column(String(3), nullable=False, default="RUB")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    payer_id = Column(Integer, ForeignKey("payers.id"), nullable=True)
     paid = Column(Boolean, nullable=False, default=False)
     closed = Column(Boolean, nullable=False, default=False)
     filed = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+    manager = relationship("User")
+    payer = relationship("Payer")
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+    id = Column(Integer, primary_key=True)
+    bill_id = Column(Integer, ForeignKey("bills.id"), nullable=False)
+    customer_id = Column(Integer, nullable=True)
+    amount = Column(Numeric(10, 2), nullable=False, default=0)
+    payment_date = Column(Date, nullable=False)
     deleted_at = Column(DateTime, nullable=True)
 
 
