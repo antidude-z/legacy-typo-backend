@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
-from .models import User, Order, OrderCompile, OrderOtherWork, OrderPrepress, OrderRedaction
+from .models import User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
 from .orders import create_order, list_metadata, orders_query, serialize_order, serialize_order_detail
 
@@ -234,11 +234,19 @@ def order_update(order_id: int, request: Request, payload: dict, db: Session = D
     if item is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     values = payload.get("order", payload)
-    for source, target in [("title", "title"), ("format", "format"), ("volume", "volume"), ("printing", "printing"), ("status_id", "status_id"), ("width", "width"), ("height", "height"), ("customer_id", "customer_id"), ("user_id", "user_id"), ("bill_id", "bill_id"), ("total", "total")]:
+    for source, target in [("title", "title"), ("format", "format"), ("volume", "volume"), ("printing", "printing"), ("status_id", "status_id"), ("width", "width"), ("height", "height"), ("customer_id", "customer_id"), ("user_id", "user_id"), ("bill_id", "bill_id"), ("total", "total"), ("comment", "comment"), ("files", "files")]:
         if source in values:
             setattr(item, target, values[source])
-    if values.get("order_date"):
-        item.order_date = __import__("datetime").datetime.strptime(values["order_date"], "%Y-%m-%d").date()
+    for date_field in ("order_date", "prod_date", "deadline"):
+        if date_field in values:
+            setattr(item, date_field, __import__("datetime").datetime.strptime(values[date_field], "%Y-%m-%d").date() if values[date_field] else None)
+    for markup in values.get("markups", []):
+        markup_item = db.scalar(select(OrderMarkup).where(OrderMarkup.order_id == order_id, OrderMarkup.markup_type == markup.get("type"), OrderMarkup.deleted_at.is_(None)))
+        if markup_item:
+            if "value" in markup:
+                markup_item.value = markup["value"]
+            if "active" in markup:
+                markup_item.active = bool(markup["active"])
     if item.order_type == "wide":
         item.format = f"{item.width}x{item.height}"
         item.volume = str((item.width or 0) * (item.height or 0))

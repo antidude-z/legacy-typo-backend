@@ -89,6 +89,8 @@ class Order(Base):
     printing = Column(Integer, nullable=False, default=0)
     format = Column(String(50), nullable=True)
     order_date = Column(Date, nullable=True)
+    prod_date = Column(Date, nullable=True)
+    deadline = Column(Date, nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     total = Column(Numeric(10, 2), nullable=False, default=0)
@@ -97,6 +99,7 @@ class Order(Base):
     width = Column(Numeric(8, 2), nullable=True)
     height = Column(Numeric(8, 2), nullable=True)
     comment = Column(Text, nullable=True)
+    files = Column(Text, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
 
     status = relationship("OrderStatus")
