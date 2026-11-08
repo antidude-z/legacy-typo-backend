@@ -441,3 +441,64 @@ def calculate_blank(db: Session, blank: Blank, order: Order, currency: str = "RU
     blank.cost = total
     db.commit()
     return {"result": total, **components, "status": "missing_prices" if missing else "calculated", "missing": sorted(set(missing)), "details": details}
+
+
+def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
+    """Aggregate currently migrated blank costs using the legacy markup rules.
+
+    The legacy calculate() method also includes prepress, redaction, compile,
+    and other-work pricing. Those components are reported as pending here until
+    their reference/calculation modules are migrated.
+    """
+    component_totals = {
+        "design": Decimal("0"), "redaction": Decimal("0"), "paper": Decimal("0"),
+        "imagesetter": Decimal("0"), "print": Decimal("0"), "afterprint": Decimal("0"),
+        "compile": Decimal("0"), "other_works": Decimal("0"),
+    }
+    blank_details = {}
+    missing = []
+    for blank in db.scalars(select(Blank).where(Blank.order_id == order.id, Blank.deleted_at.is_(None))).all():
+        calculation = calculate_blank(db, blank, order, currency)
+        blank_details[blank.id] = {"cost": str(calculation["result"]), "status": calculation["status"], "details": calculation["details"]}
+        for key in ("paper", "imagesetter", "print", "afterprint"):
+            component_totals[key] += calculation.get(key, Decimal("0"))
+        missing.extend(calculation.get("missing", []))
+
+    markup_types = {
+        "book": ["design", "redaction", "paper", "imagesetter", "print", "afterprint", "compile", "other_works", "manager"],
+        "poly": ["design", "paper", "imagesetter", "print", "afterprint", "compile", "other_works", "manager"],
+        "wide": ["design", "paper", "print", "afterprint", "compile", "other_works", "manager"],
+        "souvenir": ["design", "paper", "imagesetter", "print", "afterprint", "compile", "other_works", "manager"],
+    }
+    stored_markups = {item.markup_type: item for item in db.scalars(select(OrderMarkup).where(OrderMarkup.order_id == order.id, OrderMarkup.deleted_at.is_(None))).all()}
+    markup_details = {}
+    total_base = Decimal("0")
+    total_total = Decimal("0")
+    for markup_type in markup_types.get(order.order_type, markup_types["poly"]):
+        markup = stored_markups.get(markup_type)
+        value = Decimal(markup.value if markup is not None else 10)
+        active = bool(markup.active) if markup is not None else False
+        base = Decimal("0") if markup_type == "manager" or not active else component_totals.get(markup_type, Decimal("0"))
+        total = base + base * value / Decimal("100")
+        if markup_type != "manager":
+            total_base += base
+            total_total += total
+        markup_details[markup_type] = {"active": active, "markup": str(value), "base": str(base), "total": str(total)}
+
+    stored_total = Decimal(order.total or 0)
+    manager_markup = Decimal("0") if total_total == 0 else Decimal("100") * (stored_total - total_total) / total_total
+    printing = max(int(order.printing or 1), 1)
+    pending = ["design", "redaction", "compile", "other_works"]
+    return {
+        "result": str(total_total),
+        "base": str(total_base),
+        "item": str(total_total / printing),
+        "manager_markup": str(manager_markup),
+        "stored_total": str(stored_total),
+        "status": "missing_prices" if missing else "partial",
+        "missing": sorted(set(missing)),
+        "pending_components": pending,
+        "components": {key: str(value) for key, value in component_totals.items()},
+        "markups": markup_details,
+        "blanks": blank_details,
+    }

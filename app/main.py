@@ -12,7 +12,7 @@ from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
 from .models import Action, Afterprint, Blank, BlankAfterprint, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
-from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
+from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 
 
 @asynccontextmanager
@@ -502,6 +502,16 @@ def blank_recalculate(order_id: int, blank_id: int, request: Request, db: Sessio
     calculated["result"] = str(calculated["result"])
     calculated["cost"] = calculated["result"]
     return calculated
+
+
+@app.post("/api/orders/{order_id}/recalculate", tags=["pricing"])
+def order_recalculate(order_id: int, request: Request, db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    order = db.get(Order, order_id)
+    if order is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return calculate_order(db, order, "RUB")
 
 
 @app.delete("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])
