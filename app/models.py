@@ -165,6 +165,37 @@ class Payment(Base):
     deleted_at = Column(DateTime, nullable=True)
 
 
+class Payroll(Base):
+    __tablename__ = "payrolls"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    salary = Column(Numeric(8, 2), nullable=False, default=0)
+    period = Column(Date, nullable=False)
+    status = Column(String(10), nullable=False, default="calc")
+    manager = relationship("User")
+
+
+class PayrollOrder(Base):
+    __tablename__ = "payroll_orders"
+    id = Column(Integer, primary_key=True)
+    payroll_id = Column(Integer, ForeignKey("payrolls.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    title = Column(String(100), nullable=False, default="")
+    customer = Column(String(100), nullable=False, default="")
+    printing = Column(Integer, nullable=False, default=0)
+    bill_number = Column(String(20), nullable=False, default="")
+    bill_date = Column(Date, nullable=True)
+    order_date = Column(Date, nullable=True)
+    materials = Column(Numeric(8, 2), nullable=False, default=0)
+    works = Column(Numeric(8, 2), nullable=False, default=0)
+    contractors = Column(Numeric(8, 2), nullable=False, default=0)
+    total = Column(Numeric(8, 2), nullable=False, default=0)
+    percent = Column(Numeric(8, 2), nullable=False, default=3)
+    salary = Column(Numeric(8, 2), nullable=False, default=0)
+    payroll = relationship("Payroll")
+    order = relationship("Order")
+
+
 class Order(Base):
     __tablename__ = "orders"
 

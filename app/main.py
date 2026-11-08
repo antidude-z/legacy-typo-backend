@@ -14,6 +14,7 @@ from .schema import upgrade_local_schema
 from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
+from .payroll import register_payroll_routes
 
 
 @asynccontextmanager
@@ -780,4 +781,5 @@ from .accounting_payments import register_payment_routes
 register_payment_routes(app, lambda request, db: current_user(request, db))
 from .reports import register_report_routes
 register_report_routes(app, lambda request, db: current_user(request, db))
+register_payroll_routes(app, lambda request, db: current_user(request, db))
 register_inventory_routes(app, lambda request, db: current_user(request, db))
