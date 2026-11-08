@@ -218,3 +218,92 @@ class Action(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     deleted_at = Column(DateTime, nullable=True)
     user = relationship("User")
+
+
+class Printer(Base):
+    __tablename__ = "printers"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    production = Column(String(20), nullable=True)
+    need_imagesetter = Column(Boolean, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class PrinterProcess(Base):
+    __tablename__ = "printer_processes"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    printer_id = Column(Integer, ForeignKey("printers.id"), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    printer = relationship("Printer")
+
+
+class PaperType(Base):
+    __tablename__ = "paper_types"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class PaperFormat(Base):
+    __tablename__ = "paper_formats"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class Paper(Base):
+    __tablename__ = "papers"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    type_id = Column(Integer, ForeignKey("paper_types.id"), nullable=True)
+    format_id = Column(Integer, ForeignKey("paper_formats.id"), nullable=True)
+    weight = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    paper_type = relationship("PaperType")
+    paper_format = relationship("PaperFormat")
+
+
+class Material(Base):
+    __tablename__ = "materials"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class Blank(Base):
+    __tablename__ = "blanks"
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    title = Column(String(50), nullable=False)
+    printer_id = Column(Integer, ForeignKey("printers.id"), nullable=True)
+    printer_process_id = Column(Integer, ForeignKey("printer_processes.id"), nullable=True)
+    cutting = Column(Integer, nullable=True, default=1)
+    paper_id = Column(Integer, ForeignKey("papers.id"), nullable=True)
+    material_id = Column(Integer, ForeignKey("materials.id"), nullable=True)
+    width = Column(Numeric(8, 2), nullable=True)
+    height = Column(Numeric(8, 2), nullable=True)
+    paper_price = Column(Numeric(10, 2), nullable=True, default=0)
+    colors_front = Column(Integer, nullable=False, default=1)
+    colors_back = Column(Integer, nullable=False, default=0)
+    details_per_sheet = Column(Integer, nullable=True)
+    pages_per_sheet = Column(Integer, nullable=True)
+    details_per_blank = Column(Integer, nullable=True)
+    different_details = Column(Integer, nullable=True)
+    comments = Column(Text, nullable=True)
+    cost = Column(Numeric(10, 2), nullable=True, default=0)
+    deleted_at = Column(DateTime, nullable=True)
+    printer = relationship("Printer")
+    paper = relationship("Paper")
+    material = relationship("Material")
+
+
+class BlankImagesetter(Base):
+    __tablename__ = "blank_imagesetters"
+    id = Column(Integer, primary_key=True)
+    blank_id = Column(Integer, ForeignKey("blanks.id"), nullable=False)
+    plates = Column(Integer, default=0)
+    self = Column(Boolean, default=False)
+    fix = Column(Boolean, default=False)

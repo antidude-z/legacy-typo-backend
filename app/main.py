@@ -9,9 +9,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
-from .models import Action, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
+from .models import Action, Blank, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
-from .orders import create_order, list_metadata, orders_query, serialize_history, serialize_order, serialize_order_detail
+from .orders import blank_metadata, create_order, list_metadata, orders_query, serialize_blank, serialize_history, serialize_order, serialize_order_detail
 
 
 @asynccontextmanager
@@ -332,6 +332,8 @@ OPERATION_MODELS = {
 
 @app.post("/api/orders/{order_id}/{operation}", tags=["orders"])
 def operation_create(order_id: int, operation: str, request: Request, payload: dict, db: Session = Depends(get_db)):
+    if operation == "blanks":
+        return blank_create(order_id, request, payload, db)
     user = current_user(request, db)
     model_info = OPERATION_MODELS.get(operation)
     order = db.get(Order, order_id)
@@ -354,6 +356,8 @@ def operation_create(order_id: int, operation: str, request: Request, payload: d
 
 @app.patch("/api/orders/{order_id}/{operation}/{item_id}", tags=["orders"])
 def operation_update(order_id: int, operation: str, item_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    if operation == "blanks":
+        return blank_update(order_id, item_id, request, payload, db)
     user = current_user(request, db)
     model_info = OPERATION_MODELS.get(operation)
     if user is None:
@@ -372,6 +376,8 @@ def operation_update(order_id: int, operation: str, item_id: int, request: Reque
 
 @app.delete("/api/orders/{order_id}/{operation}/{item_id}", tags=["orders"])
 def operation_delete(order_id: int, operation: str, item_id: int, request: Request, db: Session = Depends(get_db)):
+    if operation == "blanks":
+        return blank_delete(order_id, item_id, request, db)
     user = current_user(request, db)
     model_info = OPERATION_MODELS.get(operation)
     if user is None:
@@ -379,6 +385,69 @@ def operation_delete(order_id: int, operation: str, item_id: int, request: Reque
     if model_info is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item = db.get(model_info[0], item_id)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item.deleted_at = __import__("datetime").datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.get("/api/orders/{order_id}/blanks", tags=["orders"])
+def blanks(order_id: int, request: Request, db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if db.get(Order, order_id) is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    items = db.scalars(select(Blank).where(Blank.order_id == order_id, Blank.deleted_at.is_(None)).order_by(Blank.id)).all()
+    return {"items": [serialize_blank(item) for item in items], "metadata": blank_metadata(db), "calculation": "stored_cost"}
+
+
+@app.post("/api/orders/{order_id}/blanks", tags=["orders"])
+def blank_create(order_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if db.get(Order, order_id) is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item = Blank(order_id=order_id, title=payload.get("title", "Новая заготовка"), printer_id=payload.get("printer_id") or 0, printer_process_id=payload.get("printer_process_id"), paper_id=payload.get("paper_id"), material_id=payload.get("material_id"), cutting=payload.get("cutting", 1), width=payload.get("width", 0), height=payload.get("height", 0), colors_front=payload.get("colors_front", 1), colors_back=payload.get("colors_back", 0), details_per_sheet=payload.get("details_per_sheet"), pages_per_sheet=payload.get("pages_per_sheet"), details_per_blank=payload.get("details_per_blank", 1), different_details=payload.get("different_details", 1), comments=payload.get("comments", ""), paper_price=payload.get("paper_price", 0), cost=payload.get("cost", 0))
+    db.add(item)
+    db.flush()
+    imagesetter = BlankImagesetter(blank_id=item.id, plates=payload.get("plates", 0), fix=bool(payload.get("fix_plates", False)))
+    setattr(imagesetter, "self", bool(payload.get("self_print", False)))
+    db.add(imagesetter)
+    db.add(Action(user_id=user.id, module="Заказы", item_id=order_id, comment=f"Добавлена заготовка: {item.title}", url=f"orders/{order_id}#blanks"))
+    db.commit()
+    return {"id": item.id, "status": "ok"}
+
+
+@app.patch("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])
+def blank_update(order_id: int, blank_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Blank, blank_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    fields = ("title", "printer_id", "printer_process_id", "paper_id", "material_id", "cutting", "width", "height", "colors_front", "colors_back", "details_per_sheet", "pages_per_sheet", "details_per_blank", "different_details", "comments", "paper_price", "cost")
+    for field in fields:
+        if field in payload:
+            setattr(item, field, payload[field])
+    image = db.scalar(select(BlankImagesetter).where(BlankImagesetter.blank_id == item.id))
+    if image:
+        image.plates = payload.get("plates", image.plates)
+        image.self = payload.get("self_print", image.self)
+        image.fix = payload.get("fix_plates", image.fix)
+    db.add(Action(user_id=user.id, module="Заказы", item_id=order_id, comment=f"Изменена заготовка: {item.title}", url=f"orders/{order_id}#blanks"))
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.delete("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])
+def blank_delete(order_id: int, blank_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Blank, blank_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item.deleted_at = __import__("datetime").datetime.utcnow()
