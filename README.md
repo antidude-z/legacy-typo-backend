@@ -27,6 +27,27 @@ integers to match the stored schema. Exact browser visual acceptance is pending.
 Not included in this slice: paper inventory, materials, printers/fields/processes/
 stages, production-work definitions, customer directories, or employee management.
 
+## Reference inventory (second references slice)
+
+Paper inventory and materials are now available at `/references/paper` and
+`/references/materials`. Their APIs are under `/api/references/paper` and
+`/api/references/materials`, with detail, update, delete, and restore endpoints.
+Paper creation saves a draft from the first active type/format (80 gsm, markup
+10); missing prerequisites produce a validation response rather than a crash.
+Paper names are generated from type, density, and format. Materials include
+measure, work type, description, and production flags. Material filters persist
+in the session and can be reset. Lists support sorting and pagination.
+
+Startup adds missing inventory columns to existing SQLite tables without
+dropping rows. Tests cover repeatable upgrades, paper drafts, generated titles,
+material validation/flags, and persisted filter reset.
+
+Remaining inventory acceptance work: legacy create/edit/delete browser URL
+flows (the current inventory editor is inline), permission-controlled lifecycle
+buttons/permanent deletion UI, complete network-error handling, visual/browser
+testing, and dump-backed integration. Printer and production-definition CRUD
+remain subsequent references slices. Pricing/calculation behavior is unchanged.
+
 ## Database modes
 
 The default local database is SQLite:

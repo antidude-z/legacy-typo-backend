@@ -6,6 +6,27 @@ from app.models import Material, Paper
 class ReferenceInventoryTests(unittest.TestCase):
     setUp = fixtures.ReferenceDictionaryTests.setUp
     tearDown = fixtures.ReferenceDictionaryTests.tearDown
+
+    def test_existing_inventory_schema_upgrade_preserves_data(self):
+        from unittest.mock import patch
+        from sqlalchemy import create_engine, text
+        from app.schema import upgrade_local_schema
+
+        engine = create_engine('sqlite:///:memory:')
+        try:
+            with engine.begin() as connection:
+                connection.execute(text('CREATE TABLE papers (id INTEGER PRIMARY KEY, title TEXT)'))
+                connection.execute(text("INSERT INTO papers VALUES (1, 'Existing paper')"))
+                connection.execute(text('CREATE TABLE materials (id INTEGER PRIMARY KEY, title TEXT)'))
+                connection.execute(text("INSERT INTO materials VALUES (1, 'Existing material')"))
+            with patch('app.schema.engine', engine):
+                upgrade_local_schema()
+                upgrade_local_schema()
+            with engine.connect() as connection:
+                self.assertEqual(tuple(connection.execute(text('SELECT title, markup FROM papers')).one()), ('Existing paper', 10))
+                self.assertEqual(tuple(connection.execute(text('SELECT title, work_type, production_wide FROM materials')).one()), ('Existing material', 'print', 0))
+        finally:
+            engine.dispose()
     def test_paper_draft_update_and_restore(self):
         response = self.client.post('/api/references/paper/create')
         self.assertEqual(response.status_code, 200, response.text)
