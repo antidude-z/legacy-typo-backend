@@ -116,7 +116,30 @@ def price_catalog(kind: str, request: Request, page: int = Query(1, ge=1), db: S
     query = select(model).where(model.deleted_at.is_(None))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(query.order_by(model.id).offset((page - 1) * 50).limit(50)).all()
-    return {"items": [{"id": row.id, "title": row.title} for row in rows], "page": page, "last_page": max(1, (total + 49) // 50)}
+    return {"items": [{"id": row.id, "title": row.title, "current_price": str(resolve_price(db, info[1], row.id)["amount"])} for row in rows], "page": page, "last_page": max(1, (total + 49) // 50)}
+
+
+@app.post("/api/prices/{kind}/{item_id}/create", tags=["pricing"])
+def price_create_default(kind: str, item_id: int, request: Request, db: Session = Depends(get_db)):
+    # Legacy GET create saves a default row before showing the editor. The SPA
+    # performs that mutation via POST, retaining browser URL and row semantics.
+    return price_create(kind, item_id, request, {
+        "amount": "0", "currency": "RUB", "actual_from": 0,
+        "actual_since": __import__("datetime").date.today().isoformat(),
+    }, db)
+
+
+@app.get("/api/prices/{kind}/{item_id}/records/{price_id}", tags=["pricing"])
+def price_record_detail(kind: str, item_id: int, price_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    info = priceable_info(kind)
+    row = db.get(Price, price_id)
+    reference = db.get(info[0], item_id) if info else None
+    if not reference or not row or row.priceable_type != info[1] or row.priceable_id != item_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return {"price": serialize_price(row), "title": reference.title, "can_delete": user.has_permission("delete_price")}
 
 
 @app.get("/api/prices/{priceable_type}/{priceable_id}/records", tags=["pricing"])

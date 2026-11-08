@@ -6,6 +6,7 @@ import re
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
+from .php_serialization import dumps as php_dumps
 
 from .models import (
     Action, Afterprint, AfterprintParameter, AfterprintParameterValue, AfterprintStage, AfterprintStageMaterial, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, CompileStageMaterial, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
@@ -625,6 +626,15 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
         "blanks": blank_details,
         "work_details": work_details,
     }
-    order.calc_details = json.dumps(result, ensure_ascii=False, default=str)
+    # Preserve the legacy top-level detail keys consumed by report templates.
+    persisted_details = {
+        "printing": order.printing,
+        "design": work_details["design"], "redaction": work_details["redaction"],
+        "compile": {row["id"]: row for row in work_details["compile"]},
+        "other_works": work_details["other_works"],
+        "blanks": {identity: {"details": row["details"], "cost": Decimal(row["cost"])} for identity, row in blank_details.items()},
+        "markups": {key: {"active": int(row["active"]), "markup": Decimal(row["markup"]), "base": Decimal(row["base"]), "total": Decimal(row["total"])} for key, row in markup_details.items()},
+    }
+    order.calc_details = php_dumps(persisted_details)
     db.commit()
     return result

@@ -75,16 +75,23 @@ quantity; it does not apply effective-date or quantity-tier selection. A missing
 assigned price returns a zero diagnostic line and `missing_prices`, not a
 substitute price. All component categories are now wired into aggregation;
 `calculated` means no missing prices were detected, not complete UI/import parity.
-Order recalculation persists its response as JSON in `orders.calc_details`
-without changing the stored sale total. Startup adds that column to older local
-SQLite schemas without dropping data. This is a new serialization boundary:
-legacy dumps contain PHP-serialized details, which are not decoded or rewritten
-until recalculation. Report consumers still require compatibility verification.
+Order recalculation persists scalar PHP-serialized arrays in `orders.calc_details`
+without changing the stored sale total. The top-level keys mirror the legacy
+details: printing, design, redaction, compile, other_works, blanks, and markups.
+UTF-8 string lengths are encoded in bytes. Existing dump values are not rewritten
+until recalculation. Nested breakdown/report compatibility still needs validation
+against each report consumer. Startup adds the column to older local SQLite
+schemas without dropping data.
 
 ## Price management
 
 The frontend exposes `/prices/{kind}` catalogs and `/prices/{kind}/{id}` price
-lists/editors. Kinds mirror PriceController: services, paper, print, materials,
+history lists. Separate `/create`, `/{price_id}/edit`, and `/{price_id}/delete`
+screens mirror legacy navigation. Create immediately saves a default zero-valued
+row; cancel leaves it in place. Saving with `from=list` returns to the catalog;
+cancel and delete return to the item's history. `/prices/{kind}/recalculate`
+redirects to the catalog without changing prices, just as in the old controller.
+Catalogs show the current threshold-zero RUB price. Kinds mirror PriceController: services, paper, print, materials,
 afterprint, prepress, redaction, compile, and compiles.
 
 API routes:
@@ -102,7 +109,9 @@ not consistently enforce them on writes; the API currently enforces them.
 This difference requires review before strict behavior-parity acceptance.
 
 The order page includes a recalculation button, markup summary, component tables,
-and blank stage/material breakdowns. Remaining acceptance work includes exact
-legacy create/edit/confirmation URL flows, category-wide inline price tables,
-calendar/spinner interactions, visual comparison, dump-backed calculation
-comparison, and CSRF coverage inherited from the shared auth migration.
+and blank stage/material breakdowns. Remaining acceptance work includes full
+calendar/TouchSpin interactions, contextual stage labels, visual comparison,
+dump-backed calculation comparison, nested report detail compatibility, and CSRF
+coverage inherited from the shared auth migration. The editor accepts the legacy
+DD.MM.YYYY date format. Native numeric controls use the legacy 0–10000 range and
+step 10, but do not yet implement TouchSpin hold acceleration.

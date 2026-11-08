@@ -35,10 +35,11 @@ class OrderCalculationTests(unittest.TestCase):
         self.assertAlmostEqual(float(result["result"]), 220.0)
         self.assertEqual(result["status"], "calculated")
         self.assertEqual(result["pending_components"], [])
-        import json
         self.db.expire_all()
-        stored = json.loads(self.db.get(Order, 1).calc_details)
-        self.assertEqual(Decimal(stored["result"]), 220)
+        stored = self.db.get(Order, 1).calc_details
+        self.assertTrue(stored.startswith('a:7:{'))
+        self.assertIn('s:7:"markups";', stored)
+        self.assertIn('s:8:"printing";i:100;', stored)
         self.assertEqual(self.db.get(Order, 1).total, 250)
 
     def test_compilation_fitting_stages_and_material_breakdown(self):

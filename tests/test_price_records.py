@@ -60,6 +60,18 @@ class PriceRecordsTests(unittest.TestCase):
         self.auth_mock.return_value = None
         self.assertEqual(self.client.get(self.url).status_code, 401)
 
+    def test_default_creation_detail_and_current_catalog_price(self):
+        created = self.client.post('/api/prices/paper/1/create')
+        self.assertEqual(created.status_code, 200)
+        row = created.json()
+        self.assertEqual(row['amount'], '0.00')
+        self.assertEqual(row['actual_since'], date.today().isoformat())
+        self.assertEqual(self.client.get(f"{self.url}/{row['id']}").json()['title'], 'Paper')
+        response = self.client.patch(f"{self.url}/{row['id']}", json={**self.payload, 'actual_since': '01.01.2020'})
+        self.assertEqual(response.status_code, 200)
+        catalog = self.client.get('/api/pricing/catalog/paper').json()
+        self.assertEqual(catalog['items'][0]['current_price'], '12.50')
+
 
 if __name__ == '__main__':
     unittest.main()
