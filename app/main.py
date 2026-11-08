@@ -758,6 +758,8 @@ def blank_restore(order_id: int, blank_id: int, request: Request, db: Session = 
 from .reference_dictionaries import register_reference_routes
 register_reference_routes(app, lambda request, db: current_user(request, db))
 from .reference_printers import register_printer_routes
+from .printer_children import register_printer_child_routes
+register_printer_child_routes(app, lambda request, db: current_user(request, db))
 register_printer_routes(app, lambda request, db: current_user(request, db))
 from .reference_inventory import register_inventory_routes
 register_inventory_routes(app, lambda request, db: current_user(request, db))

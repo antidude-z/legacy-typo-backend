@@ -273,6 +273,20 @@ class PrinterProcess(Base):
     printer = relationship("Printer")
 
 
+class PrinterField(Base):
+    __tablename__ = "printer_fields"
+    id = Column(Integer, primary_key=True)
+    printer_id = Column(Integer, ForeignKey("printers.id"), nullable=False)
+    paper_format_id = Column(Integer, ForeignKey("paper_formats.id"), nullable=False)
+    width = Column(Integer, nullable=False)
+    height = Column(Integer, nullable=False)
+    pieces = Column(Integer, nullable=False)
+    paper_width = Column(Integer, nullable=False, default=0)
+    paper_height = Column(Integer, nullable=False, default=0)
+    deleted_at = Column(DateTime, nullable=True)
+    paper_format = relationship("PaperFormat")
+
+
 class PrinterProcessStage(Base):
     __tablename__ = "printer_process_stages"
     id = Column(Integer, primary_key=True)

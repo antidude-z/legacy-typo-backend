@@ -2,6 +2,29 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Printer child references
+
+Printer fields, processes, and process stages now have scoped list, create,
+detail, update, soft-delete, restore, and permanent-delete APIs. Browser paths
+retain the `/references/printers/{id}/fields`, `/processes`, and
+`/processes/{process_id}/stages` hierarchy with create/edit/delete/restore suffixes.
+The API adds `/items` for child lists and `/form` for input metadata.
+
+Fields are saved on submission, with active paper-format selection, positive
+cutting count, field dimensions, and dimensions after cutting. Processes create
+blank drafts with 1/0 colors, zero rejection and resolution. Stages create blank
+drafts with together=1, colors=1, waste=0, and the next active ordering weight.
+Deleted children require `view_trashed`; restore and permanent deletion require
+their respective permissions. Every request validates parent ownership.
+
+Dedicated child screens are linked from the printer editor; process screens
+link to stage management, and stage lists link to price history when permitted.
+The legacy embedded child-table layout/modal variants are not yet reproduced
+exactly. Negative values, oversized names, and malformed numbers are subject to
+schema-aware validation rather than legacy crashes. Zero together/color values
+remain accepted; the existing calculator's safeguards still apply.
+Pricing formulas and existing order calculations are unchanged by this slice.
+
 ## Reference dictionaries (first references slice)
 
 Implemented paper types, paper formats, and measures at the original browser
