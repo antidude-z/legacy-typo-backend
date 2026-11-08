@@ -2,6 +2,34 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## References implementation handoff
+
+The implemented legacy reference directories now include paper types/formats,
+measures, paper inventory/materials, printers and nested fields/processes/stages,
+afterprint definitions/stages/materials, compilation definitions/stages/materials,
+prepress/redaction, customers/groups, and employee accounts. This closes the
+current reference implementation inventory, not full project acceptance.
+
+Employee screens use `/references/users` and create/edit/delete/restore suffixes.
+APIs use `/api/employee-references` (GET/POST), `/form` (GET), `/{id}`
+(GET/PATCH/DELETE), `/{id}/restore` (POST). Roles are assigned from existing rows;
+role/permission administration remains in Settings. Creation requires
+`user_create`; edits require `user_edit` on the API, not just the screen.
+Surname/name/phone/email/post/role are required. Passwords require matching
+confirmation, six characters minimum, and bcrypt's 72-byte maximum. Blank or
+unrequested passwords never overwrite hashes. API responses never expose hashes.
+Fired and soft-deleted rows are visually distinguished; login/session lookup
+excludes soft-deleted accounts. Existing fired-account restrictions are retained.
+SQLite upgrades add employee columns without resetting user rows or passwords.
+
+Left behind for cross-project acceptance: shared CSRF/session work; complete
+database import/versioning; representative dump-backed comparisons; exact
+embedded/modal/widget layout and browser tests; accounting payer associations;
+and report-consumer compatibility. Contact CRUD is intentionally not added
+because its legacy controller is empty. Service/rate configuration and global
+options are tracked with Settings/pricing integration, not invented reference
+routes. These boundaries should not be counted as verified production parity.
+
 ## Customer references
 
 Customers now have listing/sorting/pagination, submission-based creation,

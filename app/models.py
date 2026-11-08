@@ -46,6 +46,9 @@ class User(Base):
     password = Column(String(60), nullable=False)
     role_id = Column(ForeignKey("roles.id"), nullable=True)
     fired = Column(Integer, nullable=False, default=0)
+    phone = Column(String(50), nullable=True)
+    post = Column(String(50), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
     role = relationship("Role")
 
     def has_permission(self, permission_id: str) -> bool:

@@ -45,7 +45,7 @@ def current_user(request: Request, db: Session) -> User | None:
     return db.scalar(
         select(User)
         .options(joinedload(User.role))
-        .where(User.id == user_id, User.fired.is_(False))
+        .where(User.id == user_id, User.fired.is_(False), User.deleted_at.is_(None))
     )
 
 
@@ -250,7 +250,7 @@ def session_info(request: Request, db: Session = Depends(get_db)) -> dict:
 @app.get("/auth/users", tags=["auth"])
 @app.get("/api/auth/users", tags=["auth"], include_in_schema=False)
 def login_users(db: Session = Depends(get_db)) -> dict[str, str]:
-    users = db.scalars(select(User).where(User.fired.is_(False)).order_by(User.surname, User.name)).all()
+    users = db.scalars(select(User).where(User.fired.is_(False), User.deleted_at.is_(None)).order_by(User.surname, User.name)).all()
     return {user.email: f"{user.surname or ''} {user.name}".strip() for user in users}
 
 
@@ -262,7 +262,7 @@ def login(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    user = db.scalar(select(User).where(User.email == email, User.fired.is_(False)))
+    user = db.scalar(select(User).where(User.email == email, User.fired.is_(False), User.deleted_at.is_(None)))
     valid = user is not None and bcrypt.checkpw(password.encode(), user.password.encode())
     if not valid:
         return JSONResponse({"message": "Неверные учетные данные."}, status_code=422)
@@ -770,4 +770,6 @@ from .reference_works import register_work_routes
 register_work_routes(app, lambda request, db: current_user(request, db))
 from .reference_customers import register_customer_routes
 register_customer_routes(app, lambda request, db: current_user(request, db))
+from .reference_users import register_user_reference_routes
+register_user_reference_routes(app, lambda request, db: current_user(request, db))
 register_inventory_routes(app, lambda request, db: current_user(request, db))
