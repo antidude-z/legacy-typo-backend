@@ -102,6 +102,7 @@ class Order(Base):
     height = Column(Numeric(8, 2), nullable=True)
     comment = Column(Text, nullable=True)
     files = Column(Text, nullable=True)
+    calc_details = Column(Text, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
 
     status = relationship("OrderStatus")

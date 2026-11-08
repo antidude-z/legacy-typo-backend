@@ -75,4 +75,34 @@ quantity; it does not apply effective-date or quantity-tier selection. A missing
 assigned price returns a zero diagnostic line and `missing_prices`, not a
 substitute price. All component categories are now wired into aggregation;
 `calculated` means no missing prices were detected, not complete UI/import parity.
-Calculation-detail persistence and frontend integration remain pending.
+Order recalculation persists its response as JSON in `orders.calc_details`
+without changing the stored sale total. Startup adds that column to older local
+SQLite schemas without dropping data. This is a new serialization boundary:
+legacy dumps contain PHP-serialized details, which are not decoded or rewritten
+until recalculation. Report consumers still require compatibility verification.
+
+## Price management
+
+The frontend exposes `/prices/{kind}` catalogs and `/prices/{kind}/{id}` price
+lists/editors. Kinds mirror PriceController: services, paper, print, materials,
+afterprint, prepress, redaction, compile, and compiles.
+
+API routes:
+
+- `GET /api/pricing/catalog/{kind}` — reference entries, 50 per page.
+- `GET /api/prices/{kind}/{id}/records` — sorted, paginated price records.
+- `POST /api/prices/{kind}/{id}/records` — create a validated price.
+- `PATCH /api/prices/{kind}/{id}/records/{price_id}` — update a price.
+- `DELETE /api/prices/{kind}/{id}/records/{price_id}` — permanent price deletion,
+  matching the PHP Price model's lack of SoftDeletes.
+
+Writes require `edit_price`; deletion requires `delete_price`. The original
+controller checks these permissions for action visibility/confirmation but does
+not consistently enforce them on writes; the API currently enforces them.
+This difference requires review before strict behavior-parity acceptance.
+
+The order page includes a recalculation button, markup summary, component tables,
+and blank stage/material breakdowns. Remaining acceptance work includes exact
+legacy create/edit/confirmation URL flows, category-wide inline price tables,
+calendar/spinner interactions, visual comparison, dump-backed calculation
+comparison, and CSRF coverage inherited from the shared auth migration.

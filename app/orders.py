@@ -610,7 +610,7 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
     manager_markup = Decimal("0") if total_total == 0 else Decimal("100") * (stored_total - total_total) / total_total
     printing = max(int(order.printing or 1), 1)
     pending = []
-    return {
+    result = {
         "result": str(total_total),
         "base": str(total_base),
         "item": str(total_total / printing),
@@ -625,3 +625,6 @@ def calculate_order(db: Session, order: Order, currency: str = "RUB") -> dict:
         "blanks": blank_details,
         "work_details": work_details,
     }
+    order.calc_details = json.dumps(result, ensure_ascii=False, default=str)
+    db.commit()
+    return result

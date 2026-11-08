@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import bcrypt
 from fastapi import Depends, FastAPI, Form, Query, Request
@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
 from .schema import upgrade_local_schema
-from .models import Action, Afterprint, Blank, BlankAfterprint, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
+from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, Prepress, Price, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 
@@ -57,6 +57,133 @@ def health() -> dict[str, str]:
 @app.get("/api/system/database", tags=["system"])
 def database_status() -> dict[str, str]:
     return {"mode": DATABASE_MODE, "url": DATABASE_URL.split("@")[-1] if DATABASE_MODE == "mysql" else DATABASE_URL}
+
+
+PRICEABLE_TYPES = {
+    "services": (Service, "App\\Service"),
+    "paper": (Paper, "App\\Paper"),
+    "print": (PrinterProcessStage, "App\\PrinterProcessStage"),
+    "materials": (Material, "App\\Material"),
+    "afterprint": (AfterprintStage, "App\\AfterprintStage"),
+    "prepress": (Prepress, "App\\Prepress"),
+    "redaction": (Redaction, "App\\Redaction"),
+    "compile": (Compile, "App\\Compile"),
+    "compiles": (CompileStage, "App\\CompileStage"),
+}
+
+
+def priceable_info(kind: str):
+    return PRICEABLE_TYPES.get(kind)
+
+
+def require_price_permission(request: Request, db: Session, permission: str) -> User | JSONResponse:
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if not user.has_permission(permission):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return user
+
+
+def serialize_price(price: Price) -> dict:
+    return {"id": price.id, "amount": str(price.amount), "currency": price.currency, "actual_since": price.actual_since.isoformat() if price.actual_since else None, "actual_from": price.actual_from, "item": price.item or ""}
+
+
+def validated_price(payload: dict) -> dict:
+    amount = Decimal(str(payload["amount"]))
+    if not amount.is_finite() or payload["currency"] not in {"RUB", "USD", "EUR"}:
+        raise ValueError("Invalid price")
+    threshold = Decimal(str(payload["actual_from"]))
+    if not threshold.is_finite() or threshold != threshold.to_integral_value():
+        raise ValueError("Invalid quantity threshold")
+    raw_date = payload["actual_since"]
+    try:
+        effective = __import__("datetime").datetime.strptime(raw_date, "%Y-%m-%d").date()
+    except ValueError:
+        effective = __import__("datetime").datetime.strptime(raw_date, "%d.%m.%Y").date()
+    return {"amount": amount, "currency": payload["currency"], "actual_from": int(threshold), "actual_since": effective}
+
+
+@app.get("/api/pricing/catalog/{kind}", tags=["pricing"])
+def price_catalog(kind: str, request: Request, page: int = Query(1, ge=1), db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    info = priceable_info(kind)
+    if info is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    model, _ = info
+    query = select(model).where(model.deleted_at.is_(None))
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(query.order_by(model.id).offset((page - 1) * 50).limit(50)).all()
+    return {"items": [{"id": row.id, "title": row.title} for row in rows], "page": page, "last_page": max(1, (total + 49) // 50)}
+
+
+@app.get("/api/prices/{priceable_type}/{priceable_id}/records", tags=["pricing"])
+def price_records(priceable_type: str, priceable_id: int, request: Request, sort: str = Query("id"), order: str = Query("desc"), page: int = Query(1, ge=1), per_page: int = Query(30, ge=1), db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    info = priceable_info(priceable_type)
+    if info is None or db.get(info[0], priceable_id) is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    column = getattr(Price, sort if sort in {"id", "amount", "currency", "actual_since", "actual_from"} else "id")
+    query = select(Price).where(Price.priceable_type == info[1], Price.priceable_id == priceable_id)
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(query.order_by(column.asc() if order == "asc" else column.desc()).offset((page - 1) * per_page).limit(per_page)).all()
+    return {"items": [serialize_price(row) for row in rows], "title": db.get(info[0], priceable_id).title, "priceable_type": priceable_type, "priceable_id": priceable_id, "page": page, "last_page": max(1, (total + per_page - 1) // per_page), "can_edit": user.has_permission("edit_price"), "can_delete": user.has_permission("delete_price")}
+
+
+@app.post("/api/prices/{priceable_type}/{priceable_id}/records", tags=["pricing"])
+def price_create(priceable_type: str, priceable_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    permission = require_price_permission(request, db, "edit_price")
+    if isinstance(permission, JSONResponse):
+        return permission
+    info = priceable_info(priceable_type)
+    if info is None or db.get(info[0], priceable_id) is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    try:
+        values = validated_price(payload)
+    except (KeyError, ValueError, TypeError, InvalidOperation):
+        return JSONResponse({"error": "invalid_price"}, status_code=422)
+    row = Price(priceable_id=priceable_id, priceable_type=info[1], **values, item="")
+    db.add(row)
+    db.commit()
+    return serialize_price(row)
+
+
+@app.patch("/api/prices/{priceable_type}/{priceable_id}/records/{price_id}", tags=["pricing"])
+def price_update(priceable_type: str, priceable_id: int, price_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    permission = require_price_permission(request, db, "edit_price")
+    if isinstance(permission, JSONResponse):
+        return permission
+    info = priceable_info(priceable_type)
+    row = db.get(Price, price_id)
+    if info is None or row is None or row.priceable_type != info[1] or row.priceable_id != priceable_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    try:
+        values = validated_price(payload)
+    except (KeyError, ValueError, TypeError, InvalidOperation):
+        return JSONResponse({"error": "invalid_price"}, status_code=422)
+    for field, value in values.items():
+        setattr(row, field, value)
+    db.commit()
+    return serialize_price(row)
+
+
+@app.delete("/api/prices/{priceable_type}/{priceable_id}/records/{price_id}", tags=["pricing"])
+def price_delete(priceable_type: str, priceable_id: int, price_id: int, request: Request, db: Session = Depends(get_db)):
+    permission = require_price_permission(request, db, "delete_price")
+    if isinstance(permission, JSONResponse):
+        return permission
+    info = priceable_info(priceable_type)
+    row = db.get(Price, price_id)
+    if info is None or row is None or row.priceable_type != info[1] or row.priceable_id != priceable_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    # Price has no SoftDeletes trait in the original application.
+    db.delete(row)
+    db.commit()
+    return {"status": "ok"}
 
 
 @app.get("/", tags=["compatibility"])
