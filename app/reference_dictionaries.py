@@ -8,10 +8,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import Measure, PaperFormat, PaperType
+from .models import CustomerGroup, Measure, PaperFormat, PaperType
 
 
 DICTIONARIES = {
+    "customer-group": {
+        "model": CustomerGroup, "title": "Группы заказчиков", "new": "Новая группа заказчиков",
+        "singular": "Группа заказчиков", "prefix": "customer_group", "draft": True,
+        "fields": [("title", "Название", "text")],
+    },
     "paper-type": {
         "model": PaperType, "title": "Виды бумаги", "new": "Новый вид бумаги",
         "singular": "Вид бумаги", "prefix": "paper_type", "draft": True,
@@ -58,7 +63,7 @@ def validate(payload, config):
             except (InvalidOperation, ValueError):
                 errors[name] = f"Поле «{label}» должно содержать целое число."
         else:
-            limit = 255 if config["model"] is Measure and key == "title" else 50
+            limit = 200 if config["model"] is CustomerGroup else 255 if config["model"] is Measure and key == "title" else 50
             if len(str(value)) > limit:
                 errors[name] = f"Поле «{label}»: не более {limit} символов."
             else:

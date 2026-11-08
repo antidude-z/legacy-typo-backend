@@ -2,6 +2,28 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Customer references
+
+Customers now have listing/sorting/pagination, submission-based creation,
+editing, confirmation, soft deletion, restore and permanent-delete actions at
+`/references/customers`. Fields mirror the legacy forms: name, group, phone,
+INN (kept as text), address, description. Customer groups use the existing
+dictionary screens at `/options/customer-group`, including persisted blank
+draft creation. Active groups populate the customer selector; no group maps
+to NULL. Server validation respects schema lengths and active group references.
+
+Customer APIs are under `/api/customer-references` (GET/POST), `/form` (GET),
+`/{id}` (GET/PATCH/DELETE), and `/{id}/restore` (POST). They integrate with the
+existing customer table used by Orders. SQLite startup adds missing columns
+without dropping rows; tests cover repeated upgrade and row preservation.
+
+The legacy CustomerContactController is entirely empty and its customer views
+contain no contact-management forms; no new contact CRUD was invented. Payer
+associations belong to the later accounting slice. Customer confirmations use
+dedicated screens instead of modal variants. Exact browser visual acceptance,
+CSRF/session hardening, and dump-backed comparisons remain project-level work.
+Employees/user-role management remains the next reference implementation slice.
+
 ## Prepress/redaction references
 
 The name-only directories are available at `/references/prepresses` and

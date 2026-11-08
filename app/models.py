@@ -66,6 +66,20 @@ class Customer(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(String(100), nullable=False)
+    inn = Column(String(12), nullable=True)
+    phone = Column(String(200), nullable=True)
+    address = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    profit = Column(Integer, nullable=False, default=0)
+    customer_group_id = Column(Integer, ForeignKey("customer_groups.id"), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    group = relationship("CustomerGroup")
+
+
+class CustomerGroup(Base):
+    __tablename__ = "customer_groups"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(200), nullable=False)
     deleted_at = Column(DateTime, nullable=True)
 
 
