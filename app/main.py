@@ -502,32 +502,6 @@ def blank_recalculate(order_id: int, blank_id: int, request: Request, db: Sessio
     calculated["result"] = str(calculated["result"])
     calculated["cost"] = calculated["result"]
     return calculated
-    result = {"paper": {"amount": "0", "found": False}, "material": {"amount": "0", "found": False}, "afterprints": [], "cost": str(item.cost or 0), "status": "stored_cost"}
-    if item.paper_id:
-        result["paper"] = {k: str(v) if isinstance(v, Decimal) else v for k, v in resolve_price(db, "App\\Paper", item.paper_id, 0, None, "RUB").items()}
-    if item.material_id:
-        result["material"] = {k: str(v) if isinstance(v, Decimal) else v for k, v in resolve_price(db, "App\\Material", item.material_id, 0, None, "RUB").items()}
-    for assignment in db.scalars(select(BlankAfterprint).where(BlankAfterprint.blank_id == item.id, BlankAfterprint.active.is_(True), BlankAfterprint.deleted_at.is_(None))).all():
-        count_on_pl = 1
-        try:
-            if assignment.parameters:
-                count_on_pl = int(str(assignment.parameters).split(";")[0] or 1)
-        except ValueError:
-            count_on_pl = 1
-        calc = calculate_afterprint(db, item, 1, assignment.afterprint_id, count_on_pl, "poly", None, "RUB")
-        calc["result"] = str(calc["result"])
-        for stage in calc["details"]["stages"]:
-            stage["price"] = str(stage["price"])
-            stage["cost"] = str(stage["cost"])
-            for material in stage["materials"]:
-                material["price"] = str(material["price"])
-                material["cost"] = str(material["cost"])
-        result["afterprints"].append(calc)
-    if result["paper"].get("found"):
-        item.paper_price = result["paper"]["amount"]
-        db.commit()
-    result["message"] = "Generic price lookup migrated; printer and afterprint formulas remain pending."
-    return result
 
 
 @app.delete("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])
