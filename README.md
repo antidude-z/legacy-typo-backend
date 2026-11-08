@@ -2,6 +2,28 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Compilation references
+
+`/references/compiles` now supports definition lists, submission-based creation,
+editing, confirmation, soft deletion, restoration, and permanent deletion.
+Definitions contain title, fitting-sheet allowance, and four production flags.
+Nested stages/materials retain the legacy hierarchy and are saved on submission.
+Stages have together, waste, fitting and automatic next ordering weight, without
+afterprint-specific density bounds. Material choices use overlapping production
+flags; assignment quantities preserve four decimal places.
+
+APIs mirror that hierarchy under `/api/references/compiles`; GET `/stages/form`
+and `/materials/form` provide form defaults/options without creating draft rows.
+All child requests verify parent ownership, trash visibility, and lifecycle
+permissions. Definition titles are bounded to the stored schema length; fitting
+and stage values are validated instead of accepting malformed data.
+Definition and stage price-history links use `/prices/compile/{id}` and
+`/prices/compiles/{id}` respectively. Calculation formulas are unchanged.
+
+Remaining acceptance work: browser/visual and dump-backed comparisons, shared
+CSRF/session hardening, and modal/widget appearance. Dedicated confirmations
+replace the legacy stage/material modal variants.
+
 ## Afterprint references
 
 `/references/afterprints` now lists pre-seeded definitions with sorting and

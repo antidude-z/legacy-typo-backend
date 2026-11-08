@@ -764,4 +764,6 @@ register_printer_routes(app, lambda request, db: current_user(request, db))
 from .reference_inventory import register_inventory_routes
 from .reference_afterprints import register_afterprint_routes
 register_afterprint_routes(app, lambda request, db: current_user(request, db))
+from .reference_compiles import register_compile_routes
+register_compile_routes(app, lambda request, db: current_user(request, db))
 register_inventory_routes(app, lambda request, db: current_user(request, db))
