@@ -5,7 +5,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from .models import (
-    Bill, Compile, Customer, Order, OrderCompile, OrderMarkup, OrderOtherWork,
+    Action, Bill, Compile, Customer, Order, OrderCompile, OrderMarkup, OrderOtherWork,
     OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Prepress, Redaction, User,
 )
 
@@ -168,3 +168,16 @@ def serialize_order_detail(db: Session, order: Order, include_deleted: bool = Fa
         },
         "calculation": {"total": str(order.total or 0), "status": "stored_total", "message": "Legacy calculation dependencies are not yet migrated."},
     }
+
+
+def serialize_history(db: Session, order_id: int) -> list[dict]:
+    actions = db.scalars(
+        select(Action).where(Action.item_id == order_id, Action.module == "Заказы", Action.deleted_at.is_(None)).order_by(Action.created_at.desc()).limit(20)
+    ).all()
+    return [{
+        "id": action.id,
+        "date": action.created_at.strftime("%d.%m.%Y %H:%M"),
+        "user": f"{action.user.surname or ''} {action.user.name}".strip() if action.user else "",
+        "comment": action.comment,
+        "url": action.url,
+    } for action in actions]

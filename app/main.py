@@ -9,9 +9,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
-from .models import User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
+from .models import Action, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
-from .orders import create_order, list_metadata, orders_query, serialize_order, serialize_order_detail
+from .orders import create_order, list_metadata, orders_query, serialize_history, serialize_order, serialize_order_detail
 
 
 @asynccontextmanager
@@ -209,6 +209,7 @@ def order_create(
     if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     item = create_order(db, user.id, order_type, {"title": order_title, "format": order_format, "printing": order_printing, "volume": order_volume})
+    db.add(Action(user_id=user.id, module="Заказы", item_id=item.id, comment="Создан заказ", url=f"orders/{item.id}"))
     db.commit()
     return {"id": item.id, "location": f"/orders/{item.id}"}
 
@@ -224,6 +225,15 @@ def order_detail(order_id: int, request: Request, db: Session = Depends(get_db))
     return serialize_order_detail(db, item, user.has_permission("view_trashed"))
 
 
+@app.get("/api/orders/{order_id}/history", tags=["orders"])
+def order_history(order_id: int, request: Request, db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if db.get(Order, order_id) is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return {"items": serialize_history(db, order_id)}
+
+
 @app.put("/api/orders/{order_id}", tags=["orders"])
 @app.post("/api/orders/{order_id}", tags=["orders"], include_in_schema=False)
 def order_update(order_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
@@ -233,6 +243,7 @@ def order_update(order_id: int, request: Request, payload: dict, db: Session = D
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     if item is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
+    original = {"status_id": item.status_id, "user_id": item.user_id, "printing": item.printing, "total": item.total}
     values = payload.get("order", payload)
     for source, target in [("title", "title"), ("format", "format"), ("volume", "volume"), ("printing", "printing"), ("status_id", "status_id"), ("width", "width"), ("height", "height"), ("customer_id", "customer_id"), ("user_id", "user_id"), ("bill_id", "bill_id"), ("total", "total"), ("comment", "comment"), ("files", "files")]:
         if source in values:
@@ -250,6 +261,18 @@ def order_update(order_id: int, request: Request, payload: dict, db: Session = D
     if item.order_type == "wide":
         item.format = f"{item.width}x{item.height}"
         item.volume = str((item.width or 0) * (item.height or 0))
+    comments = []
+    if original["status_id"] != item.status_id:
+        comments.append(f"Статус заказа изменен на {item.status.title if item.status else item.status_id}")
+    if original["user_id"] != item.user_id:
+        manager = db.get(User, item.user_id)
+        comments.append(f"Менеджер заказа изменен на {manager.surname} {manager.name}" if manager else "Менеджер заказа изменен")
+    if original["printing"] != item.printing:
+        comments.append(f"Тираж заказа изменен c {original['printing']} на {item.printing}")
+    if original["total"] != item.total:
+        comments.append(f"Стоимость заказа изменена c {original['total']} на {item.total}")
+    for comment in comments:
+        db.add(Action(user_id=user.id, module="Заказы", item_id=item.id, comment=comment, url=f"orders/{item.id}"))
     db.commit()
     return serialize_order_detail(db, item)
 
@@ -263,6 +286,7 @@ def order_copy(order_id: int, request: Request, payload: dict, db: Session = Dep
     if source is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item = create_order(db, user.id, source.order_type, {"title": payload.get("title", source.title), "format": payload.get("format", source.format), "printing": payload.get("printing", source.printing), "volume": payload.get("volume", source.volume), "total": source.total}, source)
+    db.add(Action(user_id=user.id, module="Заказы", item_id=item.id, comment=f"Заказ скопирован с заказа №{source.id}", url=f"orders/{item.id}"))
     db.commit()
     return {"id": item.id, "location": f"/orders/{item.id}"}
 
@@ -279,6 +303,7 @@ def order_delete(order_id: int, request: Request, db: Session = Depends(get_db))
         db.delete(item)
     else:
         item.deleted_at = __import__("datetime").datetime.utcnow()
+        db.add(Action(user_id=user.id, module="Заказы", item_id=item.id, comment="Заказ удален", url=f"orders/{item.id}"))
     db.commit()
     return {"status": "ok"}
 
@@ -292,6 +317,7 @@ def order_restore(order_id: int, request: Request, db: Session = Depends(get_db)
     if item is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item.deleted_at = None
+    db.add(Action(user_id=user.id, module="Заказы", item_id=item.id, comment="Заказ восстановлен", url=f"orders/{item.id}"))
     db.commit()
     return {"status": "ok"}
 
