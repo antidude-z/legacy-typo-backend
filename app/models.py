@@ -293,6 +293,15 @@ class Material(Base):
     deleted_at = Column(DateTime, nullable=True)
 
 
+class Service(Base):
+    __tablename__ = "services"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(255), nullable=False)
+    organization = Column(String(255), nullable=True)
+    kind = Column(String(30), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+
+
 class Blank(Base):
     __tablename__ = "blanks"
     id = Column(Integer, primary_key=True)

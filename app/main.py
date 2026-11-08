@@ -12,7 +12,7 @@ from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
 from .models import Action, Afterprint, Blank, BlankAfterprint, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
-from .orders import blank_metadata, calculate_afterprint, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
+from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 
 
 @asynccontextmanager
@@ -495,6 +495,13 @@ def blank_recalculate(order_id: int, blank_id: int, request: Request, db: Sessio
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
+    order = db.get(Order, order_id)
+    if order is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    calculated = calculate_blank(db, item, order, "RUB")
+    calculated["result"] = str(calculated["result"])
+    calculated["cost"] = calculated["result"]
+    return calculated
     result = {"paper": {"amount": "0", "found": False}, "material": {"amount": "0", "found": False}, "afterprints": [], "cost": str(item.cost or 0), "status": "stored_cost"}
     if item.paper_id:
         result["paper"] = {k: str(v) if isinstance(v, Decimal) else v for k, v in resolve_price(db, "App\\Paper", item.paper_id, 0, None, "RUB").items()}

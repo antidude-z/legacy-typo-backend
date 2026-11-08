@@ -1,12 +1,13 @@
 from datetime import date, datetime
 from decimal import Decimal
+from math import ceil
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from .models import (
     Action, Afterprint, AfterprintParameter, AfterprintParameterValue, AfterprintStage, AfterprintStageMaterial, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
-    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Rate, Redaction, User,
+    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Rate, Redaction, Service, User,
 )
 
 
@@ -291,3 +292,97 @@ def calculate_afterprint(db: Session, blank: Blank, start_pl_count: int, afterpr
             materials.append({"title": material.material.title if material.material else "", "quantity": str(quantity), "price": str(material_price["amount"]), "cost": str(material_cost), "price_found": material_price["found"]})
         details.append({"title": stage.title, "pl_count": pl_count, "together": together, "waste": stage.waste, "payment_count": payment_count, "price": str(price["amount"]), "cost": str(stage_cost), "price_found": price["found"], "materials": materials})
     return {"result": total, "pl_count": pl_count, "status": "missing_prices" if missing_price else "calculated", "details": {"title": afterprint.title, "stages": details}}
+
+
+def calculate_blank(db: Session, blank: Blank, order: Order, currency: str = "RUB") -> dict:
+    printing = int(order.printing or 0)
+    details = {
+        "title": blank.title, "printing": printing,
+        "details_per_sheet": blank.details_per_sheet, "pages_per_sheet": blank.pages_per_sheet,
+        "details_per_blank": blank.details_per_blank, "different_details": blank.different_details,
+        "width": str(blank.width or 0), "height": str(blank.height or 0), "steps": [],
+        "afterprint": [], "print": {}, "paper": {}, "imagesetter": {},
+    }
+    if order.order_type == "wide":
+        steps = [printing]
+        step_fractions = [Decimal("1")]
+    else:
+        divisor = int(blank.details_per_sheet or blank.pages_per_sheet or 0)
+        different = max(int(blank.different_details or 1), 1)
+        per_blank = max(int(blank.details_per_blank or 1), 1)
+        if divisor <= 0:
+            steps = [printing]
+            step_fractions = [Decimal("1")]
+        else:
+            count = different / divisor
+            steps, step_fractions = [], []
+            index = 0
+            while index < count:
+                fraction = Decimal(str(min(1, count - index)))
+                if index > 0 and fraction <= Decimal("0.5"):
+                    fraction = Decimal("0.5")
+                steps.append(ceil(float(fraction * per_blank / different * printing)))
+                step_fractions.append(fraction)
+                index += 1
+    total = Decimal("0")
+    missing = []
+    details["steps"] = steps
+    resulting_steps = list(steps)
+
+    for assignment in db.scalars(select(BlankAfterprint).where(BlankAfterprint.blank_id == blank.id, BlankAfterprint.active.is_(True), BlankAfterprint.deleted_at.is_(None)).order_by(BlankAfterprint.afterprint_id.desc())).all():
+        after_details = []
+        for index, count in enumerate(resulting_steps):
+            count_on_pl = 1
+            try:
+                count_on_pl = max(int(str(assignment.parameters or "1").split(";")[0]), 1)
+            except ValueError:
+                pass
+            calc = calculate_afterprint(db, blank, count, assignment.afterprint_id, count_on_pl, order.order_type or "poly", order.order_date, currency)
+            total += calc["result"]
+            missing.extend([] if calc["status"] == "calculated" else [f"afterprint:{assignment.afterprint_id}"])
+            resulting_steps[index] = calc["pl_count"]
+            after_details.append(calc)
+        details["afterprint"].append({"id": assignment.afterprint_id, "steps": after_details})
+
+    printer_calc = {"result": Decimal("0"), "pl_count": resulting_steps[-1] if resulting_steps else printing, "status": "skipped"}
+    if blank.printer_id:
+        for index, count in enumerate(resulting_steps):
+            printer_calc = calculate_printer(db, blank.printer_id, count, blank.colors_front, blank.colors_back, order.order_date, blank.printer_process_id, currency)
+            total += printer_calc["result"]
+            resulting_steps[index] = printer_calc["pl_count"]
+            if printer_calc["status"] not in {"calculated", "skipped"}:
+                missing.append(f"printer:{blank.printer_id}")
+        details["print"] = printer_calc["details"]
+    else:
+        details["print"] = {"title": "Без печати", "stages": []}
+
+    final_sheets = sum(resulting_steps)
+    cutting = max(int(blank.cutting or 1), 1)
+    if order.order_type == "wide":
+        quantity = Decimal(final_sheets) * Decimal(str(blank.width or 0)) * Decimal(str(blank.height or 0))
+        price = resolve_price(db, "App\\Material", blank.material_id, int(quantity), order.order_date, currency) if blank.material_id else {"amount": Decimal("0"), "found": False}
+        cost = price["amount"] * quantity
+        details["paper"] = {"title": blank.material.title if blank.material else "", "material_count": str(quantity), "price": str(price["amount"]), "cost": str(cost)}
+    else:
+        quantity = Decimal(ceil(final_sheets / cutting))
+        price = resolve_price(db, "App\\Paper", blank.paper_id, int(quantity), order.order_date, currency) if blank.paper_id else {"amount": Decimal(str(blank.paper_price or 0)), "found": bool(blank.paper_price)}
+        cost = price["amount"] * quantity
+        details["paper"] = {"title": blank.paper.title if blank.paper else "", "paper_list_count": str(quantity), "price": str(price["amount"]), "cost": str(cost)}
+    total += cost
+    if not price["found"]:
+        missing.append("paper_or_material")
+
+    printer = db.get(Printer, blank.printer_id) if blank.printer_id else None
+    if printer and printer.need_imagesetter:
+        image = db.scalar(select(BlankImagesetter).where(BlankImagesetter.blank_id == blank.id))
+        plates = int(image.plates if image else 0)
+        service = db.scalar(select(Service).where(Service.kind == "imagesetter", Service.deleted_at.is_(None)).order_by(Service.id))
+        image_price = resolve_price(db, "App\\Service", service.id, plates, order.order_date, currency) if service else {"amount": Decimal("0"), "found": False}
+        image_cost = image_price["amount"] * plates
+        total += image_cost
+        details["imagesetter"] = {"plates": plates, "price": str(image_price["amount"]), "cost": str(image_cost)}
+        if not image_price["found"]:
+            missing.append("imagesetter")
+    blank.cost = total
+    db.commit()
+    return {"result": total, "status": "missing_prices" if missing else "calculated", "missing": sorted(set(missing)), "details": details}
