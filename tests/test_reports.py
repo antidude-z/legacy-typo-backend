@@ -2,7 +2,7 @@ import unittest
 import xlrd
 from pypdf import PdfReader
 from tests import test_reference_dictionaries as fixtures
-from app.models import Bill, Blank, Order, OrderStatus, Report, ReportParam
+from app.models import Bill, Blank, Order, OrderMarkup, OrderStatus, Report, ReportParam
 from app.php_serialization import dumps
 
 
@@ -18,13 +18,14 @@ class ReportTests(unittest.TestCase):
             Report(id='order_transcript',program='ipc',kind='html',title='Расшифровка расчета',model='App\\Order',model_title='Заказ'),
             Report(id='order_passport',program='ipc',kind='pdf',title='Passport',model='App\\Order',model_title='Заказ'),
             Report(id='order_economy',program='ipc',kind='xls',title='Экономика',model='App\\Order',model_title='Заказ'),
+            Report(id='order_design',program='ipc',kind='xls',title='Наряд-заказ дизайна',model='App\\Order',model_title='Заказ'),
             ReportParam(id=1,alias='company',report_id='order_transcript',title='Company',value='Original'),
         ])
         self.db.commit()
 
     def test_catalog_settings_and_parameter_scope(self):
         self.seed()
-        self.assertEqual(len(self.client.get('/api/report-settings').json()['items']),3)
+        self.assertEqual(len(self.client.get('/api/report-settings').json()['items']),4)
         self.assertEqual(self.client.patch('/api/report-settings/order_transcript',json={
             'title':'Updated','format':'A3','orientation':'L','download':True,'prohibitions':['1']
         }).status_code,200)
@@ -141,6 +142,29 @@ class ReportTests(unittest.TestCase):
         text = PdfReader(__import__('io').BytesIO(response.content)).pages[0].extract_text()
         self.assertIn('Широкоформатное производство', text)
         self.assertIn('Панель', text)
+
+    def test_design_xls_applies_legacy_half_cost_and_exposes_order_data(self):
+        self.seed()
+        self.db.add(Blank(id=1, order_id=1, title='Обложка', colors_front=4, colors_back=0))
+        self.db.add(OrderMarkup(order_id=1, markup_type='design', value=10, active=False))
+        self.db.commit()
+        self.db.get(Order, 1).calc_details = dumps({
+            'design': [{'title': 'Макет', 'cost': 100}],
+            'markups': {'design': {'markup': 90}},
+        })
+        self.db.commit()
+        response = self.client.get('/reports/order_design/item/1')
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers['content-type'], 'application/vnd.ms-excel')
+        sheet = xlrd.open_workbook(file_contents=response.content).sheet_by_name('Наряд-заказ')
+        values = [cell for row in sheet._cell_values for cell in row]
+        self.assertIn('Наряд-заказ', values)
+        self.assertIn('Обложка', values)
+        self.assertIn('Стоимость наряд-заказа', values)
+        total_row = next(index for index in range(sheet.nrows) if sheet.cell_value(index, 0) == 'Стоимость наряд-заказа')
+        self.assertAlmostEqual(sheet.cell_value(total_row, 7), 55)
+        self.assertIn('Проверка макета', values)
+        self.assertIn('Пожелания / Проблема', values)
 
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()

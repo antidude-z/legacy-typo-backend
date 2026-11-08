@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import Bill, Blank, Order, OrderStatus, Report, ReportParam
+from .models import Bill, Blank, Order, OrderMarkup, OrderStatus, Report, ReportParam
 from .php_serialization import loads
 
 
@@ -136,6 +136,74 @@ def build_economy_xls(order, report, calc_details):
     grand_total = sum(totals.values())
     sheet.write(row_number, 0, "ИТОГО рассчитанная стоимость", total_style); sheet.write(row_number, 7, grand_total, total_style); row_number += 1
     sheet.write(row_number, 0, "Стоимость за 1 шт.", total_style); sheet.write(row_number, 7, grand_total / max(int(order.printing or 1), 1), total_style)
+    output = BytesIO(); workbook.save(output); return output.getvalue()
+
+
+def build_design_xls(order, report, blanks, calc_details, design_markup=None):
+    """Build the legacy design work-order workbook from stored calculation data."""
+    workbook = xlwt.Workbook(encoding="utf-8")
+    sheet = workbook.add_sheet("Наряд-заказ")
+    title = xlwt.easyxf("font: name Arial, height 280, bold on; align: horiz center")
+    label = xlwt.easyxf("font: name Arial, height 200; borders: left thin, right thin, top thin, bottom thin")
+    header = xlwt.easyxf("font: name Arial, height 200, bold on; pattern: pattern solid, fore_colour yellow; borders: left thin, right thin, top thin, bottom thin; align: horiz center, wrap on")
+    value = xlwt.easyxf("font: name Arial, height 200; pattern: pattern solid, fore_colour yellow; borders: left thin, right thin, top thin, bottom thin; align: horiz center, wrap on")
+    money = xlwt.easyxf("font: name Arial, height 200; pattern: pattern solid, fore_colour yellow; borders: left thin, right thin, top thin, bottom thin")
+    money.num_format_str = "#,##0.00"
+    total = xlwt.easyxf("font: name Arial, height 200, bold on; borders: left thin, right thin, top thin, bottom thin")
+    total.num_format_str = "#,##0.00"
+    for column, width in enumerate((4500, 6000, 6500, 6500, 6500, 6500, 6500, 4500)):
+        sheet.col(column).width = width
+    sheet.write_merge(0, 0, 0, 7, "Наряд-заказ", title)
+    manager = f"{order.manager.surname or ''} {order.manager.name}".strip() if order.manager else ""
+    rows = [
+        ("№ счета", order.bill.number if order.bill else "", "№ заказа", order.id),
+        ("Дата начала работ", _date(order.order_date), "Дата окончания работ", _date(order.deadline)),
+        ("Заказчик", order.customer.title if order.customer else "", "Тел./e-mail", order.customer.phone if order.customer else ""),
+        ("Вид продукции", f"{order.title} ({order.order_type or ''})", "Менеджер", manager),
+        ("Формат готового изделия, мм", order.format or "", "Тираж", order.printing),
+    ]
+    row_number = 2
+    for left_label, left_value, right_label, right_value in rows:
+        sheet.write(row_number, 0, left_label, label); sheet.write_merge(row_number, row_number, 1, 3, str(left_value or ""), value)
+        sheet.write(row_number, 4, right_label, label); sheet.write_merge(row_number, row_number, 5, 7, str(right_value or ""), value)
+        row_number += 1
+    design = calc_details.get("design", []) if isinstance(calc_details, dict) else []
+    if isinstance(design, dict): design = list(design.values())
+    coefficient = 1 + _number(design_markup.value if design_markup else 0) / 100
+    design_cost = sum((_number(item.get("cost")) for item in design if isinstance(item, dict)), 0) * coefficient / 2
+    row_number += 1
+    sheet.write_merge(row_number, row_number, 0, 1, "Печать", header); sheet.write_merge(row_number, row_number, 2, 4, "Печ. машина", header); sheet.write_merge(row_number, row_number, 5, 6, "Цветность", header); sheet.write(row_number, 7, "Стоимость", header); row_number += 1
+    for blank in blanks:
+        sheet.write(row_number, 0, blank.title or "", label)
+        sheet.write_merge(row_number, row_number, 2, 4, blank.printer.title if blank.printer else "Без печати", value)
+        sheet.write_merge(row_number, row_number, 5, 6, f"{blank.colors_front}x{blank.colors_back}", value)
+        sheet.write(row_number, 7, "", money); row_number += 1
+        sheet.write(row_number, 0, "Бумага", label)
+        sheet.write_merge(row_number, row_number, 1, 3, blank.paper.title if blank.paper else "", value)
+        saved_blanks = calc_details.get("blanks", {})
+        saved = saved_blanks.get(blank.id, saved_blanks.get(str(blank.id), {})) if isinstance(saved_blanks, dict) else {}
+        nested = saved.get("details", {}) if isinstance(saved, dict) else {}
+        paper = nested.get("paper", {}) if isinstance(nested, dict) else {}
+        sheet.write(row_number, 4, "Бумага/поле, мм", label)
+        sheet.write_merge(row_number, row_number, 5, 7, paper.get("print_list_size", "") if isinstance(paper, dict) else "", value)
+        row_number += 1
+    sheet.write_merge(row_number, row_number, 0, 6, "Стоимость наряд-заказа", total); sheet.write(row_number, 7, float(design_cost), total)
+    row_number += 2
+    sheet.write_merge(row_number, row_number, 0, 7, "Проверка макета", header)
+    row_number += 1
+    for text in ("Количество страниц", "Цветность: cmyk / Pantone / RGB / Лак", "Качество изображений: 300dpi / 250-300dpi / <250dpi", "Припуски на подрез, мм", "Внутреннее поле до бига/реза до значимых объектов, мм — min 4 мм"):
+        sheet.write_merge(row_number, row_number, 0, 5, text, label)
+        sheet.write_merge(row_number, row_number, 6, 7, order.volume or "" if text == "Количество страниц" else "", value)
+        row_number += 1
+    sheet.write_merge(row_number, row_number, 0, 1, "п/п / стр. / !", header)
+    sheet.write_merge(row_number, row_number, 2, 5, "Пожелания / Проблема", header)
+    sheet.write_merge(row_number, row_number, 6, 7, "Решение", header)
+    for index in range(1, 14):
+        row_number += 1
+        sheet.write(row_number, 0, index, label)
+        for column in range(1, 8): sheet.write(row_number, column, "", label)
+    row_number += 2
+    sheet.write_merge(row_number, row_number, 0, 7, "Дополнительно", header)
     output = BytesIO(); workbook.save(output); return output.getvalue()
 
 
@@ -316,7 +384,7 @@ def register_report_routes(app, current_user):
         if not item or item.deleted_at: raise HTTPException(404)
         rows = db.scalars(select(Report).where(Report.model == model_name,Report.deleted_at.is_(None)).order_by(Report.id)).all()
         return {"items":[serialize_report(row) | {
-            "available":((row.id == "order_transcript" and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide"} and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and not row.form,
+            "available":((row.id in {"order_transcript"} and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide", "order_design"} and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and not row.form,
             "blocked":str(getattr(item,"status_id","")) in row.prohibitions.split(","),
             "url":f"/reports/{row.id}/item/{identity}",
         } for row in rows]}
@@ -353,6 +421,21 @@ def register_report_routes(app, current_user):
         item = db.get(Order,identity)
         if not item or item.deleted_at: raise HTTPException(404)
         if str(item.status_id) in report.prohibitions.split(","): raise HTTPException(403,"Документ недоступен при текущем статусе.")
+        if report.id == "order_design" and report.program == "ipc" and report.kind in {"xls", "xlsx"}:
+            raw = item.calc_details or ""
+            if not raw: raise HTTPException(422,"Сохранённый расчёт отсутствует или повреждён. Пересчитайте заказ.")
+            try:
+                if len(raw) > 5_000_000: raise ValueError("Calculation too large")
+                decoded = json.loads(raw) if raw.lstrip().startswith("{") else loads(raw)
+                if not isinstance(decoded, dict): raise ValueError("Expected array")
+            except (ValueError, UnicodeError, ArithmeticError, RecursionError):
+                raise HTTPException(422,"Сохранённый расчёт отсутствует или повреждён. Пересчитайте заказ.")
+            blanks = db.scalars(select(Blank).where(Blank.order_id == item.id, Blank.deleted_at.is_(None)).order_by(Blank.id)).all()
+            design_markup = db.scalar(select(OrderMarkup).where(OrderMarkup.order_id == identity, OrderMarkup.markup_type == "design", OrderMarkup.deleted_at.is_(None)).order_by(OrderMarkup.id))
+            content = build_design_xls(item, report, blanks, decoded, design_markup)
+            headers = {"Cache-Control":"no-store", "X-Content-Type-Options":"nosniff"}
+            if report.download: headers["Content-Disposition"] = f'attachment; filename="order-design-{identity}.xls"'
+            return Response(content, media_type="application/vnd.ms-excel", headers=headers)
         if report.id in {"order_economy", "order_economy_wide"} and report.program == "ipc" and report.kind in {"xls", "xlsx"}:
             raw = item.calc_details or ""
             if not raw:
