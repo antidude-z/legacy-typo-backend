@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .models import (
     Action, Afterprint, AfterprintParameter, AfterprintParameterValue, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
-    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Printer, PrinterProcess, Redaction, User,
+    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterProcess, Rate, Redaction, User,
 )
 
 
@@ -202,3 +202,24 @@ def serialize_blank(item: Blank, db: Session | None = None) -> dict:
         afterprints = [{"id": row.afterprint_id, "title": row.afterprint.title if row.afterprint else "", "active": row.active, "parameters": row.parameters or ""} for row in rows]
     image = db.scalar(select(BlankImagesetter).where(BlankImagesetter.blank_id == item.id)) if db is not None else None
     return {"id": item.id, "title": item.title, "printer": item.printer.title if item.printer else "Без печати", "paper": item.paper.title if item.paper else (item.material.title if item.material else ""), "printer_id": item.printer_id, "printer_process_id": item.printer_process_id, "paper_id": item.paper_id, "material_id": item.material_id, "colors_front": item.colors_front, "colors_back": item.colors_back, "cutting": item.cutting, "width": str(item.width or 0), "height": str(item.height or 0), "details_per_sheet": item.details_per_sheet, "pages_per_sheet": item.pages_per_sheet, "details_per_blank": item.details_per_blank, "different_details": item.different_details, "comments": item.comments or "", "plates": image.plates if image else 0, "self_print": bool(getattr(image, "self", False)) if image else False, "fix_plates": bool(image.fix) if image else False, "afterprints": afterprints, "cost": str(item.cost or 0), "deleted": item.deleted_at is not None}
+
+
+def currency_rate(db: Session, source: str, target: str, on_date: date | None = None) -> Decimal:
+    if source == target:
+        return Decimal("1")
+    rate = db.scalar(select(Rate).where(Rate.deleted_at.is_(None), Rate.actual_since <= (on_date or date.today())).order_by(Rate.actual_since.desc()))
+    if rate is None:
+        return Decimal("1")
+    usd = Decimal(rate.usd or 1) or Decimal("1")
+    eur = Decimal(rate.eur or 1) or Decimal("1")
+    table = {"RUB": {"RUB": Decimal("1"), "USD": Decimal("1") / usd, "EUR": Decimal("1") / eur}, "USD": {"RUB": usd, "USD": Decimal("1"), "EUR": usd / eur}, "EUR": {"RUB": eur, "USD": eur / usd, "EUR": Decimal("1")}}
+    return table.get(source, {}).get(target, Decimal("1"))
+
+
+def resolve_price(db: Session, priceable_type: str, priceable_id: int, quantity: int = 0, on_date: date | None = None, currency: str = "RUB") -> dict:
+    effective = on_date or date.today()
+    price = db.scalar(select(Price).where(Price.priceable_type == priceable_type, Price.priceable_id == priceable_id, Price.deleted_at.is_(None), Price.actual_since <= effective, Price.actual_from <= quantity).order_by(Price.actual_from.desc(), Price.actual_since.desc()))
+    if price is None:
+        return {"amount": Decimal("0"), "currency": currency, "source_currency": None, "rate": Decimal("1"), "found": False}
+    rate = currency_rate(db, price.currency, currency, effective)
+    return {"amount": Decimal(price.amount or 0) * rate, "currency": currency, "source_currency": price.currency, "rate": rate, "found": True, "price_id": price.id}

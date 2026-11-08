@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from decimal import Decimal
 
 import bcrypt
 from fastapi import Depends, FastAPI, Form, Query, Request
@@ -11,7 +12,7 @@ from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
 from .db import Base, engine, get_db
 from .models import Action, Afterprint, Blank, BlankAfterprint, BlankImagesetter, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
 from .navigation import build_navigation
-from .orders import blank_metadata, create_order, list_metadata, orders_query, serialize_blank, serialize_history, serialize_order, serialize_order_detail
+from .orders import blank_metadata, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 
 
 @asynccontextmanager
@@ -460,6 +461,37 @@ def blank_detail(order_id: int, blank_id: int, request: Request, db: Session = D
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
     return {"item": serialize_blank(item, db), "metadata": blank_metadata(db), "calculation": "stored_cost"}
+
+
+@app.get("/api/prices/{priceable_type}/{priceable_id}", tags=["pricing"])
+def price_lookup(priceable_type: str, priceable_id: int, request: Request, quantity: int = Query(0), price_date: str | None = Query(None), currency: str = Query("RUB"), db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    effective = __import__("datetime").datetime.strptime(price_date, "%Y-%m-%d").date() if price_date else None
+    result = resolve_price(db, priceable_type, priceable_id, quantity, effective, currency)
+    result["amount"] = str(result["amount"])
+    result["rate"] = str(result["rate"])
+    return result
+
+
+@app.post("/api/orders/{order_id}/blanks/{blank_id}/recalculate", tags=["pricing"])
+def blank_recalculate(order_id: int, blank_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    item = db.get(Blank, blank_id)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    result = {"paper": {"amount": "0", "found": False}, "material": {"amount": "0", "found": False}, "cost": str(item.cost or 0), "status": "stored_cost"}
+    if item.paper_id:
+        result["paper"] = {k: str(v) if isinstance(v, Decimal) else v for k, v in resolve_price(db, "App\\Paper", item.paper_id, 0, None, "RUB").items()}
+    if item.material_id:
+        result["material"] = {k: str(v) if isinstance(v, Decimal) else v for k, v in resolve_price(db, "App\\Material", item.material_id, 0, None, "RUB").items()}
+    if result["paper"].get("found"):
+        item.paper_price = result["paper"]["amount"]
+        db.commit()
+    result["message"] = "Generic price lookup migrated; printer and afterprint formulas remain pending."
+    return result
 
 
 @app.delete("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])

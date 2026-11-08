@@ -347,3 +347,25 @@ class BlankAfterprint(Base):
     price = Column(Numeric(8, 2), nullable=True, default=0)
     deleted_at = Column(DateTime, nullable=True)
     afterprint = relationship("Afterprint")
+
+
+class Rate(Base):
+    __tablename__ = "rates"
+    id = Column(Integer, primary_key=True)
+    usd = Column(Numeric(10, 2), nullable=False, default=0)
+    eur = Column(Numeric(10, 2), nullable=False, default=0)
+    actual_since = Column(Date, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class Price(Base):
+    __tablename__ = "prices"
+    id = Column(Integer, primary_key=True)
+    priceable_id = Column(Integer, nullable=False)
+    priceable_type = Column(String(50), nullable=False)
+    actual_since = Column(Date, nullable=True)
+    actual_from = Column(Integer, nullable=False, default=0)
+    item = Column(String(50), nullable=True)
+    amount = Column(Numeric(10, 2), nullable=False, default=0)
+    currency = Column(String(3), nullable=False, default="RUB")
+    deleted_at = Column(DateTime, nullable=True)
