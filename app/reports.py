@@ -289,6 +289,30 @@ def register_report_routes(app, current_user):
             "url":f"/reports/{row.id}/item/{identity}",
         } for row in rows]}
 
+    @app.get("/api/reports/bills/{identity}/orders", tags=["reports"])
+    def bill_order_reports(identity: int, request: Request, db: Session = Depends(get_db)):
+        """Return the legacy bill-level collection of order documents."""
+        actor(request, db)
+        bill = db.get(Bill, identity)
+        if not bill or bill.deleted_at:
+            raise HTTPException(404)
+        reports = db.scalars(select(Report).where(
+            Report.id.in_(["order_passport", "order_economy"]),
+            Report.model == "App\\Order", Report.deleted_at.is_(None),
+        ).order_by(Report.id)).all()
+        orders = db.scalars(select(Order).where(Order.bill_id == identity, Order.deleted_at.is_(None)).order_by(Order.id)).all()
+        return {"items": [{
+            "id": order.id,
+            "title": order.title,
+            "reports": [serialize_report(report) | {
+                "available": ((report.id == "order_passport" and report.kind == "pdf") or
+                              (report.id == "order_economy" and report.kind in {"xls", "xlsx"})) and
+                             report.program == "ipc" and not report.form,
+                "blocked": str(order.status_id) in report.prohibitions.split(","),
+                "url": f"/reports/{report.id}/item/{order.id}",
+            } for report in reports],
+        } for order in orders]}
+
     @app.get("/reports/{report_id}/item/{identity}", tags=["reports"])
     def generate(report_id: str, identity: int, request: Request, db: Session = Depends(get_db)):
         actor(request,db); report = report_for(report_id,db)

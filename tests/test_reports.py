@@ -95,6 +95,24 @@ class ReportTests(unittest.TestCase):
         self.assertIn('ИТОГО рассчитанная стоимость', values)
         self.assertIn('Макет', values)
 
+    def test_bill_order_report_collection_preserves_order_and_status(self):
+        self.seed()
+        self.db.add_all([
+            Order(id=2, title='Second', status_id=2, order_type='book', printing=5, calc_details=dumps({'blanks': {}})),
+            Report(id='blocked_report', program='ipc', kind='pdf', title='Blocked', model='App\\Order', model_title='Заказ', prohibitions='2'),
+        ])
+        self.db.get(Order, 1).bill_id = 10
+        self.db.get(Order, 2).bill_id = 10
+        self.db.add(Bill(id=10, number='B-10', amount=100))
+        self.db.add(OrderStatus(id=2, title='Ready', sequence=2))
+        self.db.commit()
+        result = self.client.get('/api/reports/bills/10/orders')
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual([item['id'] for item in result.json()['items']], [1, 2])
+        reports = result.json()['items'][1]['reports']
+        self.assertEqual({item['id'] for item in reports}, {'order_economy', 'order_passport'})
+        self.assertTrue(all(item['available'] for item in reports))
+
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()
         self.db.get(Order,1).calc_details='O:3:"Foo":0:{}'; self.db.commit()
