@@ -1,8 +1,9 @@
 """Report catalog/settings and first migrated renderer (HTML transcript)."""
 from html import escape
 import json
+from decimal import Decimal
 
-from fastapi import Depends, HTTPException, Query, Request
+from fastapi import Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from io import BytesIO
 from pathlib import Path
@@ -207,6 +208,46 @@ def build_design_xls(order, report, blanks, calc_details, design_markup=None):
     output = BytesIO(); workbook.save(output); return output.getvalue()
 
 
+def build_payment_xls(bill, report, orders, params, actor, variables=None):
+    variables = variables or {}
+    workbook = xlwt.Workbook(encoding="utf-8")
+    sheet = workbook.add_sheet("Заявка на оплату")
+    title = xlwt.easyxf("font: name Calibri, height 320, bold on; align: horiz center")
+    body = xlwt.easyxf("font: name Calibri, height 220; borders: left thin, right thin, top thin, bottom thin; align: vert top, wrap on")
+    header = xlwt.easyxf("font: name Calibri, height 220, bold on; borders: left thin, right thin, top thin, bottom thin; align: horiz center, vert centre, wrap on")
+    money = xlwt.easyxf("font: name Calibri, height 220; borders: left thin, right thin, top thin, bottom thin; align: horiz right")
+    money.num_format_str = "#,##0.00"
+    total = xlwt.easyxf("font: name Calibri, height 220, bold on; borders: left thin, right thin, top thin, bottom thin; align: horiz right")
+    total.num_format_str = "#,##0.00"
+    for column, width in enumerate((3500, 10000, 3500, 4500, 4500, 4500, 4500, 5000)):
+        sheet.col(column).width = width
+    sheet.write_merge(0, 0, 0, 3, "«Согласовано»", title); sheet.write_merge(0, 0, 4, 7, "«Утверждаю в оплату»", title)
+    sheet.write_merge(1, 1, 0, 3, params.get("prorector", {}).get("title", ""), body); sheet.write_merge(1, 1, 4, 7, params.get("zam_prorectora", {}).get("title", ""), body)
+    sheet.write_merge(2, 2, 0, 3, params.get("prorector", {}).get("value", ""), body); sheet.write_merge(2, 2, 4, 7, "___________________" + params.get("zam_prorectora", {}).get("value", ""), body)
+    sheet.write_merge(4, 4, 0, 3, "ИСПОЛНИТЕЛЬ: Издательско-полиграфический центр УрФУ ЦСД", body); sheet.write_merge(4, 4, 4, 7, "ЗАКАЗЧИК: ФГАОУ ВО \"УрФУ имени первого Президента России Б.Н. Ельцина\"", body)
+    sheet.write_merge(5, 5, 0, 3, "Получатель: УФК по Свердловской области", body); sheet.write_merge(5, 5, 4, 7, "Плательщик: УФК по Свердловской области", body)
+    sheet.write_merge(7, 7, 0, 7, f"Заявка на оплату работ №{bill.number}", title)
+    sheet.write_merge(8, 8, 0, 7, f"От {_date(bill.bill_date)} года ({variables.get('institute', '')})", body)
+    headers = ["№ п/п", "Наименование работ", "Количество", "", "Цена", "", "", "Стоимость"]
+    for column, value in enumerate(headers): sheet.write(10, column, value, header)
+    total_amount = Decimal("0")
+    for index, order in enumerate(orders, 1):
+        amount = Decimal(str(order.total or 0)); quantity = order.printing or 0
+        unit = amount / quantity if quantity else Decimal("0")
+        values = [index, f"Заказ № {order.id} от УрФУ: {order.title}", quantity, "", float(unit), "", "", float(amount)]
+        for column, value in enumerate(values): sheet.write(11 + index - 1, column, value, money if column in {4, 7} else body)
+        total_amount += amount
+    total_row = 11 + len(orders)
+    for column in range(5): sheet.write(total_row, column, "", total)
+    sheet.write_merge(total_row, total_row, 5, 6, "ИТОГО", total); sheet.write(total_row, 7, float(total_amount), total)
+    footer = total_row + 3
+    sheet.write_merge(footer, footer, 1, 3, "ИСПОЛНИТЕЛЬ", header); sheet.write_merge(footer, footer, 4, 6, "ЗАКАЗЧИК", header)
+    sheet.write_merge(footer + 1, footer + 1, 0, 2, params.get("boss", {}).get("title", ""), body); sheet.write(footer + 1, 3, params.get("boss", {}).get("value", ""), body); sheet.write_merge(footer + 1, footer + 1, 4, 6, "Заказчик", body); sheet.write(footer + 1, 7, variables.get("customer", ""), body)
+    sheet.write_merge(footer + 2, footer + 2, 0, 2, params.get("buh", {}).get("title", ""), body); sheet.write(footer + 2, 3, params.get("buh", {}).get("value", ""), body); sheet.write_merge(footer + 2, footer + 2, 4, 6, params.get("pfu", {}).get("title", ""), body); sheet.write(footer + 2, 7, params.get("pfu", {}).get("value", ""), body)
+    sheet.write_merge(footer + 4, footer + 4, 1, 3, f"Исп.: {actor.surname or ''} {actor.name}".strip(), body); sheet.write_merge(footer + 5, footer + 5, 1, 3, f"Тел.: {actor.phone or ''}", body)
+    output = BytesIO(); workbook.save(output); return output.getvalue()
+
+
 def build_passport_pdf(order, report, blanks, calc_details):
     """Build the portable core of the legacy IPC order passport.
 
@@ -384,7 +425,7 @@ def register_report_routes(app, current_user):
         if not item or item.deleted_at: raise HTTPException(404)
         rows = db.scalars(select(Report).where(Report.model == model_name,Report.deleted_at.is_(None)).order_by(Report.id)).all()
         return {"items":[serialize_report(row) | {
-            "available":((row.id in {"order_transcript"} and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide", "order_design"} and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and not row.form,
+            "available":((row.id in {"order_transcript"} and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide", "order_design"} and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_payment" and row.model == "App\\Bill" and row.program == "ipc" and row.kind in {"xls", "xlsx"})) and (row.id == "order_payment" or not row.form),
             "blocked":str(getattr(item,"status_id","")) in row.prohibitions.split(","),
             "url":f"/reports/{row.id}/item/{identity}",
         } for row in rows]}
@@ -413,10 +454,22 @@ def register_report_routes(app, current_user):
             } for report in reports],
         } for order in orders]}
 
-    @app.get("/reports/{report_id}/item/{identity}", tags=["reports"])
-    def generate(report_id: str, identity: int, request: Request, db: Session = Depends(get_db)):
-        actor(request,db); report = report_for(report_id,db)
-        if report.model != "App\\Order" or report.program != "ipc" or report.form:
+    @app.api_route("/reports/{report_id}/item/{identity}", methods=["GET", "POST"], tags=["reports"])
+    def generate(report_id: str, identity: int, request: Request, payload: dict | None = None, institute: str | None = Form(None, alias="vars[institute]"), customer: str | None = Form(None, alias="vars[customer]"), db: Session = Depends(get_db)):
+        user = actor(request,db); report = report_for(report_id,db)
+        if report.id == "order_payment" and report.model == "App\\Bill" and report.program == "ipc" and report.kind in {"xls", "xlsx"}:
+            bill = db.get(Bill, identity)
+            if not bill or bill.deleted_at: raise HTTPException(404)
+            if getattr(bill, "status_id", None) is not None and str(bill.status_id) in report.prohibitions.split(","): raise HTTPException(403, "Документ недоступен при текущем статусе.")
+            params = {row.alias: {"title": row.title, "value": row.value} for row in params_for(report_id, db)}
+            orders = db.scalars(select(Order).where(Order.bill_id == identity, Order.deleted_at.is_(None)).order_by(Order.id)).all()
+            variables = payload.get("vars", {}) if isinstance(payload, dict) and isinstance(payload.get("vars", {}), dict) else {}
+            variables = {"institute": institute if institute is not None else variables.get("institute", ""), "customer": customer if customer is not None else variables.get("customer", "")}
+            content = build_payment_xls(bill, report, orders, params, user, variables)
+            headers = {"Cache-Control":"no-store", "X-Content-Type-Options":"nosniff"}
+            if report.download: headers["Content-Disposition"] = f'attachment; filename="payment-request-{identity}.xls"'
+            return Response(content, media_type="application/vnd.ms-excel", headers=headers)
+        if report.model != "App\\Order" or report.program != "ipc" or (report.form and report.id != "order_payment"):
             raise HTTPException(501,"Этот шаблон/формат ещё не перенесён.")
         item = db.get(Order,identity)
         if not item or item.deleted_at: raise HTTPException(404)

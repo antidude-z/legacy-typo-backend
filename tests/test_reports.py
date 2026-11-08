@@ -2,7 +2,7 @@ import unittest
 import xlrd
 from pypdf import PdfReader
 from tests import test_reference_dictionaries as fixtures
-from app.models import Bill, Blank, Order, OrderMarkup, OrderStatus, Report, ReportParam
+from app.models import Bill, Blank, Order, OrderMarkup, OrderStatus, Report, ReportParam, User
 from app.php_serialization import dumps
 
 
@@ -19,13 +19,14 @@ class ReportTests(unittest.TestCase):
             Report(id='order_passport',program='ipc',kind='pdf',title='Passport',model='App\\Order',model_title='Заказ'),
             Report(id='order_economy',program='ipc',kind='xls',title='Экономика',model='App\\Order',model_title='Заказ'),
             Report(id='order_design',program='ipc',kind='xls',title='Наряд-заказ дизайна',model='App\\Order',model_title='Заказ'),
+            Report(id='order_payment',program='ipc',kind='xls',form=True,title='Заявка на оплату',model='App\\Bill',model_title='Счет'),
             ReportParam(id=1,alias='company',report_id='order_transcript',title='Company',value='Original'),
         ])
         self.db.commit()
 
     def test_catalog_settings_and_parameter_scope(self):
         self.seed()
-        self.assertEqual(len(self.client.get('/api/report-settings').json()['items']),4)
+        self.assertEqual(len(self.client.get('/api/report-settings').json()['items']),5)
         self.assertEqual(self.client.patch('/api/report-settings/order_transcript',json={
             'title':'Updated','format':'A3','orientation':'L','download':True,'prohibitions':['1']
         }).status_code,200)
@@ -165,6 +166,27 @@ class ReportTests(unittest.TestCase):
         self.assertAlmostEqual(sheet.cell_value(total_row, 7), 55)
         self.assertIn('Проверка макета', values)
         self.assertIn('Пожелания / Проблема', values)
+
+    def test_payment_xls_uses_bill_orders_and_report_parameters(self):
+        self.seed()
+        bill = Bill(id=20, number='INV-20', bill_date=__import__('datetime').date(2024, 2, 3), amount=150)
+        order = Order(id=21, title='Printed forms', status_id=1, printing=3, total=150, bill_id=20)
+        manager = User(id=22, name='Manager', surname='Test', email='manager', password='unused', phone='123')
+        self.db.add_all([bill, order, manager, ReportParam(id=2, alias='prorector', report_id='order_payment', title='Prorector', value='A'), ReportParam(id=3, alias='zam_prorectora', report_id='order_payment', title='Deputy', value='B'), ReportParam(id=4, alias='boss', report_id='order_payment', title='Boss', value='C'), ReportParam(id=5, alias='buh', report_id='order_payment', title='Accountant', value='D'), ReportParam(id=6, alias='pfu', report_id='order_payment', title='PFU', value='E')])
+        self.db.commit()
+        self.auth_mock.return_value = manager
+        response = self.client.get('/reports/order_payment/item/20')
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers['content-type'], 'application/vnd.ms-excel')
+        sheet = xlrd.open_workbook(file_contents=response.content).sheet_by_name('Заявка на оплату')
+        values = [cell for row in sheet._cell_values for cell in row]
+        self.assertIn('Заявка на оплату работ №INV-20', values)
+        self.assertIn('Заказ № 21 от УрФУ: Printed forms', values)
+        self.assertIn('ИТОГО', values)
+        posted = self.client.post('/reports/order_payment/item/20', data={'vars[institute]': 'Институт', 'vars[customer]': 'Заказчик'})
+        self.assertEqual(posted.status_code, 200, posted.text)
+        posted_sheet = xlrd.open_workbook(file_contents=posted.content).sheet_by_name('Заявка на оплату')
+        self.assertTrue(any('Институт' in str(cell) for row in posted_sheet._cell_values for cell in row))
 
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()
