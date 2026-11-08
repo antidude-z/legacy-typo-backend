@@ -363,10 +363,36 @@ class BlankAfterprint(Base):
     blank_id = Column(Integer, ForeignKey("blanks.id"), nullable=False)
     afterprint_id = Column(Integer, ForeignKey("afterprints.id"), nullable=False)
     active = Column(Boolean, nullable=False, default=False)
+    quantity = Column(Numeric(8, 2), nullable=False, default=0)
     parameters = Column(Text, nullable=True)
     price = Column(Numeric(8, 2), nullable=True, default=0)
     deleted_at = Column(DateTime, nullable=True)
     afterprint = relationship("Afterprint")
+
+
+class AfterprintStage(Base):
+    __tablename__ = "afterprint_stages"
+    id = Column(Integer, primary_key=True)
+    afterprint_id = Column(Integer, ForeignKey("afterprints.id"), nullable=False)
+    title = Column(String(255), nullable=False)
+    together = Column(Integer, nullable=False, default=1)
+    waste = Column(Integer, nullable=False, default=0)
+    min_paper_weight = Column(Integer, nullable=False, default=0)
+    max_paper_weight = Column(Integer, nullable=True)
+    weight = Column(Integer, nullable=False, default=0)
+    fitting = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+    afterprint = relationship("Afterprint")
+
+
+class AfterprintStageMaterial(Base):
+    __tablename__ = "afterprint_stage_materials"
+    id = Column(Integer, primary_key=True)
+    afterprint_stage_id = Column(Integer, ForeignKey("afterprint_stages.id"), nullable=False)
+    material_id = Column(Integer, ForeignKey("materials.id"), nullable=False)
+    quantity = Column(Numeric(10, 4), nullable=False, default=0)
+    deleted_at = Column(DateTime, nullable=True)
+    material = relationship("Material")
 
 
 class Rate(Base):

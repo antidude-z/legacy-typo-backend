@@ -5,7 +5,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from .models import (
-    Action, Afterprint, AfterprintParameter, AfterprintParameterValue, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
+    Action, Afterprint, AfterprintParameter, AfterprintParameterValue, AfterprintStage, AfterprintStageMaterial, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
     OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Rate, Redaction, User,
 )
 
@@ -258,3 +258,36 @@ def calculate_printer(db: Session, printer_id: int, printing: int, colors_front:
             total += cost
             stage_details.append({"side": side, "title": stage.title, "pl_count": pl_count, "repeats": repeats, "together": together, "payment_count": payment_count, "price": str(price["amount"]), "cost": str(cost), "price_found": price["found"]})
     return {"result": total, "pl_count": pl_count, "details": {"title": ("Печать отдельно лица и оборота: " if separate else "Печать в один проход (лицо+оборот): ") + process.title, "stages": stage_details}, "status": "calculated" if all(item["price_found"] for item in stage_details) else "missing_prices"}
+
+
+def calculate_afterprint(db: Session, blank: Blank, start_pl_count: int, afterprint_id: int, count_on_pl: int = 1, order_type: str = "poly", order_date: date | None = None, currency: str = "RUB") -> dict:
+    afterprint = db.get(Afterprint, afterprint_id)
+    if afterprint is None:
+        return {"result": Decimal("0"), "pl_count": start_pl_count, "status": "missing_afterprint", "details": {"stages": []}}
+    paper_weight = blank.paper.weight if blank.paper else None
+    query = select(AfterprintStage).where(AfterprintStage.afterprint_id == afterprint_id, AfterprintStage.deleted_at.is_(None)).order_by(AfterprintStage.weight)
+    if order_type != "wide" and paper_weight is not None:
+        query = query.where(AfterprintStage.min_paper_weight <= paper_weight).where((AfterprintStage.max_paper_weight.is_(None)) | (AfterprintStage.max_paper_weight > paper_weight))
+    stages = db.scalars(query).all()
+    pl_count = start_pl_count
+    total = Decimal("0")
+    details = []
+    missing_price = False
+    for stage in stages:
+        together = max(stage.together, 1)
+        payment_count = ((pl_count + together - 1) // together) * max(count_on_pl, 1)
+        pl_count += stage.waste * payment_count
+        price = resolve_price(db, "App\\AfterprintStage", stage.id, payment_count, order_date, currency)
+        stage_cost = price["amount"] * payment_count
+        total += stage_cost
+        missing_price = missing_price or not price["found"]
+        materials = []
+        for material in db.scalars(select(AfterprintStageMaterial).where(AfterprintStageMaterial.afterprint_stage_id == stage.id, AfterprintStageMaterial.deleted_at.is_(None))).all():
+            quantity = Decimal(material.quantity or 0) * payment_count
+            material_price = resolve_price(db, "App\\Material", material.material_id, int(quantity), order_date, currency)
+            material_cost = material_price["amount"] * quantity
+            total += material_cost
+            missing_price = missing_price or not material_price["found"]
+            materials.append({"title": material.material.title if material.material else "", "quantity": str(quantity), "price": str(material_price["amount"]), "cost": str(material_cost), "price_found": material_price["found"]})
+        details.append({"title": stage.title, "pl_count": pl_count, "together": together, "waste": stage.waste, "payment_count": payment_count, "price": str(price["amount"]), "cost": str(stage_cost), "price_found": price["found"], "materials": materials})
+    return {"result": total, "pl_count": pl_count, "status": "missing_prices" if missing_price else "calculated", "details": {"title": afterprint.title, "stages": details}}
