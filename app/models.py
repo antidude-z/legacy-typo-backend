@@ -249,6 +249,10 @@ class Printer(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(50), nullable=False)
     production = Column(String(20), nullable=True)
+    production_book = Column(Boolean, nullable=False, default=False)
+    production_poly = Column(Boolean, nullable=False, default=False)
+    production_souvenir = Column(Boolean, nullable=False, default=False)
+    production_wide = Column(Boolean, nullable=False, default=False)
     need_imagesetter = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
 
