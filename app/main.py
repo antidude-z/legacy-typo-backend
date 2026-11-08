@@ -1,5 +1,14 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+import hashlib
+import secrets
+import os
+import re
+import smtplib
+import ssl
+from email.message import EmailMessage
+from itsdangerous import URLSafeTimedSerializer, BadSignature
 
 import bcrypt
 from fastapi import Depends, FastAPI, Form, Query, Request
@@ -8,10 +17,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import DATABASE_MODE, DATABASE_URL, SESSION_COOKIE, SESSION_SECRET
+from .config import APP_URL, DATABASE_MODE, DATABASE_URL, REMEMBER_DAYS, RESET_MAIL_DIR, RESET_MAIL_MODE, RESET_TOKEN_MINUTES, SESSION_COOKIE, SESSION_SECRET, SESSION_SECURE
 from .db import Base, engine, get_db
 from .schema import upgrade_local_schema
-from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction
+from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction, PasswordReset
 from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 from .payroll import register_payroll_routes
@@ -36,18 +45,39 @@ app.add_middleware(
     session_cookie=SESSION_COOKIE,
     max_age=120 * 60,
     same_site="lax",
+    https_only=SESSION_SECURE,
 )
 
 
 def current_user(request: Request, db: Session) -> User | None:
     user_id = request.session.get("user_id")
-    if user_id is None:
-        return None
-    return db.scalar(
+    user = db.scalar(
         select(User)
         .options(joinedload(User.role))
         .where(User.id == user_id, User.fired.is_(False), User.deleted_at.is_(None))
     )
+    if user is not None:
+        version = request.session.get("password_version")
+        if version is None or secrets.compare_digest(version, hashlib.sha256(user.password.encode()).hexdigest()):
+            return user
+        request.session.clear()
+    remember = request.cookies.get("typography_remember")
+    if not remember:
+        return None
+    try:
+        remember = URLSafeTimedSerializer(SESSION_SECRET, salt="remember").loads(remember, max_age=REMEMBER_DAYS * 86400)
+        if not isinstance(remember, str):
+            return None
+    except BadSignature:
+        return None
+    digest = hashlib.sha256(remember.encode()).hexdigest()
+    user = db.scalar(select(User).options(joinedload(User.role)).where(
+        User.remember_token == digest, User.fired.is_(False), User.deleted_at.is_(None)
+    ))
+    if user:
+        request.session["user_id"] = user.id
+        request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
+    return user
 
 
 @app.get("/health", tags=["system"])
@@ -261,20 +291,138 @@ def login(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    remember: bool = Form(False),
     db: Session = Depends(get_db),
 ):
     user = db.scalar(select(User).where(User.email == email, User.fired.is_(False), User.deleted_at.is_(None)))
-    valid = user is not None and bcrypt.checkpw(password.encode(), user.password.encode())
+    try:
+        valid = user is not None and len(password.encode()) <= 72 and bcrypt.checkpw(password.encode(), user.password.encode())
+    except ValueError:
+        valid = False
     if not valid:
         return JSONResponse({"message": "Неверные учетные данные."}, status_code=422)
     request.session["user_id"] = user.id
-    return RedirectResponse("/orders", status_code=303)
+    request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
+    response = RedirectResponse("/orders", status_code=303)
+    if remember:
+        raw_token = secrets.token_urlsafe(32)
+        user.remember_token = hashlib.sha256(raw_token.encode()).hexdigest()
+        db.commit()
+        signed_token = URLSafeTimedSerializer(SESSION_SECRET, salt="remember").dumps(raw_token)
+        response.set_cookie("typography_remember", signed_token, max_age=REMEMBER_DAYS * 86400, httponly=True, secure=SESSION_SECURE, samesite="lax")
+    return response
 
 
 @app.post("/auth/logout", tags=["auth"])
 @app.post("/api/auth/logout", tags=["auth"], include_in_schema=False)
-def logout(request: Request):
+def logout(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user:
+        user.remember_token = None
+        db.commit()
     request.session.clear()
+    response = RedirectResponse("/auth/login", status_code=303)
+    response.delete_cookie("typography_remember")
+    return response
+
+
+def _auth_error(message: str, fields: dict | None = None):
+    return JSONResponse({"message": message, "errors": fields or {}}, status_code=422)
+
+
+@app.post("/auth/register", tags=["auth"])
+@app.post("/api/auth/register", tags=["auth"], include_in_schema=False)
+def register(
+    request: Request,
+    name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    password_confirmation: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    if current_user(request, db):
+        return JSONResponse({"message": "Вы уже вошли в систему."}, status_code=409)
+    email = email.strip().lower()
+    errors = {}
+    if not name.strip() or len(name) > 255: errors["name"] = "Укажите имя."
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(email) > 255: errors["email"] = "Укажите корректный email."
+    if db.scalar(select(User).where(User.email == email)): errors["email"] = "Этот email уже используется."
+    if len(password) < 6 or len(password.encode()) > 72 or password != password_confirmation: errors["password"] = "Пароли должны совпадать: минимум 6 символов, максимум 72 байта UTF-8."
+    if errors: return _auth_error("Проверьте форму регистрации.", errors)
+    user = User(name=name.strip(), email=email, password=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode())
+    db.add(user); db.commit()
+    request.session["user_id"] = user.id
+    request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
+    return RedirectResponse("/orders", status_code=303)
+
+
+def _reset_digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def deliver_reset_mail(email: str, token: str):
+    message = EmailMessage()
+    message["To"] = email
+    message["From"] = os.getenv("MAIL_FROM", "typography@localhost")
+    message["Subject"] = "Password reset"
+    message.set_content(f"Click here to reset your password: {APP_URL}/password/reset/{token}\n")
+    if RESET_MAIL_MODE == "file":
+        RESET_MAIL_DIR.mkdir(parents=True, exist_ok=True)
+        # Random filenames avoid interpreting an email address as a filesystem path.
+        with (RESET_MAIL_DIR / f"{secrets.token_hex(16)}.eml").open("x", encoding="utf-8") as file:
+            file.write(message.as_string())
+    elif RESET_MAIL_MODE == "smtp":
+        with smtplib.SMTP(os.environ["MAIL_HOST"], int(os.getenv("MAIL_PORT", "587")), timeout=15) as smtp:
+            smtp.starttls(context=ssl.create_default_context())
+            if os.getenv("MAIL_USERNAME"):
+                smtp.login(os.environ["MAIL_USERNAME"], os.environ["MAIL_PASSWORD"])
+            smtp.send_message(message)
+    else:
+        raise RuntimeError("Password reset mail is not configured")
+
+
+@app.post("/password/email", tags=["auth"])
+@app.post("/api/password/email", tags=["auth"], include_in_schema=False)
+def password_email(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
+    if current_user(request, db):
+        return RedirectResponse("/orders", status_code=303)
+    email = email.strip().lower()
+    if len(email) > 255 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        return _auth_error("Укажите корректный email.")
+    if RESET_MAIL_MODE not in {"file", "smtp"}:
+        return JSONResponse({"message": "Отправка почты не настроена."}, status_code=503)
+    user = db.scalar(select(User).where(User.email == email, User.deleted_at.is_(None)))
+    if user:
+        raw_token = secrets.token_urlsafe(48)
+        existing = db.get(PasswordReset, email)
+        if existing: db.delete(existing)
+        db.add(PasswordReset(email=email, token=_reset_digest(raw_token), created_at=datetime.utcnow()))
+        try:
+            deliver_reset_mail(email, raw_token)
+            db.commit()
+        except (OSError, smtplib.SMTPException, RuntimeError, KeyError, ValueError):
+            db.rollback()
+            return JSONResponse({"message": "Не удалось отправить письмо. Повторите позднее."}, status_code=503)
+    return {"message": "Если учетная запись существует, инструкция отправлена."}
+
+
+@app.post("/password/reset", tags=["auth"])
+@app.post("/api/password/reset", tags=["auth"], include_in_schema=False)
+def password_reset(
+    request: Request, token: str = Form(...), email: str = Form(...), password: str = Form(...), password_confirmation: str = Form(...), db: Session = Depends(get_db)
+):
+    if current_user(request, db):
+        return RedirectResponse("/orders", status_code=303)
+    row = db.get(PasswordReset, email.strip().lower())
+    if not row or not secrets.compare_digest(row.token, _reset_digest(token)) or datetime.utcnow() - row.created_at > timedelta(minutes=RESET_TOKEN_MINUTES):
+        return _auth_error("Ссылка для сброса пароля недействительна или устарела.")
+    if len(password) < 6 or len(password.encode()) > 72 or password != password_confirmation:
+        return _auth_error("Пароли должны совпадать и содержать минимум 6 символов.", {"password": "Неверный пароль."})
+    user = db.scalar(select(User).where(User.email == email.strip().lower(), User.deleted_at.is_(None)))
+    if not user: return _auth_error("Ссылка для сброса пароля недействительна.")
+    user.password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    user.remember_token = None
+    db.delete(row); db.commit()
     return RedirectResponse("/auth/login", status_code=303)
 
 

@@ -81,6 +81,7 @@ class User(Base):
     surname = Column(String(255), nullable=True)
     email = Column(String(255), unique=True, nullable=False)
     password = Column(String(60), nullable=False)
+    remember_token = Column(String(100), nullable=True)
     role_id = Column(ForeignKey("roles.id"), nullable=True)
     fired = Column(Integer, nullable=False, default=0)
     phone = Column(String(50), nullable=True)
@@ -90,6 +91,13 @@ class User(Base):
 
     def has_permission(self, permission_id: str) -> bool:
         return any(permission.id == permission_id for permission in (self.role.permissions if self.role else []))
+
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    email = Column(String(255), primary_key=True)
+    token = Column(String(128), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class OrderStatus(Base):
