@@ -1,10 +1,13 @@
 """Manager payroll statements migrated from the legacy reports/payrolls flow."""
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
 
 from fastapi import Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+import xlwt
+from fastapi.responses import Response
 
 from .db import get_db
 from .models import Bill, Order, Payroll, PayrollOrder, User
@@ -71,6 +74,40 @@ def _serialize(row):
             "total": str(row.total), "percent": str(row.percent), "salary": str(row.salary)}
 
 
+def build_payroll_xls(statement, items):
+    workbook = xlwt.Workbook(encoding="utf-8")
+    sheet = workbook.add_sheet("Зарплата")
+    title = xlwt.easyxf("font: name Arial, height 280, bold on; align: horiz center")
+    header = xlwt.easyxf("font: name Arial, height 200, bold on; pattern: pattern solid, fore_colour pale_blue; borders: left thin, right thin, top thin, bottom thin; align: horiz center, vert centre, wrap on")
+    body = xlwt.easyxf("font: name Arial, height 200; borders: left thin, right thin, top thin, bottom thin; align: vert top, wrap on")
+    money = xlwt.easyxf("font: name Arial, height 200; borders: left thin, right thin, top thin, bottom thin")
+    money.num_format_str = "#,##0.00"
+    total_style = xlwt.easyxf("font: name Arial, height 200, bold on; borders: left thin, right thin, top thin, bottom thin")
+    total_style.num_format_str = "#,##0.00"
+    widths = (5000, 7000, 3000, 3500, 3500, 3000, 3500, 4000, 4000, 4000, 4000, 3000, 4000)
+    for column, width in enumerate(widths): sheet.col(column).width = width
+    manager = f"{statement.manager.surname or ''} {statement.manager.name}".strip() if statement.manager else ""
+    sheet.write_merge(0, 0, 0, 12, f"Ведомость вознаграждений за {statement.period.strftime('%m.%Y')} ({manager})", title)
+    headers = ["Фирма", "Продукция", "Тираж", "Счет №", "Дата счета", "Заказ №", "Дата заказа", "Сумма", "Материалы", "Работы", "Подрядчик", "% менеджера", "Итого"]
+    for column, value in enumerate(headers): sheet.write(2, column, value, header)
+    totals = [Decimal("0") for _ in range(5)]
+    for row_number, item in enumerate(items, 3):
+        values = [item.customer, item.title, item.printing, item.bill_number,
+                  item.bill_date.strftime("%d.%m.%Y") if item.bill_date else "",
+                  item.order_id, item.order_date.strftime("%d.%m.%Y") if item.order_date else "",
+                  float(item.total), float(item.materials), float(item.works), float(item.contractors), float(item.percent), float(item.salary)]
+        for column, value in enumerate(values): sheet.write(row_number, column, value, money if column in {7,8,9,10,11,12} else body)
+        for index, value in enumerate((item.total, item.materials, item.works, item.contractors, item.salary)):
+            totals[index] += _number(value)
+    total_row = 3 + len(items)
+    for column in range(6): sheet.write(total_row, column, "", total_style)
+    sheet.write(total_row, 6, "Итого", total_style)
+    for column, value in zip((7, 8, 9, 10, 12), totals): sheet.write(total_row, column, float(value), total_style)
+    sheet.write(total_row + 1, 11, "Оклад", total_style); sheet.write(total_row + 1, 12, float(_number(statement.salary)), total_style)
+    sheet.write(total_row + 2, 11, "Всего за месяц", total_style); sheet.write(total_row + 2, 12, float(_number(statement.salary) + totals[4]), total_style)
+    output = BytesIO(); workbook.save(output); return output.getvalue()
+
+
 def register_payroll_routes(app, current_user):
     def actor(request, db, edit=False):
         user = current_user(request, db)
@@ -134,6 +171,19 @@ def register_payroll_routes(app, current_user):
         refresh(row, db) if row.status == "calc" else None
         db.commit()
         return {"item": serialize(row, db), "markups": list(range(16))}
+
+    @app.get("/reports/payrolls/{identity}/export", tags=["reports"])
+    def export(identity: int, request: Request, db: Session = Depends(get_db)):
+        actor(request, db)
+        row = db.get(Payroll, identity)
+        if not row: raise HTTPException(404)
+        if row.status == "calc": refresh(row, db); db.commit()
+        items = db.scalars(select(PayrollOrder).where(PayrollOrder.payroll_id == identity).order_by(PayrollOrder.order_id)).all()
+        content = build_payroll_xls(row, items)
+        return Response(content, media_type="application/vnd.ms-excel", headers={
+            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": f'attachment; filename="payroll-{identity}.xls"',
+        })
 
     @app.patch("/api/reports/payrolls/{identity}", tags=["reports"])
     def update(identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):
