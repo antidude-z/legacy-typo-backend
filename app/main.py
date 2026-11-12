@@ -24,6 +24,7 @@ from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint,
 from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 from .payroll import register_payroll_routes
+from .csrf import CSRF_COOKIE, CSRFMiddleware, token_for_session
 
 
 @asynccontextmanager
@@ -47,6 +48,7 @@ app.add_middleware(
     same_site="lax",
     https_only=SESSION_SECURE,
 )
+app.add_middleware(CSRFMiddleware)
 
 
 def current_user(request: Request, db: Session) -> User | None:
@@ -276,6 +278,14 @@ def session_info(request: Request, db: Session = Depends(get_db)) -> dict:
         "user": ({"id": user.id, "name": user.name, "surname": user.surname, "email": user.email} if user else None),
         "menu": build_navigation(user),
     }
+
+
+@app.get("/api/csrf-token", tags=["auth"])
+def csrf_token(request: Request):
+    token = token_for_session(request)
+    response = JSONResponse({"token": token})
+    response.set_cookie(CSRF_COOKIE, token, httponly=False, secure=SESSION_SECURE, samesite="lax", max_age=120 * 60)
+    return response
 
 
 @app.get("/auth/users", tags=["auth"])

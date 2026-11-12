@@ -82,6 +82,23 @@ class AuthenticationTests(unittest.TestCase):
             expired = self.client.post("/api/password/reset", data={"email": self.user.email, "token": expired_token, "password": "expired1", "password_confirmation": "expired1"})
             self.assertEqual(expired.status_code, 422)
 
+    def test_csrf_token_is_cookie_bound_for_browser_mutations(self):
+        token_response = self.client.get("/api/csrf-token")
+        self.assertEqual(token_response.status_code, 200)
+        token = token_response.json()["token"]
+        self.assertEqual(token_response.cookies.get("typography_csrf"), token)
+
+        missing = self.client.post("/api/auth/login", data={"email": self.user.email, "password": self.password})
+        self.assertEqual(missing.status_code, 419)
+
+        valid = self.client.post(
+            "/api/auth/login",
+            data={"email": self.user.email, "password": self.password},
+            headers={"X-CSRF-Token": token},
+            follow_redirects=False,
+        )
+        self.assertEqual(valid.status_code, 303)
+
 
 if __name__ == "__main__":
     unittest.main()
