@@ -521,6 +521,23 @@ def register_report_routes(app, current_user):
             } for report in reports],
         } for order in orders]}
 
+    @app.get("/api/reports/form/{report_id}/{identity}", tags=["reports"])
+    def report_form(report_id: str, identity: int, request: Request, db: Session = Depends(get_db)):
+        actor(request, db)
+        report = report_for(report_id, db)
+        if report.model != "App\\Bill" or report_id not in {"order_shipping", "order_payment"}:
+            raise HTTPException(404, "Форма отчёта не существует.")
+        if db.get(Bill, identity) is None:
+            raise HTTPException(404, "Счёт не существует.")
+        params = [param_data(row) for row in params_for(report_id, db)]
+        if report_id == "order_shipping":
+            accountants = [row["value"] for row in params if row["alias"] == "buh"]
+            return {"report": serialize_report(report), "fields": [{"name": "vars[buh]", "title": "Бухгалтер", "type": "select", "options": accountants, "default": accountants[0] if accountants else ""}]}
+        return {"report": serialize_report(report), "fields": [
+            {"name": "vars[institute]", "title": "Институт, подразделение, кафедра", "type": "text", "default": ""},
+            {"name": "vars[customer]", "title": "ФИО заказчика", "type": "text", "default": ""},
+        ]}
+
     @app.api_route("/reports/{report_id}/item/{identity}", methods=["GET", "POST"], tags=["reports"])
     def generate(report_id: str, identity: int, request: Request, payload: dict | None = None, institute: str | None = Form(None, alias="vars[institute]"), customer: str | None = Form(None, alias="vars[customer]"), buh: str | None = Form(None, alias="vars[buh]"), db: Session = Depends(get_db)):
         user = actor(request,db); report = report_for(report_id,db)

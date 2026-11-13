@@ -218,6 +218,14 @@ class ReportTests(unittest.TestCase):
 
         actions = self.client.get('/api/reports/for/bills/30').json()['items']
         self.assertTrue(next(item for item in actions if item['id'] == 'order_shipping')['available'])
+        form = self.client.get('/api/reports/form/order_shipping/30')
+        self.assertEqual(form.status_code, 200)
+        self.assertEqual(form.json()['fields'][0]['name'], 'vars[buh]')
+        self.assertEqual(form.json()['fields'][0]['options'], ['Accountant'])
+        custom = self.client.post('/reports/order_shipping/item/30', data={'vars[buh]': 'Custom accountant'})
+        self.assertEqual(custom.status_code, 200, custom.text)
+        custom_text = PdfReader(__import__('io').BytesIO(custom.content)).pages[0].extract_text()
+        self.assertIn('Custom accountant', custom_text)
 
     def test_corrupt_objects_and_unauthenticated_generation(self):
         self.seed()
