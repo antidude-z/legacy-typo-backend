@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import app
-from app.models import Measure, PaperFormat, PaperType, User
+from app.models import Measure, Order, PaperFormat, PaperType, User
 
 
 class ReferenceDictionaryTests(unittest.TestCase):
@@ -76,6 +76,23 @@ class ReferenceDictionaryTests(unittest.TestCase):
         response = self.client.get('/api/options/measures?sort=short&order=asc&per_page=1').json()
         self.assertEqual(response['last_page'], 2)
         self.assertEqual(response['sort'], 'short')
+
+    def test_order_format_lookup_combines_paper_and_existing_order_formats(self):
+        self.db.add_all([
+            PaperFormat(id=2, title='A3', width=297, height=420),
+            PaperFormat(id=3, title='A4 landscape', width=297, height=210),
+            Order(id=10, title='Existing', order_type='poly', status_id=1, format='A4 custom', printing=1),
+            Order(id=11, title='Other', order_type='poly', status_id=1, format='A4 custom', printing=1),
+        ])
+        self.db.commit()
+        response = self.client.get('/api/orders/formats/poly/A4')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), ['A4', 'A4 custom', 'A4 landscape'])
+        self.assertEqual(self.client.get('/api/orders/formats/wide/A4').json(), [])
+
+    def test_order_format_lookup_requires_authentication(self):
+        self.auth_mock.return_value = None
+        self.assertEqual(self.client.get('/api/orders/formats/poly/A').status_code, 401)
 
 
 if __name__ == '__main__':

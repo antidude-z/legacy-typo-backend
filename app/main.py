@@ -20,7 +20,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .config import APP_URL, DATABASE_MODE, DATABASE_URL, REMEMBER_DAYS, RESET_MAIL_DIR, RESET_MAIL_MODE, RESET_TOKEN_MINUTES, SESSION_COOKIE, SESSION_SECRET, SESSION_SECURE
 from .db import Base, engine, get_db
 from .schema import upgrade_local_schema
-from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction, PasswordReset
+from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, PaperFormat, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction, PasswordReset
 from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 from .payroll import register_payroll_routes
@@ -527,6 +527,35 @@ def order_create_metadata(order_type: str, request: Request, db: Session = Depen
     if current_user(request, db) is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     return {"order_type": order_type, "defaults": {"printing": 1 if order_type == "wide" else 1000}, "metadata": list_metadata(db)}
+
+
+def order_format_suggestions(order_type: str, format_prefix: str, db: Session) -> list[str]:
+    """Return the legacy format autocomplete values for book/poly orders."""
+    if order_type not in {"book", "poly"}:
+        return []
+    prefix = format_prefix or ""
+    paper_formats = db.scalars(
+        select(PaperFormat.title)
+        .where(PaperFormat.deleted_at.is_(None), PaperFormat.title.like(f"{prefix}%"))
+        .limit(20)
+    ).all()
+    order_formats = db.scalars(
+        select(Order.format)
+        .where(Order.deleted_at.is_(None), Order.format.like(f"{prefix}%"), Order.format != "")
+        .distinct()
+        .limit(20)
+    ).all()
+    return sorted({value for value in [*paper_formats, *order_formats] if value})
+
+
+@app.get("/api/orders/formats/{order_type}", tags=["orders"])
+@app.get("/api/orders/formats/{order_type}/{format_prefix}", tags=["orders"])
+@app.get("/orders/formats/{order_type}", tags=["orders"], include_in_schema=False)
+@app.get("/orders/formats/{order_type}/{format_prefix}", tags=["orders"], include_in_schema=False)
+def order_formats(order_type: str, request: Request, format_prefix: str = "", db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return order_format_suggestions(order_type, format_prefix, db)
 
 
 @app.post("/api/orders/add/{order_type}", tags=["orders"])
