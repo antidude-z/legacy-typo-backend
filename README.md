@@ -420,6 +420,12 @@ API routes:
 - `DELETE /api/prices/{kind}/{id}/records/{price_id}` — permanent price deletion,
   matching the PHP Price model's lack of SoftDeletes.
 
+The legacy service catalog is initialized with the confirmed `Фотовывод`
+service and exposed through `prices/services`. Exchange rates are initialized
+from the legacy rate seeder and are used internally by price conversion; the
+legacy application exposes no rate-management route or view, so no new CRUD
+screen is introduced.
+
 Writes require `edit_price`; deletion requires `delete_price`. The original
 controller checks these permissions for action visibility/confirmation but does
 not consistently enforce them on writes; the API currently enforces them.

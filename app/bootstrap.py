@@ -1,12 +1,12 @@
 """Repeatable local database initialization and legacy catalog seeding."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import Base, engine
-from .models import Permission, Role, Report, ReportParam, SchemaVersion, OrderStatus, role_permissions
+from .models import Permission, Role, Report, ReportParam, SchemaVersion, OrderStatus, Service, Rate, role_permissions
 
 
 SCHEMA_VERSION = "2026-11-13-01"
@@ -72,6 +72,16 @@ REPORTS = (
     ("order_economy", "xls", False, "Экономический паспорт", "App\\Order"),
 )
 REPORT_PARAMS = (("order_shipping", "boss", "Директор", "В. Ю. Малыгин"), ("order_shipping", "pto", "Начальник производственного отдела", "Веретенников Г.С."), ("order_shipping", "buh", "Бухгалтер", "А. Ю. Дружинина"), ("order_payment", "prorector", "Проректор по ИП", "Р. Л. Иваницкая"), ("order_payment", "zam_prorectora", "Заместитель проректора по ЭиСР", "М. В. Жабреев"), ("order_payment", "boss", "Директор ИПЦ УрФУ", "В. Ю. Малыгин"), ("order_payment", "buh", "Главный бухгалтер", "И. Н. Чернявская"), ("order_payment", "pfu", "Начальник ПФУ", "Э. М. Хафизова"))
+SERVICES = (("Фотовывод", "", "imagesetter"),)
+RATES = (
+    ("57.65", "62.0487", "2015-04-01"),
+    ("52.8213", "57.7020", "2015-06-01"),
+    ("60.3458", "66.0002", "2015-08-01"),
+    ("65.7364", "73.7760", "2015-10-01"),
+    ("66.7370", "70.6478", "2015-12-01"),
+    ("76.3264", "82.8141", "2016-02-02"),
+    ("67.8552", "76.9207", "2016-04-01"),
+)
 
 
 def initialize_database(database_engine=engine) -> None:
@@ -119,6 +129,13 @@ def initialize_database(database_engine=engine) -> None:
         for report_id, alias, title, value in REPORT_PARAMS:
             if db.scalar(select(ReportParam).where(ReportParam.report_id == report_id, ReportParam.alias == alias, ReportParam.deleted_at.is_(None))) is None:
                 db.add(ReportParam(report_id=report_id, alias=alias, title=title, value=value, html=False))
+        for title, organization, kind in SERVICES:
+            if db.scalar(select(Service).where(Service.title == title, Service.kind == kind, Service.deleted_at.is_(None))) is None:
+                db.add(Service(title=title, organization=organization, kind=kind))
+        for usd, eur, actual_since in RATES:
+            effective = date.fromisoformat(actual_since)
+            if db.scalar(select(Rate).where(Rate.actual_since == effective, Rate.usd == usd, Rate.eur == eur, Rate.deleted_at.is_(None))) is None:
+                db.add(Rate(usd=usd, eur=eur, actual_since=effective))
         db.commit()
 
 
