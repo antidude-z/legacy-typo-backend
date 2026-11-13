@@ -692,6 +692,54 @@ OPERATION_MODELS = {
     "redactions": (OrderRedaction, "redaction_id"),
 }
 
+OPERATION_REFERENCES = {
+    "prepresses": (Prepress, "prepress_id", "design", None),
+    "redactions": (Redaction, "redaction_id", "redaction", None),
+    "compiles": (Compile, "compile_id", "compile", "production_"),
+    "others": (OtherWork, "other_work_id", "other_works", None),
+}
+
+
+def operation_reference_choices(operation: str, order_type: str, db: Session) -> list[dict]:
+    reference = OPERATION_REFERENCES[operation]
+    model, _, _, production_prefix = reference
+    query = select(model).where(model.deleted_at.is_(None))
+    if production_prefix:
+        field = getattr(model, f"{production_prefix}{order_type}", None)
+        if field is not None:
+            query = query.where(field.is_(True))
+    return [{"id": item.id, "title": item.title} for item in db.scalars(query.order_by(model.title)).all()]
+
+
+@app.get("/api/orders/{order_id}/operations", tags=["orders"])
+def order_operations(order_id: int, request: Request, db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    order = db.get(Order, order_id)
+    if order is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return {
+        "order_id": order_id,
+        "choices": {key: operation_reference_choices(key, order.order_type, db) for key in OPERATION_REFERENCES},
+        "operations": {
+            key: [{"id": item.id, "reference_id": getattr(item, foreign_key), "quantity": str(item.quantity), "fitting": bool(getattr(item, "fitting", False)), "deleted": item.deleted_at is not None} for item in db.scalars(select(model).where(model.order_id == order_id, model.deleted_at.is_(None)).order_by(model.id)).all()]
+            for key, (model, foreign_key) in OPERATION_MODELS.items()
+        },
+    }
+
+
+def validate_operation_reference(operation: str, order: Order, related_id, db: Session):
+    if operation not in OPERATION_REFERENCES:
+        return None
+    choices = {item["id"] for item in operation_reference_choices(operation, order.order_type, db)}
+    try:
+        related_id = int(related_id)
+    except (TypeError, ValueError):
+        related_id = 0
+    if related_id not in choices:
+        return JSONResponse({"error": "invalid_reference"}, status_code=422)
+    return None
+
 
 @app.post("/api/orders/{order_id}/{operation}", tags=["orders"])
 def operation_create(order_id: int, operation: str, request: Request, payload: dict, db: Session = Depends(get_db)):
@@ -708,7 +756,16 @@ def operation_create(order_id: int, operation: str, request: Request, payload: d
     related_id = payload.get(foreign_key)
     if not related_id:
         return JSONResponse({"error": f"{foreign_key} is required"}, status_code=422)
-    values = {"order_id": order_id, foreign_key: related_id, "quantity": payload.get("quantity", 1), "price_id": payload.get("price_id")}
+    invalid = validate_operation_reference(operation, order, related_id, db)
+    if invalid:
+        return invalid
+    try:
+        quantity = int(payload.get("quantity", 1))
+        if quantity < 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "invalid_quantity"}, status_code=422)
+    values = {"order_id": order_id, foreign_key: int(related_id), "quantity": quantity, "price_id": payload.get("price_id")}
     if model is OrderCompile:
         values["fitting"] = payload.get("fitting")
     item = model(**values)
@@ -723,13 +780,29 @@ def operation_update(order_id: int, operation: str, item_id: int, request: Reque
         return blank_update(order_id, item_id, request, payload, db)
     user = current_user(request, db)
     model_info = OPERATION_MODELS.get(operation)
+    order = db.get(Order, order_id)
     if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
-    if model_info is None:
+    if model_info is None or order is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item = db.get(model_info[0], item_id)
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
+    if model_info[1] in payload:
+        invalid = validate_operation_reference(operation, order, payload[model_info[1]], db)
+        if invalid:
+            return invalid
+        try:
+            payload[model_info[1]] = int(payload[model_info[1]])
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "invalid_reference"}, status_code=422)
+    if "quantity" in payload:
+        try:
+            payload["quantity"] = int(payload["quantity"])
+            if payload["quantity"] < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "invalid_quantity"}, status_code=422)
     for key in (model_info[1], "quantity", "price_id", "fitting"):
         if key in payload:
             setattr(item, key, payload[key])
