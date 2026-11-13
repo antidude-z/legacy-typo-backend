@@ -91,13 +91,9 @@ def initialize_database(database_engine=engine) -> None:
     are never removed or overwritten.  ``database_engine`` is injectable so the
     initializer can be exercised against a disposable SQLite database.
     """
-    from .schema import upgrade_local_schema
+    from .schema import apply_migrations
 
-    # The current compatibility upgrades inspect the configured engine.  They
-    # run during application startup; create_all is safe for a fresh database.
-    if database_engine is engine:
-        upgrade_local_schema()
-    Base.metadata.create_all(bind=database_engine)
+    apply_migrations(database_engine)
     with Session(database_engine) as db:
         if db.get(SchemaVersion, SCHEMA_VERSION) is None:
             for title in ROLES:

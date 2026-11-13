@@ -11,9 +11,11 @@ explicitly with:
 uv run python -m app.bootstrap
 ```
 
-Application startup runs the same additive initializer automatically.  It
-creates the SQLAlchemy schema, records the application schema version in
-`schema_versions`, and idempotently adds only legacy-confirmed catalog data:
+Application startup runs the same additive initializer automatically.  The
+project-owned migration runner in `app/schema.py` creates the empty model
+baseline, applies tracked migrations in order, and records them in
+`schema_migrations`.  The initializer then records the application catalog
+version in `schema_versions` and idempotently adds only legacy-confirmed catalog data:
 roles, permissions, role-permission assignments, order statuses, report
 definitions, and report parameters.  Existing business rows and assignments
 are preserved; the legacy SQL dump is not imported.
@@ -21,6 +23,16 @@ are preserved; the legacy SQL dump is not imported.
 To use another database, set `DATABASE_URL` before running the command.  A
 MySQL URL is supported through the same SQLAlchemy configuration used by the
 application.
+
+To inspect/apply tracked schema migrations directly:
+
+```text
+uv run python -m app.migrate status
+uv run python -m app.migrate upgrade
+```
+
+This establishes the rework migration history; it does not import the legacy
+MySQL dump.  Dump conversion and live MySQL verification remain separate tasks.
 
 ## Reports — initial implementation slice
 
