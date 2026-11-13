@@ -160,6 +160,7 @@ def serialize_order_detail(db: Session, order: Order, include_deleted: bool = Fa
             query = query.where(model.deleted_at.is_(None))
         return db.scalars(query).all()
     markups = db.scalars(select(OrderMarkup).where(OrderMarkup.order_id == order.id, OrderMarkup.deleted_at.is_(None))).all()
+    has_calculation = bool(order.calc_details)
     return {
         "order": serialize_order(order),
         "metadata": list_metadata(db),
@@ -170,7 +171,13 @@ def serialize_order_detail(db: Session, order: Order, include_deleted: bool = Fa
             "other_works": [serialize_operation(item, "other_work", "other_works") for item in active(OrderOtherWork)],
             "redactions": [serialize_operation(item, "redaction", "redaction") for item in active(OrderRedaction)],
         },
-        "calculation": {"total": str(order.total or 0), "status": "stored_total", "message": "Legacy calculation dependencies are not yet migrated."},
+        "calculation": {
+            "total": str(order.total or 0),
+            "sale_total": str(order.total or 0),
+            "status": "calculated" if has_calculation else "not_calculated",
+            "message": "Расчет сохранен; стоимость изделия является управляемой стоимостью продажи." if has_calculation else "Расчет еще не выполнен.",
+            "details_available": has_calculation,
+        },
     }
 
 

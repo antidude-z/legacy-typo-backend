@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import Base
 from app.models import Blank, Compile, CompileStage, CompileStageMaterial, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork, OtherWork, Paper, Price, Rate
-from app.orders import calculate_order
+from app.orders import calculate_order, serialize_order_detail
 
 
 class OrderCalculationTests(unittest.TestCase):
@@ -41,6 +41,18 @@ class OrderCalculationTests(unittest.TestCase):
         self.assertIn('s:7:"markups";', stored)
         self.assertIn('s:8:"printing";i:100;', stored)
         self.assertEqual(self.db.get(Order, 1).total, 250)
+
+    def test_detail_exposes_calculated_and_sale_totals_separately(self):
+        self.db.add(self.order)
+        self.db.commit()
+        self.assertEqual(serialize_order_detail(self.db, self.order)["calculation"]["status"], "not_calculated")
+        self.order.calc_details = 'a:0:{}'
+        self.db.commit()
+        calculation = serialize_order_detail(self.db, self.order)["calculation"]
+        self.assertEqual(calculation["status"], "calculated")
+        self.assertEqual(calculation["sale_total"], "250.00")
+        self.assertTrue(calculation["details_available"])
+        self.assertIn("Расчет сохранен", calculation["message"])
 
     def test_compilation_fitting_stages_and_material_breakdown(self):
         self.order.printing = 10
