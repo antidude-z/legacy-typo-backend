@@ -23,5 +23,6 @@ class OrderBillIntegrationTests(unittest.TestCase):
         self.assertEqual(detail['manager_id'],20)
         self.assertEqual(detail['bill']['number'],'B-1')
         self.assertEqual(self.client.get('/api/accounting/bills/1').json()['orders'][0]['id'],1)
+        self.assertEqual(self.client.get('/api/accounting/bills/1').json()['orders'][0]['url'], '/orders/1')
         self.assertEqual(self.client.put('/api/orders/1',json={'bill_id':None}).status_code,200)
         self.assertIsNone(self.db.get(Order,1).bill_id)

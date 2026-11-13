@@ -135,7 +135,7 @@ def register_bill_routes(app, current_user):
         orders = db.scalars(select(Order).where(Order.bill_id == identity,Order.deleted_at.is_(None)).order_by(Order.id)).all()
         query = select(Payment).where(Payment.bill_id == identity)
         if not user.has_permission("view_trashed"): query = query.where(Payment.deleted_at.is_(None))
-        return {"item":serialize(row,db),"metadata":options(db),"orders_total":str(sum((x.total for x in orders), Decimal("0.00"))),"orders":[{"id":x.id,"title":x.title,"printing":x.printing,"total":str(x.total),"price":str(x.total/x.printing if x.printing else 0)} for x in orders],
+        return {"item":serialize(row,db),"metadata":options(db),"orders_total":str(sum((x.total for x in orders), Decimal("0.00"))),"orders":[{"id":x.id,"title":x.title,"printing":x.printing,"total":str(x.total),"price":str(x.total/x.printing if x.printing else 0),"url":f"/orders/{x.id}"} for x in orders],
                 "payments":[{"id":x.id,"payment_date":x.payment_date.isoformat(),"amount":str(x.amount),"deleted":x.deleted_at is not None} for x in db.scalars(query.order_by(Payment.id)).all()],**flags(user)}
 
     @app.post("/api/accounting/bills", tags=["accounting"])
