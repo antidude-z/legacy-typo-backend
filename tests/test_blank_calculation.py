@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db import Base
 from app.models import (
     Afterprint, AfterprintStage, AfterprintStageMaterial, Blank, BlankAfterprint, BlankImagesetter,
-    Material, Order, Paper, Price, Printer, PrinterProcess, PrinterProcessStage, Service,
+    Material, Order, Paper, PaperFormat, PaperType, Price, Printer, PrinterField, PrinterProcess, PrinterProcessStage, Service,
 )
 from app.orders import afterprint_count, calculate_blank
 
@@ -120,6 +120,23 @@ class BlankCalculationTests(unittest.TestCase):
         self.assertEqual(afterprint_count('a:2:{i:3;s:3:"2.5";i:4;s:1:"9";}'), Decimal("2.5"))
         self.assertEqual(afterprint_count('{"3": "0"}'), 0)
         self.assertEqual(afterprint_count("2"), 2)
+
+    def test_blank_metadata_contains_dependent_reference_data(self):
+        from app.orders import blank_metadata
+        self.db.add_all([
+            PaperType(id=1, title="Offset"),
+            PaperFormat(id=1, title="A4", width=210, height=297),
+            Paper(id=2, title="Offset A4 80", type_id=1, format_id=1, weight=80),
+            Printer(id=2, title="Press", production_poly=True),
+            PrinterField(id=2, printer_id=2, paper_format_id=1, width=210, height=297, pieces=2, paper_width=420, paper_height=297),
+            Material(id=2, title="Ink", production_poly=True),
+        ])
+        self.db.commit()
+        metadata = blank_metadata(self.db, "poly")
+        self.assertEqual(metadata["printers"][0]["id"], 2)
+        self.assertEqual(metadata["printer_fields"][0]["pieces"], 2)
+        self.assertEqual(metadata["papers"][0]["weight"], 80)
+        self.assertEqual(metadata["materials"][0]["id"], 2)
 
     def test_afterprint_material_is_breakdown_only_like_php(self):
         self.db.add_all([

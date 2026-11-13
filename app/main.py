@@ -835,7 +835,8 @@ def blanks(order_id: int, request: Request, db: Session = Depends(get_db)):
     if db.get(Order, order_id) is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     items = db.scalars(select(Blank).where(Blank.order_id == order_id, Blank.deleted_at.is_(None)).order_by(Blank.id)).all()
-    return {"items": [serialize_blank(item, db) for item in items], "metadata": blank_metadata(db), "calculation": "stored_cost"}
+    order = db.get(Order, order_id)
+    return {"items": [serialize_blank(item, db) for item in items], "metadata": blank_metadata(db, order.order_type if order else None), "calculation": "stored_cost"}
 
 
 @app.post("/api/orders/{order_id}/blanks", tags=["orders"])
@@ -843,7 +844,8 @@ def blank_create(order_id: int, request: Request, payload: dict, db: Session = D
     user = current_user(request, db)
     if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
-    if db.get(Order, order_id) is None:
+    order = db.get(Order, order_id)
+    if order is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item = Blank(order_id=order_id, title=payload.get("title", "Новая заготовка"), printer_id=payload.get("printer_id") or 0, printer_process_id=payload.get("printer_process_id"), paper_id=payload.get("paper_id"), material_id=payload.get("material_id"), cutting=payload.get("cutting", 1), width=payload.get("width", 0), height=payload.get("height", 0), colors_front=payload.get("colors_front", 1), colors_back=payload.get("colors_back", 0), details_per_sheet=payload.get("details_per_sheet"), pages_per_sheet=payload.get("pages_per_sheet"), details_per_blank=payload.get("details_per_blank", 1), different_details=payload.get("different_details", 1), comments=payload.get("comments", ""), paper_price=payload.get("paper_price", 0), cost=payload.get("cost", 0))
     db.add(item)
@@ -895,7 +897,8 @@ def blank_detail(order_id: int, blank_id: int, request: Request, db: Session = D
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
-    return {"item": serialize_blank(item, db), "metadata": blank_metadata(db), "calculation": "stored_cost"}
+    order = db.get(Order, order_id)
+    return {"item": serialize_blank(item, db), "metadata": blank_metadata(db, order.order_type if order else None), "calculation": "stored_cost"}
 
 
 @app.get("/api/prices/{priceable_type}/{priceable_id}", tags=["pricing"])

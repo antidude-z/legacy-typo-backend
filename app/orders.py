@@ -10,7 +10,7 @@ from .php_serialization import dumps as php_dumps
 
 from .models import (
     Action, Afterprint, AfterprintParameter, AfterprintParameterValue, AfterprintStage, AfterprintStageMaterial, Bill, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, CompileStageMaterial, Customer, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork,
-    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Rate, Redaction, Service, User,
+    OrderPrepress, OrderRedaction, OrderStatus, OtherWork, Paper, PaperFormat, PaperType, Prepress, Price, Printer, PrinterField, PrinterProcess, PrinterProcessStage, Rate, Redaction, Service, User,
 )
 
 
@@ -187,15 +187,28 @@ def serialize_history(db: Session, order_id: int) -> list[dict]:
     } for action in actions]
 
 
-def blank_metadata(db: Session) -> dict:
+def blank_metadata(db: Session, order_type: str | None = None) -> dict:
+    production = f"production_{order_type}" if order_type in {"book", "poly", "souvenir", "wide"} else None
+    printer_query = select(Printer).where(Printer.deleted_at.is_(None))
+    afterprint_query = select(Afterprint).where(Afterprint.deleted_at.is_(None))
+    material_query = select(Material).where(Material.deleted_at.is_(None))
+    if production:
+        printer_query = printer_query.where(getattr(Printer, production).is_(True))
+        afterprint_query = afterprint_query.where(getattr(Afterprint, production).is_(True))
+        material_query = material_query.where(getattr(Material, production).is_(True))
+    printers = db.scalars(printer_query.order_by(Printer.title)).all()
+    printer_ids = [item.id for item in printers]
+    fields = db.scalars(select(PrinterField).where(PrinterField.deleted_at.is_(None), PrinterField.printer_id.in_(printer_ids or [-1])).order_by(PrinterField.printer_id, PrinterField.paper_format_id, PrinterField.pieces)).all()
+    papers = db.scalars(select(Paper).where(Paper.deleted_at.is_(None)).order_by(Paper.type_id, Paper.format_id, Paper.weight)).all()
     return {
-        "printers": [{"id": x.id, "title": x.title, "need_imagesetter": bool(x.need_imagesetter)} for x in db.scalars(select(Printer).where(Printer.deleted_at.is_(None)).order_by(Printer.title)).all()],
+        "printers": [{"id": x.id, "title": x.title, "need_imagesetter": bool(x.need_imagesetter), "production": {"book": bool(x.production_book), "poly": bool(x.production_poly), "souvenir": bool(x.production_souvenir), "wide": bool(x.production_wide)}} for x in printers],
         "printer_processes": [{"id": x.id, "title": x.title, "printer_id": x.printer_id} for x in db.scalars(select(PrinterProcess).where(PrinterProcess.deleted_at.is_(None)).order_by(PrinterProcess.title)).all()],
+        "printer_fields": [{"id": x.id, "printer_id": x.printer_id, "format_id": x.paper_format_id, "pieces": x.pieces, "width": x.width, "height": x.height, "paper_width": x.paper_width, "paper_height": x.paper_height} for x in fields],
         "paper_types": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperType).where(PaperType.deleted_at.is_(None)).order_by(PaperType.title)).all()],
         "paper_formats": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperFormat).where(PaperFormat.deleted_at.is_(None)).order_by(PaperFormat.title)).all()],
-        "papers": [{"id": x.id, "title": x.title, "type_id": x.type_id, "format_id": x.format_id, "weight": x.weight} for x in db.scalars(select(Paper).where(Paper.deleted_at.is_(None)).order_by(Paper.title)).all()],
-        "materials": [{"id": x.id, "title": x.title} for x in db.scalars(select(Material).where(Material.deleted_at.is_(None)).order_by(Material.title)).all()],
-        "afterprints": [{"id": x.id, "title": x.title, "tooltip": x.tooltip or "", "parameters": [{"id": p.id, "title": p.title, "value": p.value or "", "type": p.parameter_type or "text", "values": [{"id": v.id, "value": v.value} for v in db.scalars(select(AfterprintParameterValue).where(AfterprintParameterValue.afterprint_parameter_id == p.id, AfterprintParameterValue.deleted_at.is_(None)).order_by(AfterprintParameterValue.weight)).all()]} for p in db.scalars(select(AfterprintParameter).where(AfterprintParameter.afterprint_id == x.id, AfterprintParameter.deleted_at.is_(None))).all()]} for x in db.scalars(select(Afterprint).where(Afterprint.deleted_at.is_(None)).order_by(Afterprint.title)).all()],
+        "papers": [{"id": x.id, "title": x.title, "type_id": x.type_id, "format_id": x.format_id, "weight": x.weight} for x in papers],
+        "materials": [{"id": x.id, "title": x.title} for x in db.scalars(material_query.order_by(Material.title)).all()],
+        "afterprints": [{"id": x.id, "title": x.title, "tooltip": x.tooltip or "", "parameters": [{"id": p.id, "title": p.title, "value": p.value or "", "type": p.parameter_type or "text", "values": [{"id": v.id, "value": v.value} for v in db.scalars(select(AfterprintParameterValue).where(AfterprintParameterValue.afterprint_parameter_id == p.id, AfterprintParameterValue.deleted_at.is_(None)).order_by(AfterprintParameterValue.weight)).all()]} for p in db.scalars(select(AfterprintParameter).where(AfterprintParameter.afterprint_id == x.id, AfterprintParameter.deleted_at.is_(None)).order_by(AfterprintParameter.id)).all()]} for x in db.scalars(afterprint_query.order_by(Afterprint.weight, Afterprint.title)).all()],
     }
 
 
