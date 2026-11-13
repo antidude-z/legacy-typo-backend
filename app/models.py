@@ -52,6 +52,12 @@ class ReportParam(Base):
     deleted_at = Column(DateTime, nullable=True)
 
 
+class SchemaVersion(Base):
+    __tablename__ = "schema_versions"
+    version = Column(String(50), primary_key=True)
+    applied_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class Permission(Base):
     __tablename__ = "permissions"
 

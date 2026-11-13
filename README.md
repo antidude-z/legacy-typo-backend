@@ -2,6 +2,26 @@
 
 FastAPI compatibility backend for the legacy typography application.
 
+## Local database initialization
+
+The default local database is SQLite at `data/typography.db`.  Initialize it
+explicitly with:
+
+```text
+uv run python -m app.bootstrap
+```
+
+Application startup runs the same additive initializer automatically.  It
+creates the SQLAlchemy schema, records the application schema version in
+`schema_versions`, and idempotently adds only legacy-confirmed catalog data:
+roles, permissions, role-permission assignments, order statuses, report
+definitions, and report parameters.  Existing business rows and assignments
+are preserved; the legacy SQL dump is not imported.
+
+To use another database, set `DATABASE_URL` before running the command.  A
+MySQL URL is supported through the same SQLAlchemy configuration used by the
+application.
+
 ## Reports — initial implementation slice
 
 Report/parameter models mirror the deployed dump schema. `/options/reports`

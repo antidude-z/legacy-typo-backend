@@ -25,12 +25,12 @@ from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 from .payroll import register_payroll_routes
 from .csrf import CSRF_COOKIE, CSRFMiddleware, token_for_session
+from .bootstrap import initialize_database
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    upgrade_local_schema()
-    Base.metadata.create_all(bind=engine)
+    initialize_database()
     yield
 
 
