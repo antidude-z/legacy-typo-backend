@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .db import get_db
 from .models import Permission, Role, role_permissions
+from .permission_audit import audit_payload
 
 
 MODULES = {
@@ -46,6 +47,11 @@ def register_permission_routes(app, current_user):
             if rows:
                 modules.append({"id": module_id, "title": module_title, "permissions": rows})
         return {"roles": [{"id": role.id, "title": role.title} for role in roles], "modules": modules}
+
+    @app.get("/api/options/permissions/audit", tags=["permissions"])
+    def permission_audit(request: Request, db: Session = Depends(get_db)):
+        require_admin(request, db)
+        return audit_payload()
 
     @app.post("/api/options/permissions", tags=["permissions"])
     def update_matrix(request: Request, payload: dict, db: Session = Depends(get_db)):
