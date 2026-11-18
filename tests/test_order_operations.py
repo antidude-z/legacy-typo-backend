@@ -89,7 +89,7 @@ class OrderOperationTests(unittest.TestCase):
                 clone = self.db.get(Order, copied.json()['id'])
                 self.assertEqual(clone.order_type, kind)
                 self.assertEqual(clone.status_id, 1)
-                self.assertEqual(clone.bill_id, 0)
+                self.assertIsNone(clone.bill_id)
                 self.assertEqual(self.db.query(Blank).filter_by(order_id=clone.id).count(), 0)
 
     def test_copy_refreshes_paper_price_and_isolates_other_work(self):

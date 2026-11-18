@@ -81,6 +81,13 @@ def orders_query(
     return statement
 
 
+def legacy_date(value):
+    """PyMySQL returns MySQL zero dates as strings, not datetime objects."""
+    if not value or str(value).startswith("0000-"):
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
 def serialize_order(item: Order) -> dict:
     return {
         "id": item.id,
@@ -88,14 +95,14 @@ def serialize_order(item: Order) -> dict:
         "type": ORDER_TYPES.get(item.order_type, item.order_type or ""),
         "order_type": item.order_type,
         "status_id": item.status_id,
-        "bill": ({"number": item.bill.number, "date": item.bill.bill_date.isoformat() if item.bill.bill_date else None, "paid": item.bill.paid, "closed": item.bill.closed, "filed": item.bill.filed} if item.bill else None),
+        "bill": ({"number": item.bill.number, "date": legacy_date(item.bill.bill_date), "paid": item.bill.paid, "closed": item.bill.closed, "filed": item.bill.filed} if item.bill else None),
         "manager": f"{item.manager.surname or ''} {item.manager.name}".strip() if item.manager else "",
         "customer": item.customer.title if item.customer else "",
         "status": item.status.title if item.status else "",
         "printing": item.printing,
-        "order_date": item.order_date.isoformat() if item.order_date else None,
-        "prod_date": item.prod_date.isoformat() if item.prod_date else None,
-        "deadline": item.deadline.isoformat() if item.deadline else None,
+        "order_date": legacy_date(item.order_date),
+        "prod_date": legacy_date(item.prod_date),
+        "deadline": legacy_date(item.deadline),
         "format": item.format,
         "volume": item.volume,
         "width": str(item.width) if item.width is not None else None,
@@ -125,7 +132,7 @@ def create_order(db: Session, user_id: int, order_type: str, values: dict, sourc
         title=values.get("title") or "Новый заказ",
         order_type=order_type,
         status_id=int(values.get("status_id") or 1),
-        bill_id=int(values.get("bill_id") or 0),
+        bill_id=int(values["bill_id"]) if values.get("bill_id") else None,
         printing=int(values.get("printing") or default_printing),
         volume=values.get("volume") or "",
         format=values.get("format") or "",

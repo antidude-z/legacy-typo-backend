@@ -36,7 +36,33 @@ def migration_2026_11_13_01(connection) -> None:
     })
 
 
-MIGRATIONS = (("2026-11-13-01", migration_2026_11_13_01),)
+def migration_2026_11_19_01(connection) -> None:
+    """Bridge deployed MySQL column names without discarding historical rows."""
+    original_mode = None
+    if connection.dialect.name == "mysql":
+        original_mode = connection.execute(text("SELECT @@SESSION.sql_mode")).scalar()
+        # Legacy DDL contains zero-date defaults; relax only this DDL session.
+        connection.execute(text("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'"))
+    try:
+        _add_columns(connection, {
+            "printers": {"production": "VARCHAR(30)"},
+            "afterprints": {"production": "VARCHAR(30)"},
+            "actions": {"item_id": "INTEGER"},
+        })
+        columns = {c["name"] for c in inspect(connection).get_columns("actions")}
+        if {"actionable_id", "actionable_type"}.issubset(columns):
+            for row in connection.execute(text("SELECT id, actionable_id, actionable_type FROM actions WHERE item_id IS NULL")).mappings().all():
+                if row["actionable_type"] == "App\\Order" and str(row["actionable_id"]).isdigit():
+                    connection.execute(text("UPDATE actions SET item_id=:item WHERE id=:id"), {"item": int(row["actionable_id"]), "id": row["id"]})
+    finally:
+        if original_mode is not None:
+            connection.execute(text("SET SESSION sql_mode=:mode"), {"mode": original_mode})
+
+
+MIGRATIONS = (
+    ("2026-11-13-01", migration_2026_11_13_01),
+    ("2026-11-19-01", migration_2026_11_19_01),
+)
 
 
 def _ensure_migration_table(database_engine) -> None:

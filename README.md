@@ -1,5 +1,18 @@
 # Typography backend
 
+## MySQL runtime regression checks
+
+The image installs the frozen `uv.lock`, including PyMySQL RSA authentication
+support. Migration `2026-11-19-01` adds deployed-schema compatibility columns
+and maps order history identifiers; it temporarily relaxes zero-date validation
+only for its own DDL connection and restores the original SQL mode afterward.
+
+Set `MYSQL_TEST_URL` to a dedicated database named `typography_runtime_test`,
+then run `uv run python -m unittest tests.test_mysql_runtime -v`. The test
+creates fixtures and leaves them in that test database for inspection. Never
+use a business database. Without this variable the MySQL integration test skips.
+
+
 FastAPI/SQLAlchemy backend for the migrated typography application. SQLite is
 the local default; production deployment should use MySQL populated from the
 preserved legacy dump.

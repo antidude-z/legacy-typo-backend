@@ -2,15 +2,15 @@ import unittest
 
 from sqlalchemy import create_engine, inspect, text
 
-from app.schema import MIGRATION_TABLE, apply_migrations, migration_status
+from app.schema import MIGRATIONS, MIGRATION_TABLE, apply_migrations, migration_status
 
 
 class SchemaMigrationTests(unittest.TestCase):
     def test_fresh_database_records_and_repeats_migrations(self):
         database_engine = create_engine("sqlite://")
-        self.assertEqual(apply_migrations(database_engine), ["2026-11-13-01"])
+        self.assertEqual(apply_migrations(database_engine), [version for version, _ in MIGRATIONS])
         self.assertEqual(apply_migrations(database_engine), [])
-        self.assertEqual(migration_status(database_engine), [{"version": "2026-11-13-01", "applied": True}])
+        self.assertEqual(migration_status(database_engine), [{"version": version, "applied": True} for version, _ in MIGRATIONS])
         self.assertIn(MIGRATION_TABLE, inspect(database_engine).get_table_names())
         database_engine.dispose()
 
@@ -30,9 +30,20 @@ class SchemaMigrationTests(unittest.TestCase):
 
     def test_status_does_not_create_tables(self):
         database_engine = create_engine("sqlite://")
-        self.assertEqual(migration_status(database_engine), [{"version": "2026-11-13-01", "applied": False}])
+        self.assertEqual(migration_status(database_engine), [{"version": version, "applied": False} for version, _ in MIGRATIONS])
         self.assertEqual(inspect(database_engine).get_table_names(), [])
         database_engine.dispose()
+
+    def test_legacy_action_mapping_is_repeatable_and_preserves_other_types(self):
+        engine = create_engine('sqlite://')
+        with engine.begin() as connection:
+            connection.execute(text('CREATE TABLE actions (id INTEGER PRIMARY KEY, actionable_id VARCHAR(255), actionable_type VARCHAR(255))'))
+            connection.execute(text('INSERT INTO actions VALUES (1, :item, :kind), (2, :item, :other)'), {'item': '17', 'kind': 'App\\Order', 'other': 'App\\Bill'})
+        apply_migrations(engine)
+        apply_migrations(engine)
+        with engine.connect() as connection:
+            self.assertEqual(connection.execute(text('SELECT item_id FROM actions ORDER BY id')).scalars().all(), [17, None])
+        engine.dispose()
 
 
 if __name__ == "__main__":
