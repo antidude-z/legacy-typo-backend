@@ -1,0 +1,351 @@
+{
+  "dump_path": "..\\dump_full.sql",
+  "insert_statements": 698,
+  "row_counts": {
+    "actions": 98722,
+    "afterprint_parameter_values": 20,
+    "afterprint_parameters": 27,
+    "afterprint_stage_materials": 1,
+    "afterprint_stages": 27,
+    "afterprints": 14,
+    "bills": 10050,
+    "blank_afterprints": 378631,
+    "blank_imagesetters": 38183,
+    "blanks": 38183,
+    "compile_stages": 1,
+    "compiles": 19,
+    "customer_groups": 1,
+    "customers": 374,
+    "materials": 6,
+    "measures": 6,
+    "migrations": 112,
+    "options": 3,
+    "order_compiles": 8248,
+    "order_markups": 262895,
+    "order_other_works": 42173,
+    "order_prepresses": 4751,
+    "order_statuses": 6,
+    "orders": 32727,
+    "other_works": 42173,
+    "paper_formats": 14,
+    "paper_types": 35,
+    "papers": 104,
+    "password_resets": 3,
+    "payers": 632,
+    "payments": 3613,
+    "payroll_orders": 22996,
+    "payrolls": 520,
+    "permissions": 47,
+    "prepresses": 11,
+    "prices": 42971,
+    "printer_fields": 24,
+    "printer_process_stages": 32,
+    "printer_processes": 18,
+    "printers": 7,
+    "rates": 7,
+    "report_params": 8,
+    "reports": 6,
+    "role_permissions": 116,
+    "roles": 7,
+    "services": 1,
+    "users": 11
+  },
+  "framework_rows_excluded": {
+    "migrations": 112,
+    "password_resets": 3
+  },
+  "application_tables_without_rows": [
+    "compile_stage_materials",
+    "customer_contacts",
+    "customer_payer",
+    "formats",
+    "order_redactions",
+    "paper_format_formats",
+    "redactions",
+    "schema_versions"
+  ],
+  "dump_tables_without_inserts": [
+    "compile_stage_materials",
+    "customer_contacts",
+    "customer_payer",
+    "formats",
+    "order_redactions",
+    "paper_format_formats",
+    "redactions"
+  ],
+  "model_foreign_keys": [
+    {
+      "table": "afterprint_parameters",
+      "column": "afterprint_id",
+      "target": "afterprints.id"
+    },
+    {
+      "table": "afterprint_stages",
+      "column": "afterprint_id",
+      "target": "afterprints.id"
+    },
+    {
+      "table": "compile_stages",
+      "column": "compile_id",
+      "target": "compiles.id"
+    },
+    {
+      "table": "customers",
+      "column": "customer_group_id",
+      "target": "customer_groups.id"
+    },
+    {
+      "table": "materials",
+      "column": "measure_id",
+      "target": "measures.id"
+    },
+    {
+      "table": "paper_format_formats",
+      "column": "format_id",
+      "target": "formats.id"
+    },
+    {
+      "table": "paper_format_formats",
+      "column": "paper_format_id",
+      "target": "paper_formats.id"
+    },
+    {
+      "table": "papers",
+      "column": "type_id",
+      "target": "paper_types.id"
+    },
+    {
+      "table": "papers",
+      "column": "format_id",
+      "target": "paper_formats.id"
+    },
+    {
+      "table": "printer_fields",
+      "column": "printer_id",
+      "target": "printers.id"
+    },
+    {
+      "table": "printer_fields",
+      "column": "paper_format_id",
+      "target": "paper_formats.id"
+    },
+    {
+      "table": "printer_processes",
+      "column": "printer_id",
+      "target": "printers.id"
+    },
+    {
+      "table": "report_params",
+      "column": "report_id",
+      "target": "reports.id"
+    },
+    {
+      "table": "role_permissions",
+      "column": "permission_id",
+      "target": "permissions.id"
+    },
+    {
+      "table": "role_permissions",
+      "column": "role_id",
+      "target": "roles.id"
+    },
+    {
+      "table": "users",
+      "column": "role_id",
+      "target": "roles.id"
+    },
+    {
+      "table": "actions",
+      "column": "user_id",
+      "target": "users.id"
+    },
+    {
+      "table": "afterprint_parameter_values",
+      "column": "afterprint_parameter_id",
+      "target": "afterprint_parameters.id"
+    },
+    {
+      "table": "afterprint_stage_materials",
+      "column": "material_id",
+      "target": "materials.id"
+    },
+    {
+      "table": "afterprint_stage_materials",
+      "column": "afterprint_stage_id",
+      "target": "afterprint_stages.id"
+    },
+    {
+      "table": "bills",
+      "column": "payer_id",
+      "target": "payers.id"
+    },
+    {
+      "table": "bills",
+      "column": "user_id",
+      "target": "users.id"
+    },
+    {
+      "table": "compile_stage_materials",
+      "column": "material_id",
+      "target": "materials.id"
+    },
+    {
+      "table": "compile_stage_materials",
+      "column": "compile_stage_id",
+      "target": "compile_stages.id"
+    },
+    {
+      "table": "customer_contacts",
+      "column": "customer_id",
+      "target": "customers.id"
+    },
+    {
+      "table": "customer_payer",
+      "column": "customer_id",
+      "target": "customers.id"
+    },
+    {
+      "table": "customer_payer",
+      "column": "payer_id",
+      "target": "payers.id"
+    },
+    {
+      "table": "payrolls",
+      "column": "user_id",
+      "target": "users.id"
+    },
+    {
+      "table": "printer_process_stages",
+      "column": "printer_process_id",
+      "target": "printer_processes.id"
+    },
+    {
+      "table": "orders",
+      "column": "user_id",
+      "target": "users.id"
+    },
+    {
+      "table": "orders",
+      "column": "status_id",
+      "target": "order_statuses.id"
+    },
+    {
+      "table": "orders",
+      "column": "customer_id",
+      "target": "customers.id"
+    },
+    {
+      "table": "orders",
+      "column": "bill_id",
+      "target": "bills.id"
+    },
+    {
+      "table": "payments",
+      "column": "bill_id",
+      "target": "bills.id"
+    },
+    {
+      "table": "blanks",
+      "column": "printer_id",
+      "target": "printers.id"
+    },
+    {
+      "table": "blanks",
+      "column": "order_id",
+      "target": "orders.id"
+    },
+    {
+      "table": "blanks",
+      "column": "material_id",
+      "target": "materials.id"
+    },
+    {
+      "table": "blanks",
+      "column": "paper_id",
+      "target": "papers.id"
+    },
+    {
+      "table": "blanks",
+      "column": "printer_process_id",
+      "target": "printer_processes.id"
+    },
+    {
+      "table": "order_compiles",
+      "column": "order_id",
+      "target": "orders.id"
+    },
+    {
+      "table": "order_compiles",
+      "column": "compile_id",
+      "target": "compiles.id"
+    },
+    {
+      "table": "order_markups",
+      "column": "order_id",
+      "target": "orders.id"
+    },
+    {
+      "table": "order_other_works",
+      "column": "order_id",
+      "target": "orders.id"
+    },
+    {
+      "table": "order_other_works",
+      "column": "other_work_id",
+      "target": "other_works.id"
+    },
+    {
+      "table": "order_prepresses",
+      "column": "prepress_id",
+      "target": "prepresses.id"
+    },
+    {
+      "table": "order_prepresses",
+      "column": "order_id",
+      "target": "orders.id"
+    },
+    {
+      "table": "order_redactions",
+      "column": "redaction_id",
+      "target": "redactions.id"
+    },
+    {
+      "table": "order_redactions",
+      "column": "order_id",
+      "target": "orders.id"
+    },
+    {
+      "table": "payroll_orders",
+      "column": "payroll_id",
+      "target": "payrolls.id"
+    },
+    {
+      "table": "payroll_orders",
+      "column": "order_id",
+      "target": "orders.id"
+    },
+    {
+      "table": "blank_afterprints",
+      "column": "blank_id",
+      "target": "blanks.id"
+    },
+    {
+      "table": "blank_afterprints",
+      "column": "afterprint_id",
+      "target": "afterprints.id"
+    },
+    {
+      "table": "blank_imagesetters",
+      "column": "blank_id",
+      "target": "blanks.id"
+    }
+  ],
+  "malformed_statement_count": 0,
+  "conversion_rules": {
+    "zero_dates": "converted to NULL",
+    "actions": "App\\Order actionable_id maps to actions.item_id; other polymorphic types are rejected",
+    "timestamps": "MySQL timestamp values are converted to Python datetimes",
+    "money": "numeric values are converted to Decimal"
+  },
+  "source_not_modified": true
+}

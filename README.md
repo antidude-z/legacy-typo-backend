@@ -63,6 +63,17 @@ Remove `--dry-run` only for a disposable import. The converter currently accepts
 SQLite targets only, refuses non-empty target tables, rejects unsupported
 polymorphic action types and malformed/required-field-missing rows, and reports
 skipped framework rows. It is not yet an approved production import or MySQL
+
+To audit the full dump without creating a database or importing rows:
+
+```text
+uv run python -m app.reconcile_dump ../dump_full.sql --output docs/dump-reconciliation.json
+```
+
+The audit counts INSERT rows, reports framework exclusions and empty tables,
+lists model foreign keys, records conversion rules, and confirms that the source
+was not modified. It does not prove that imported data has valid relationships
+or that SQLite constraints/indexes match MariaDB behavior.
 verification procedure.
 
 ## Reports — initial implementation slice
