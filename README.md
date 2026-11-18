@@ -1,3 +1,17 @@
+## Deployment validation
+
+Static Compose, Nginx proxy, and MySQL URL checks can be run without a Docker
+daemon through `tests.test_deployment`. The Compose file keeps SQLite as the
+default and places MySQL behind the `mysql` profile. When Docker is available,
+validate and run the MySQL profile with:
+
+```powershell
+docker compose -f ..\docker-compose.yaml config --quiet
+docker compose -f ..\docker-compose.yaml --profile mysql up --build
+```
+
+The runtime command has not been executed on environments without a running
+Docker daemon.
 # Typography backend
 
 FastAPI compatibility backend for the legacy typography application.
