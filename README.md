@@ -74,6 +74,17 @@ The audit counts INSERT rows, reports framework exclusions and empty tables,
 lists model foreign keys, records conversion rules, and confirms that the source
 was not modified. It does not prove that imported data has valid relationships
 or that SQLite constraints/indexes match MariaDB behavior.
+
+To validate an imported disposable SQLite file:
+
+```text
+uv run python -m app.validate_import ../data/dump-import.db --output docs/import-validation.json
+```
+
+The validator reports foreign-key/orphan summaries, required-field NULLs,
+uniqueness violations, date/decimal conversion anomalies, and preserved
+soft-deleted rows. Historical MyISAM data may contain missing parents; the
+validator reports those records and never repairs them automatically.
 verification procedure.
 
 ## Reports — initial implementation slice
