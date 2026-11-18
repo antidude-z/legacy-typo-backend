@@ -1,7 +1,9 @@
 import unittest
+from datetime import date, datetime
 
 from tests import test_reference_dictionaries as fixtures
 from app.models import Blank, BlankAfterprint, BlankImagesetter, Compile, Order, OrderCompile, OrderMarkup, Prepress, Redaction
+from app.models import OtherWork, OrderOtherWork, Paper, Price
 
 
 class OrderOperationTests(unittest.TestCase):
@@ -68,6 +70,47 @@ class OrderOperationTests(unittest.TestCase):
         self.assertEqual(self.db.query(BlankImagesetter).filter_by(blank_id=copied_blank.id).one().plates, 2)
         self.assertTrue(self.db.query(BlankAfterprint).filter_by(blank_id=copied_blank.id).one().active)
         self.assertEqual(self.db.query(OrderMarkup).filter_by(order_id=new_id, markup_type='design').one().value, 17)
+
+    def test_all_order_types_create_and_copy_without_deleted_children(self):
+        for kind in ('book', 'poly', 'wide', 'souvenir'):
+            with self.subTest(kind=kind):
+                response = self.client.post(f'/api/orders/add/{kind}', data={'order_title': kind, 'order_printing': 12, 'order_volume': '32'})
+                self.assertEqual(response.status_code, 200)
+                identity = response.json()['id']
+                source = self.db.get(Order, identity)
+                self.assertEqual(source.order_type, kind)
+                self.assertEqual(source.printing, 12)
+                if kind == 'book':
+                    self.assertEqual(source.volume, '32')
+                self.db.add(Blank(order_id=identity, title='Deleted', printer_id=0, deleted_at=datetime(2020, 1, 1)))
+                self.db.commit()
+                copied = self.client.post(f'/api/orders/{identity}/copy', json={'title': 'Copy'})
+                self.assertEqual(copied.status_code, 200)
+                clone = self.db.get(Order, copied.json()['id'])
+                self.assertEqual(clone.order_type, kind)
+                self.assertEqual(clone.status_id, 1)
+                self.assertEqual(clone.bill_id, 0)
+                self.assertEqual(self.db.query(Blank).filter_by(order_id=clone.id).count(), 0)
+
+    def test_copy_refreshes_paper_price_and_isolates_other_work(self):
+        self.db.add_all([
+            Paper(id=40, title='Paper', weight=80),
+            Price(id=40, priceable_type='App\\Paper', priceable_id=40, amount=7, currency='RUB', actual_from=0, actual_since=date(2020, 1, 1)),
+            Blank(order_id=10, title='Cover', printer_id=0, paper_id=40, paper_price=1),
+            OtherWork(id=40, title='Delivery'),
+            Price(id=41, priceable_type='App\\OtherWork', priceable_id=40, amount=15, currency='RUB', actual_from=0, actual_since=date(2020, 1, 1)),
+            Price(id=42, priceable_type='App\\OtherWork', priceable_id=40, amount=999, currency='RUB', actual_from=0, actual_since=date(2099, 1, 1)),
+            OrderOtherWork(order_id=10, other_work_id=40, quantity=2, price_id=41),
+        ])
+        self.db.commit()
+        response = self.client.post('/api/orders/10/copy', json={})
+        self.assertEqual(response.status_code, 200)
+        identity = response.json()['id']
+        self.assertEqual(self.db.query(Blank).filter_by(order_id=identity).one().paper_price, 7)
+        work = self.db.query(OrderOtherWork).filter_by(order_id=identity).one()
+        self.assertNotEqual(work.other_work_id, 40)
+        self.assertNotEqual(work.price_id, 41)
+        self.assertEqual(self.db.get(Price, work.price_id).amount, 15)
 
 
 if __name__ == '__main__':

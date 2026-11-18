@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import hashlib
 import secrets
@@ -675,12 +675,43 @@ def order_copy(order_id: int, request: Request, payload: dict, db: Session = Dep
             target.active = markup.active
     for model, foreign_key in OPERATION_MODELS.values():
         for operation in db.scalars(select(model).where(model.order_id == source.id, model.deleted_at.is_(None))).all():
-            values = {"order_id": item.id, foreign_key: getattr(operation, foreign_key), "quantity": operation.quantity, "price_id": getattr(operation, "price_id", None)}
+            operation_reference = getattr(operation, foreign_key)
+            if model is OrderOtherWork:
+                source_work = db.get(OtherWork, operation_reference)
+                if source_work is not None:
+                    copied_work = OtherWork(title=source_work.title)
+                    db.add(copied_work)
+                    db.flush()
+                    current_price = db.scalar(select(Price).where(Price.priceable_id == source_work.id, Price.priceable_type.in_(("App\\OtherWork", "OtherWork")), Price.deleted_at.is_(None), Price.actual_since <= date.today(), Price.actual_from <= 0).order_by(Price.actual_from.desc(), Price.actual_since.desc()))
+                    copied_price_id = None
+                    if current_price is not None:
+                        copied_price = Price(priceable_id=copied_work.id, priceable_type=current_price.priceable_type, amount=current_price.amount, currency=current_price.currency, actual_from=0, actual_since=date(1970, 1, 1))
+                        db.add(copied_price)
+                        db.flush()
+                        copied_price_id = copied_price.id
+                    operation_reference = copied_work.id
+                    if copied_price_id is None:
+                        continue
+                    values = {"order_id": item.id, foreign_key: operation_reference, "quantity": operation.quantity, "price_id": copied_price_id}
+                else:
+                    continue
+            else:
+                values = {"order_id": item.id, foreign_key: operation_reference, "quantity": operation.quantity, "price_id": getattr(operation, "price_id", None)}
             if model is OrderCompile:
                 values["fitting"] = operation.fitting
             db.add(model(**values))
     for source_blank in db.scalars(select(Blank).where(Blank.order_id == source.id, Blank.deleted_at.is_(None))).all():
-        blank_values = {field: getattr(source_blank, field) for field in ("title", "printer_id", "printer_process_id", "paper_id", "material_id", "cutting", "width", "height", "colors_front", "colors_back", "details_per_sheet", "pages_per_sheet", "details_per_blank", "different_details", "comments", "paper_price", "cost")}
+        blank_values = {field: getattr(source_blank, field) for field in ("title", "printer_id", "printer_process_id", "paper_id", "material_id", "cutting", "width", "height", "colors_front", "colors_back", "details_per_sheet", "pages_per_sheet", "details_per_blank", "different_details", "comments", "cost")}
+        unit_price = 0
+        if source_blank.paper_id:
+            source_paper = db.get(Paper, source_blank.paper_id)
+            if source_paper:
+                unit_price = resolve_price(db, "App\\Paper", source_paper.id)["amount"]
+        if source_blank.material_id:
+            source_material = db.get(Material, source_blank.material_id)
+            if source_material:
+                unit_price = resolve_price(db, "App\\Material", source_material.id)["amount"]
+        blank_values["paper_price"] = unit_price
         clone = Blank(order_id=item.id, **blank_values)
         db.add(clone)
         db.flush()
