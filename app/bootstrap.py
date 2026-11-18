@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import Base, engine
-from .models import Permission, Role, Report, ReportParam, SchemaVersion, OrderStatus, Service, Rate, role_permissions
+from .models import Option, Permission, Role, Report, ReportParam, SchemaVersion, OrderStatus, Service, Rate, role_permissions
 
 
 SCHEMA_VERSION = "2026-11-13-01"
@@ -82,6 +82,11 @@ RATES = (
     ("76.3264", "82.8141", "2016-02-02"),
     ("67.8552", "76.9207", "2016-04-01"),
 )
+OPTIONS = (
+    ("markups", "min_markup", "Максимальная скидка", "-5", "1970-01-01"),
+    ("markups", "max_markup", "Максимальная наценка", "20", "1970-01-01"),
+    ("markups", "step_markup", "Шаг наценки", "1", "1970-01-01"),
+)
 
 
 def initialize_database(database_engine=engine) -> None:
@@ -132,6 +137,9 @@ def initialize_database(database_engine=engine) -> None:
             effective = date.fromisoformat(actual_since)
             if db.scalar(select(Rate).where(Rate.actual_since == effective, Rate.usd == usd, Rate.eur == eur, Rate.deleted_at.is_(None))) is None:
                 db.add(Rate(usd=usd, eur=eur, actual_since=effective))
+        for depart, alias, title, value, actual_since in OPTIONS:
+            if db.scalar(select(Option).where(Option.alias == alias, Option.deleted_at.is_(None))) is None:
+                db.add(Option(depart=depart, alias=alias, title=title, value=value, actual_since=date.fromisoformat(actual_since)))
         db.commit()
 
 

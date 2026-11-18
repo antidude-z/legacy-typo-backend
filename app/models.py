@@ -138,6 +138,35 @@ class CustomerGroup(Base):
     deleted_at = Column(DateTime, nullable=True)
 
 
+class CustomerContact(Base):
+    """Legacy data-preservation model; no active legacy CRUD workflow exists."""
+    __tablename__ = "customer_contacts"
+    id = Column(Integer, primary_key=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    post = Column(String(100), nullable=False, default="")
+    phone = Column(String(200), nullable=False, default="")
+    mail = Column(String(200), nullable=False, default="")
+    description = Column(Text, nullable=False, default="")
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+
+
+class Option(Base):
+    """Legacy read-only application option preserved for migration/import."""
+    __tablename__ = "options"
+    id = Column(Integer, primary_key=True)
+    depart = Column(String(50), nullable=False, default="")
+    alias = Column(String(50), nullable=False, unique=True)
+    title = Column(String(50), nullable=False)
+    value = Column(String(50), nullable=False)
+    actual_since = Column(Date, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+
+
 class Payer(Base):
     __tablename__ = "payers"
     id = Column(Integer, primary_key=True)
@@ -451,6 +480,30 @@ class PaperFormat(Base):
     width = Column(Integer, nullable=True)
     height = Column(Integer, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
+
+
+class Format(Base):
+    """Legacy finished-product format table used by historical data."""
+    __tablename__ = "formats"
+    id = Column(Integer, primary_key=True)
+    title = Column(String(50), nullable=False)
+    width = Column(Integer, nullable=False, default=0)
+    height = Column(Integer, nullable=False, default=0)
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+
+
+class PaperFormatFormat(Base):
+    """Legacy paper-format/cut-format relationship for import compatibility."""
+    __tablename__ = "paper_format_formats"
+    id = Column(Integer, primary_key=True)
+    paper_format_id = Column(Integer, ForeignKey("paper_formats.id"), nullable=False, index=True)
+    format_id = Column(Integer, ForeignKey("formats.id"), nullable=False, index=True)
+    cutting = Column(Integer, nullable=False, default=0)
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
 
 
 class Paper(Base):

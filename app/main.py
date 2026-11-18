@@ -19,7 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import APP_URL, DATABASE_MODE, DATABASE_URL, REMEMBER_DAYS, RESET_MAIL_DIR, RESET_MAIL_MODE, RESET_TOKEN_MINUTES, SESSION_COOKIE, SESSION_SECRET, SESSION_SECURE
 from .db import Base, engine, get_db
-from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, OtherWork, Paper, PaperFormat, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction, PasswordReset
+from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, Option, OtherWork, Paper, PaperFormat, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction, PasswordReset
 from .navigation import build_navigation
 from .orders import blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 from .payroll import register_payroll_routes
@@ -277,6 +277,22 @@ def session_info(request: Request, db: Session = Depends(get_db)) -> dict:
         "user": ({"id": user.id, "name": user.name, "surname": user.surname, "email": user.email} if user else None),
         "menu": build_navigation(user),
     }
+
+
+@app.get("/api/options/main", tags=["options"])
+def main_options(request: Request, db: Session = Depends(get_db)):
+    """Read-only replacement for the legacy OptionsController index action."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if not user.has_permission("view_menu_options_main"):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    rows = db.scalars(
+        select(Option)
+        .where(Option.deleted_at.is_(None))
+        .order_by(Option.depart.asc(), Option.title.asc(), Option.id.asc())
+    ).all()
+    return {"items": [{"id": row.id, "depart": row.depart, "alias": row.alias, "title": row.title, "value": row.value, "actual_since": row.actual_since.isoformat()} for row in rows]}
 
 
 @app.get("/api/csrf-token", tags=["auth"])

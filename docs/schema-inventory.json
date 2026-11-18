@@ -69,11 +69,14 @@
     "compile_stage_materials",
     "compile_stages",
     "compiles",
+    "customer_contacts",
     "customer_groups",
     "customer_payer",
     "customers",
+    "formats",
     "materials",
     "measures",
+    "options",
     "order_compiles",
     "order_markups",
     "order_other_works",
@@ -82,6 +85,7 @@
     "order_statuses",
     "orders",
     "other_works",
+    "paper_format_formats",
     "paper_formats",
     "paper_types",
     "papers",
@@ -108,11 +112,7 @@
     "users"
   ],
   "missing_tables_in_rework": [
-    "customer_contacts",
-    "formats",
-    "migrations",
-    "options",
-    "paper_format_formats"
+    "migrations"
   ],
   "extra_tables_in_rework": [
     "schema_versions"

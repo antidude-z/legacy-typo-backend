@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.bootstrap import SCHEMA_VERSION, initialize_database
 from app.db import Base
-from app.models import OrderStatus, Permission, Rate, Report, ReportParam, Role, SchemaVersion, Service, role_permissions
+from app.models import Format, Option, OrderStatus, PaperFormatFormat, Permission, Rate, Report, ReportParam, Role, SchemaVersion, Service, CustomerContact, role_permissions
 
 
 class BootstrapTests(unittest.TestCase):
@@ -25,6 +25,10 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(db.query(ReportParam).count(), 8)
             self.assertEqual(db.query(Service).count(), 1)
             self.assertEqual(db.query(Rate).count(), 7)
+            self.assertEqual(db.query(Option).count(), 3)
+            self.assertEqual(db.query(Format).count(), 0)
+            self.assertEqual(db.query(CustomerContact).count(), 0)
+            self.assertEqual(db.query(PaperFormatFormat).count(), 0)
             admin = db.scalar(select(Role).where(Role.title == "Администратор"))
             manager = db.scalar(select(Role).where(Role.title == "Менеджер"))
             self.assertEqual(len(admin.permissions), 47)
@@ -44,6 +48,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(db.query(ReportParam).count(), 8)
             self.assertEqual(db.query(Service).count(), 1)
             self.assertEqual(db.query(Rate).count(), 7)
+            self.assertEqual(db.query(Option).count(), 3)
             self.assertEqual(db.execute(select(role_permissions.c.role_id, role_permissions.c.permission_id)).all().__len__(), 97)
         engine.dispose()
 
