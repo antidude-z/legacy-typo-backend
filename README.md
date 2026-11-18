@@ -87,6 +87,16 @@ validator reports those records and never repairs them automatically. The
 selected historical policy preserves all source rows and IDs, creates no
 tombstone parents, deletes no orphan rows, archives raw source rows, and does
 not claim strict relational validity for historical orphans.
+
+To audit imported domain data without modifying it:
+
+```text
+uv run python -m app.historical_audit ../data/dump-import.db --output docs/historical-audit.json
+```
+
+The audit covers identity, references, pricing, orders, calculations, bills,
+payments, payroll, and report catalogs. It treats empty historical calculation
+details as a reported state and rejects no rows.
 validator reports those records and never repairs them automatically.
 verification procedure.
 
