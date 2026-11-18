@@ -104,6 +104,19 @@ class AuthenticationTests(unittest.TestCase):
         rejected = self.client.post("/api/auth/logout", headers={"X-CSRF-Token": "wrong-token"}, follow_redirects=False)
         self.assertEqual(rejected.status_code, 419)
 
+    def test_login_rate_limit_blocks_repeated_failures_and_resets_on_success(self):
+        with patch("app.main.LOGIN_RATE_LIMIT", 2), patch("app.main.LOGIN_RATE_WINDOW_SECONDS", 60), patch("app.main._login_attempts", {}):
+            for _ in range(2):
+                response = self.client.post("/api/auth/login", data={"email": self.user.email, "password": "wrong"})
+                self.assertEqual(response.status_code, 422)
+            limited = self.client.post("/api/auth/login", data={"email": self.user.email, "password": "wrong"})
+            self.assertEqual(limited.status_code, 429)
+
+            with patch("app.main._login_attempts", {}):
+                self.client.post("/api/auth/login", data={"email": self.user.email, "password": "wrong"})
+                successful = self.client.post("/api/auth/login", data={"email": self.user.email, "password": self.password}, follow_redirects=False)
+                self.assertEqual(successful.status_code, 303)
+
 
 if __name__ == "__main__":
     unittest.main()

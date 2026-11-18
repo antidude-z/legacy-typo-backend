@@ -7,6 +7,7 @@ import os
 import re
 import smtplib
 import ssl
+import time
 from email.message import EmailMessage
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 
@@ -17,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import APP_URL, DATABASE_MODE, DATABASE_URL, REMEMBER_DAYS, RESET_MAIL_DIR, RESET_MAIL_MODE, RESET_TOKEN_MINUTES, SESSION_COOKIE, SESSION_SECRET, SESSION_SECURE
+from .config import APP_URL, DATABASE_MODE, DATABASE_URL, LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_SECONDS, REMEMBER_DAYS, RESET_MAIL_DIR, RESET_MAIL_MODE, RESET_TOKEN_MINUTES, SESSION_COOKIE, SESSION_MINUTES, SESSION_SECRET, SESSION_SECURE
 from .db import Base, engine, get_db
 from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, Option, OtherWork, Paper, PaperFormat, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction, PasswordReset
 from .navigation import build_navigation
@@ -43,11 +44,25 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     session_cookie=SESSION_COOKIE,
-    max_age=120 * 60,
+    max_age=SESSION_MINUTES * 60,
     same_site="lax",
     https_only=SESSION_SECURE,
 )
 app.add_middleware(CSRFMiddleware)
+
+_login_attempts: dict[str, list[float]] = {}
+
+
+def login_rate_limited(key: str) -> bool:
+    now = time.monotonic()
+    attempts = [stamp for stamp in _login_attempts.get(key, []) if now - stamp < LOGIN_RATE_WINDOW_SECONDS]
+    _login_attempts[key] = attempts
+    return len(attempts) >= LOGIN_RATE_LIMIT
+
+
+def record_login_failure(key: str) -> None:
+    attempts = _login_attempts.setdefault(key, [])
+    attempts.append(time.monotonic())
 
 
 def current_user(request: Request, db: Session) -> User | None:
@@ -319,13 +334,18 @@ def login(
     remember: bool = Form(False),
     db: Session = Depends(get_db),
 ):
+    rate_key = f"{request.client.host if request.client else 'unknown'}:{email.strip().lower()}"
+    if login_rate_limited(rate_key):
+        return JSONResponse({"message": "Слишком много попыток входа. Повторите позднее."}, status_code=429, headers={"Retry-After": str(LOGIN_RATE_WINDOW_SECONDS)})
     user = db.scalar(select(User).where(User.email == email, User.fired.is_(False), User.deleted_at.is_(None)))
     try:
         valid = user is not None and len(password.encode()) <= 72 and bcrypt.checkpw(password.encode(), user.password.encode())
     except ValueError:
         valid = False
     if not valid:
+        record_login_failure(rate_key)
         return JSONResponse({"message": "Неверные учетные данные."}, status_code=422)
+    _login_attempts.pop(rate_key, None)
     request.session["user_id"] = user.id
     request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
     response = RedirectResponse("/orders", status_code=303)
