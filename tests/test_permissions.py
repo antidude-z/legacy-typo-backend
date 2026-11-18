@@ -48,6 +48,15 @@ class PermissionMatrixTests(unittest.TestCase):
         with patch("app.main.current_user", return_value=None):
             self.assertEqual(self.client.get("/api/options/permissions").status_code, 401)
 
+    def test_audit_reports_catalog_completeness(self):
+        self.seed_matrix()
+        response = self.client.get('/api/options/permissions/audit')
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn('edit_price', payload['dedicated_permissions'])
+        self.assertFalse(payload['catalog_complete'])
+        self.assertIn('edit_price', payload['missing_catalog_permissions'])
+
     def test_matrix_requires_administration_permission(self):
         self.permission_mock.return_value = False
         self.assertEqual(self.client.get("/api/options/permissions").status_code, 403)

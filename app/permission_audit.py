@@ -88,6 +88,18 @@ ROUTE_PERMISSION_AUDIT = (
     },
 )
 
+DEDICATED_PERMISSION_IDS = frozenset({
+    "edit_price", "delete_price", "view_accounting_bills", "edit_accounting_bills",
+    "user_create", "user_edit", "user_delete", "view_menu_options_permissions",
+    "view_menu_options_reports", "view_menu_reports_payrolls", "edit_reports_payrolls",
+})
 
-def audit_payload() -> dict:
-    return {"families": [dict(item) for item in ROUTE_PERMISSION_AUDIT]}
+
+def audit_payload(permission_ids=None) -> dict:
+    available = set(permission_ids or ())
+    return {
+        "families": [dict(item) for item in ROUTE_PERMISSION_AUDIT],
+        "dedicated_permissions": sorted(DEDICATED_PERMISSION_IDS),
+        "missing_catalog_permissions": sorted(DEDICATED_PERMISSION_IDS - available) if permission_ids is not None else [],
+        "catalog_complete": permission_ids is None or not (DEDICATED_PERMISSION_IDS - available),
+    }
