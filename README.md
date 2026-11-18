@@ -98,7 +98,13 @@ The audit covers identity, references, pricing, orders, calculations, bills,
 payments, payroll, and report catalogs. It treats empty historical calculation
 details as a reported state and rejects no rows.
 validator reports those records and never repairs them automatically.
-verification procedure.
+Browser CSRF policy: every state-changing request after the browser has
+obtained the `typography_csrf` cookie must carry the matching cookie and
+`X-CSRF-Token` header. Stateless compatibility callers that never obtain the
+CSRF cookie remain outside this browser contract; a future strict API policy
+must use a separate API authentication strategy.
+they must use a separate API authentication strategy before being treated as
+cookie-authenticated clients.
 
 ## Reports — initial implementation slice
 

@@ -16,6 +16,7 @@ from sqlalchemy.pool import StaticPool
 from app.db import Base, get_db
 from app.main import app
 from app.models import PasswordReset, User
+from app.csrf import CSRF_COOKIE
 
 
 class AuthenticationTests(unittest.TestCase):
@@ -57,7 +58,8 @@ class AuthenticationTests(unittest.TestCase):
         self.client.cookies.set("typography_remember", cookie)
         session = self.client.get("/api/session")
         self.assertEqual(session.json()["authenticated"], True)
-        logout = self.client.post("/api/auth/logout", follow_redirects=False)
+        token = self.client.get("/api/csrf-token").json()["token"]
+        logout = self.client.post("/api/auth/logout", headers={"X-CSRF-Token": token}, follow_redirects=False)
         self.assertEqual(logout.status_code, 303)
         self.assertIsNone(self.db.get(User, self.user.id).remember_token)
 
@@ -98,6 +100,9 @@ class AuthenticationTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(valid.status_code, 303)
+
+        rejected = self.client.post("/api/auth/logout", headers={"X-CSRF-Token": "wrong-token"}, follow_redirects=False)
+        self.assertEqual(rejected.status_code, 419)
 
 
 if __name__ == "__main__":

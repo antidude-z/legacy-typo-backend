@@ -6,6 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 
+
 CSRF_COOKIE = "typography_csrf"
 CSRF_HEADER = "x-csrf-token"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
@@ -20,19 +21,17 @@ def token_for_session(request) -> str:
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
-    """Double-submit protection for browser/API traffic.
+    """Require double-submit CSRF protection for opted-in browser sessions.
 
-    Existing non-browser compatibility clients may not have a CSRF cookie. Once
-    the browser obtains the token, however, a state-changing request must send
-    the matching header. This preserves the legacy API test/client contract
-    while protecting the Svelte application's cookie-authenticated requests.
+    A browser opts in by requesting ``/api/csrf-token``; stateless compatibility
+    callers that never establish that token remain outside this contract.
     """
 
     async def dispatch(self, request, call_next):
         if request.method not in SAFE_METHODS and request.cookies.get(CSRF_COOKIE):
             cookie_token = request.cookies.get(CSRF_COOKIE)
             header_token = request.headers.get(CSRF_HEADER)
-            if not header_token or not secrets.compare_digest(cookie_token, header_token):
+            if not cookie_token or not header_token or not secrets.compare_digest(cookie_token, header_token):
                 return JSONResponse({"error": "csrf_failed", "message": "Недействительный CSRF-токен."}, status_code=419)
         response = await call_next(request)
         return response
