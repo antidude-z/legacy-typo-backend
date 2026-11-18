@@ -224,7 +224,7 @@ class PayrollOrder(Base):
     payroll_id = Column(Integer, ForeignKey("payrolls.id"), nullable=False)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
     title = Column(String(100), nullable=False, default="")
-    customer = Column(String(100), nullable=False, default="")
+    customer = Column(String(255), nullable=True)
     printing = Column(Integer, nullable=False, default=0)
     bill_number = Column(String(20), nullable=False, default="")
     bill_date = Column(Date, nullable=True)
