@@ -120,6 +120,11 @@ extractable PDF text, XLS cell/merge snapshots, and explicit `not_checked`
 states for visual acceptance and formulas/print settings. A successful content
 comparison is not a substitute for browser or print-layout acceptance.
 
+The active report catalog contract can be checked in application code with
+`app.report_contract.audit_report_catalog(session)`. It verifies supported
+report metadata and required configured parameter aliases; it does not verify
+visual layout, formulas, or pagination.
+
 Report/parameter models mirror the deployed dump schema. `/options/reports`
 provides settings and scoped variable editing; APIs are under `/api/report-settings`.
 Settings require the report-options permission; original controller omissions
