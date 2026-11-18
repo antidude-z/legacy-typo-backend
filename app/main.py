@@ -518,7 +518,7 @@ def orders(
 ):
     result = orders_response(request, db, page, per_page, sort, order, order_filters(request))
     if result.get("error"):
-        return RedirectResponse("/auth/login", status_code=303)
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
     return result
 
 
@@ -768,7 +768,9 @@ def order_delete(order_id: int, request: Request, db: Session = Depends(get_db))
 def order_restore(order_id: int, request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     item = db.get(Order, order_id)
-    if user is None or not user.has_permission("restore_trashed"):
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if not user.has_permission("restore_trashed"):
         return JSONResponse({"error": "forbidden"}, status_code=403)
     if item is None:
         return JSONResponse({"error": "not_found"}, status_code=404)

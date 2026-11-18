@@ -64,6 +64,44 @@ class PermissionMatrixTests(unittest.TestCase):
         self.assertTrue(all(row['unauthenticated'] == 401 for row in AUTHORIZATION_MATRIX))
         self.assertTrue(all(row['unauthorized'] == 'authenticated-only' or row['unauthorized'] in DEDICATED_PERMISSION_IDS or row['unauthorized'] in {'restore_trashed'} for row in AUTHORIZATION_MATRIX))
 
+    def test_authorization_matrix_executes_unauthenticated_and_denied_requests(self):
+        cases = [
+            ('GET', '/api/orders', None, None),
+            ('POST', '/api/orders/10/prepresses', {'prepress_id': 1}, None),
+            ('POST', '/api/orders/10/restore', None, 'restore_trashed'),
+            ('GET', '/api/prices/paper/1/records', None, None),
+            ('POST', '/api/prices/paper/1/records', {'amount': '1', 'currency': 'RUB', 'actual_since': '2024-01-01', 'actual_from': 0}, 'edit_price'),
+            ('GET', '/api/accounting/bills', None, 'view_accounting_bills'),
+            ('POST', '/api/accounting/bills', {}, 'edit_accounting_bills'),
+            ('POST', '/api/accounting/bills/1/payments', {}, 'edit_accounting_bills'),
+            ('GET', '/api/accounting/payers', None, None),
+            ('GET', '/api/references/materials', None, None),
+            ('POST', '/api/employee-references', {}, 'user_create'),
+            ('PATCH', '/api/employee-references/1', {}, 'user_edit'),
+            ('GET', '/api/options/permissions', None, 'view_menu_options_permissions'),
+            ('GET', '/api/reports/for/orders/1', None, None),
+            ('PATCH', '/api/report-settings/missing', {}, 'view_menu_options_reports'),
+            ('GET', '/api/reports/payrolls/1', None, 'view_menu_reports_payrolls'),
+            ('POST', '/api/reports/payrolls', {}, 'edit_reports_payrolls'),
+        ]
+
+        for method, path, payload, permission in cases:
+            with self.subTest(method=method, path=path):
+                self.auth_mock.return_value = None
+                response = self.client.request(method, path, json=payload)
+                self.assertEqual(response.status_code, 401, response.text)
+
+                self.auth_mock.return_value = self.user
+                self.permission_mock.side_effect = lambda name, required=permission: required is None or name != required
+                response = self.client.request(method, path, json=payload)
+                if permission is None:
+                    self.assertNotEqual(response.status_code, 401, response.text)
+                else:
+                    self.assertEqual(response.status_code, 403, response.text)
+
+        self.permission_mock.side_effect = None
+        self.permission_mock.return_value = True
+
     def test_matrix_requires_administration_permission(self):
         self.permission_mock.return_value = False
         self.assertEqual(self.client.get("/api/options/permissions").status_code, 403)
