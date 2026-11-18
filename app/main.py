@@ -728,16 +728,18 @@ def operation_reference_choices(operation: str, order_type: str, db: Session) ->
 
 @app.get("/api/orders/{order_id}/operations", tags=["orders"])
 def order_operations(order_id: int, request: Request, db: Session = Depends(get_db)):
-    if current_user(request, db) is None:
+    user = current_user(request, db)
+    if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     order = db.get(Order, order_id)
     if order is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     return {
         "order_id": order_id,
+        "permissions": {"restore": user.has_permission("restore_trashed"), "permanent_delete": user.has_permission("delete_trashed")},
         "choices": {key: operation_reference_choices(key, order.order_type, db) for key in OPERATION_REFERENCES},
         "operations": {
-            key: [{"id": item.id, "reference_id": getattr(item, foreign_key), "quantity": str(item.quantity), "fitting": bool(getattr(item, "fitting", False)), "deleted": item.deleted_at is not None} for item in db.scalars(select(model).where(model.order_id == order_id, model.deleted_at.is_(None)).order_by(model.id)).all()]
+            key: [{"id": item.id, "reference_id": getattr(item, foreign_key), "quantity": str(item.quantity), "fitting": bool(getattr(item, "fitting", False)), "deleted": item.deleted_at is not None} for item in db.scalars((select(model).where(model.order_id == order_id).order_by(model.id) if user.has_permission("view_trashed") else select(model).where(model.order_id == order_id, model.deleted_at.is_(None)).order_by(model.id))).all()]
             for key, (model, foreign_key) in OPERATION_MODELS.items()
         },
     }
@@ -838,7 +840,28 @@ def operation_delete(order_id: int, operation: str, item_id: int, request: Reque
     item = db.get(model_info[0], item_id)
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
-    item.deleted_at = __import__("datetime").datetime.utcnow()
+    if item.deleted_at is not None and user.has_permission("delete_trashed"):
+        db.delete(item)
+    else:
+        item.deleted_at = __import__("datetime").datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/orders/{order_id}/{operation}/{item_id}/restore", tags=["orders"])
+def operation_restore(order_id: int, operation: str, item_id: int, request: Request, db: Session = Depends(get_db)):
+    if operation == "blanks":
+        return blank_restore(order_id, item_id, request, db)
+    user = current_user(request, db)
+    model_info = OPERATION_MODELS.get(operation)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if model_info is None or not user.has_permission("restore_trashed"):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    item = db.get(model_info[0], item_id)
+    if item is None or item.order_id != order_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    item.deleted_at = None
     db.commit()
     return {"status": "ok"}
 

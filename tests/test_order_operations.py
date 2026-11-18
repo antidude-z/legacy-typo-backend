@@ -35,6 +35,20 @@ class OrderOperationTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/orders/10/prepresses', json={'prepress_id': 10, 'quantity': -1}).status_code, 422)
         self.assertEqual(self.client.get('/api/orders/10/operations').status_code, 200)
 
+    def test_operation_delete_restore_and_trash_visibility(self):
+        created = self.client.post('/api/orders/10/prepresses', json={'prepress_id': 10, 'quantity': 1})
+        item_id = created.json()['id']
+        self.assertEqual(self.client.delete(f'/api/orders/10/prepresses/{item_id}').status_code, 200)
+        self.permission_mock.return_value = False
+        self.assertEqual(self.client.get('/api/orders/10/operations').json()['operations']['prepresses'], [])
+
+        self.permission_mock.return_value = True
+        visible = self.client.get('/api/orders/10/operations').json()
+        self.assertEqual(visible['operations']['prepresses'][0]['deleted'], True)
+        self.assertTrue(visible['permissions']['restore'])
+        self.assertEqual(self.client.post(f'/api/orders/10/prepresses/{item_id}/restore').status_code, 200)
+        self.assertFalse(self.client.get('/api/orders/10/operations').json()['operations']['prepresses'][0]['deleted'])
+
 
 if __name__ == '__main__':
     unittest.main()
