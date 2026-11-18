@@ -98,6 +98,11 @@ The audit covers identity, references, pricing, orders, calculations, bills,
 payments, payroll, and report catalogs. It treats empty historical calculation
 details as a reported state and rejects no rows.
 validator reports those records and never repairs them automatically.
+
+The historical audit also reports payroll statement status distributions,
+eligible/deleted order counts, paid snapshot rows, orphan or duplicate payroll
+order rows, and invalid manager-percentage bounds. It is an integrity audit,
+not a replacement for imported-data or browser acceptance.
 Browser CSRF policy: every state-changing request after the browser has
 obtained the `typography_csrf` cookie must carry the matching cookie and
 `X-CSRF-Token` header. Stateless compatibility callers that never obtain the

@@ -86,6 +86,26 @@ def audit_database(database_engine) -> dict[str, object]:
         if {"orders", "customers", "bills"}.issubset(tables):
             payer_associations["orders_with_customer_and_bill"] = connection.execute(text("SELECT COUNT(*) FROM orders o JOIN customers c ON c.id=o.customer_id JOIN bills b ON b.id=o.bill_id WHERE o.customer_id IS NOT NULL AND o.bill_id IS NOT NULL")).scalar() or 0
 
+        payroll_audit = {
+            "statements": 0, "paid_statements": 0, "calc_statements": 0,
+            "eligible_orders": 0, "snapshot_rows": 0, "orphan_snapshot_rows": 0,
+            "duplicate_statement_orders": 0, "deleted_eligible_orders": 0,
+            "paid_snapshot_rows": 0, "invalid_percent_rows": 0,
+        }
+        if "payrolls" in tables:
+            payroll_audit["statements"] = _count(connection, "payrolls")
+            payroll_audit["paid_statements"] = connection.execute(text("SELECT COUNT(*) FROM payrolls WHERE status='paid'")).scalar() or 0
+            payroll_audit["calc_statements"] = connection.execute(text("SELECT COUNT(*) FROM payrolls WHERE status='calc'")).scalar() or 0
+        if {"payroll_orders", "payrolls"}.issubset(tables):
+            payroll_audit["snapshot_rows"] = _count(connection, "payroll_orders")
+            payroll_audit["paid_snapshot_rows"] = connection.execute(text("SELECT COUNT(*) FROM payroll_orders po JOIN payrolls p ON p.id=po.payroll_id WHERE p.status='paid'")).scalar() or 0
+            payroll_audit["orphan_snapshot_rows"] = connection.execute(text("SELECT COUNT(*) FROM payroll_orders po LEFT JOIN payrolls p ON p.id=po.payroll_id WHERE p.id IS NULL")).scalar() or 0
+            payroll_audit["duplicate_statement_orders"] = connection.execute(text("SELECT COALESCE(SUM(n-1),0) FROM (SELECT payroll_id,order_id,COUNT(*) n FROM payroll_orders GROUP BY payroll_id,order_id HAVING COUNT(*) > 1)")).scalar() or 0
+            payroll_audit["invalid_percent_rows"] = connection.execute(text("SELECT COUNT(*) FROM payroll_orders WHERE percent < 0 OR percent > 15")).scalar() or 0
+        if {"orders", "bills"}.issubset(tables):
+            payroll_audit["eligible_orders"] = connection.execute(text("SELECT COUNT(*) FROM orders o JOIN bills b ON b.id=o.bill_id WHERE o.deleted_at IS NULL AND b.paid=1 AND b.closed=1 AND b.filed=1")).scalar() or 0
+            payroll_audit["deleted_eligible_orders"] = connection.execute(text("SELECT COUNT(*) FROM orders o JOIN bills b ON b.id=o.bill_id WHERE o.deleted_at IS NOT NULL AND b.paid=1 AND b.closed=1 AND b.filed=1")).scalar() or 0
+
     return {
         "table_counts": counts,
         "calculation_details": {**dict(calc), "invalid_samples": calc_samples},
@@ -93,6 +113,7 @@ def audit_database(database_engine) -> dict[str, object]:
         "missing_role_users": missing_role_users,
         "active_payment_total": str(payment_total) if payment_total is not None else None,
         "customer_payer": payer_associations,
+        "payroll": payroll_audit,
         "read_only": True,
     }
 
