@@ -30,6 +30,7 @@ class ImportValidationTests(unittest.TestCase):
             connection.execute(text("INSERT INTO order_prepresses (id, order_id, prepress_id, quantity) VALUES (1, 999, 999, 1)"))
         result = validate_import(engine)
         self.assertFalse(result["valid"])
+        self.assertTrue(result["preservation_valid"])
         self.assertTrue(result["foreign_key_violations"])
         self.assertIn("order_prepresses->prepresses", result["foreign_key_summary"])
 

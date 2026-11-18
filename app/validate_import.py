@@ -9,6 +9,7 @@ from pathlib import Path
 from sqlalchemy import Date, DateTime, Integer, Numeric, create_engine, inspect, select, text
 
 from .db import Base
+from .historical_data_policy import POLICY
 
 
 def validate_import(database_engine) -> dict[str, object]:
@@ -73,7 +74,10 @@ def validate_import(database_engine) -> dict[str, object]:
     foreign_key_summary = dict(sorted(Counter(
         f"{item.get('table')}->{item.get('parent')}" for item in violations if item.get("type") == "foreign_key"
     ).items()))
+    strict_valid = not violations and not nulls and not uniqueness and not any(conversion.values())
+    orphan_only = bool(violations) and all(item.get("type") == "foreign_key" for item in violations)
     return {
+        "policy": POLICY,
         "row_counts": row_counts,
         "foreign_key_violations": violations,
         "foreign_key_summary": foreign_key_summary,
@@ -81,7 +85,9 @@ def validate_import(database_engine) -> dict[str, object]:
         "uniqueness_violations": uniqueness,
         "conversion_anomalies": {key: sorted(set(values)) for key, values in conversion.items()},
         "soft_deleted_rows": soft_deleted,
-        "valid": not violations and not nulls and not uniqueness and not any(conversion.values()),
+        "strict_valid": strict_valid,
+        "preservation_valid": (strict_valid or orphan_only) and not nulls and not uniqueness and not any(conversion.values()),
+        "valid": strict_valid,
     }
 
 

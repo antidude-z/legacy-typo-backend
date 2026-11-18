@@ -83,7 +83,10 @@ uv run python -m app.validate_import ../data/dump-import.db --output docs/import
 
 The validator reports foreign-key/orphan summaries, required-field NULLs,
 uniqueness violations, date/decimal conversion anomalies, and preserved
-soft-deleted rows. Historical MyISAM data may contain missing parents; the
+validator reports those records and never repairs them automatically. The
+selected historical policy preserves all source rows and IDs, creates no
+tombstone parents, deletes no orphan rows, archives raw source rows, and does
+not claim strict relational validity for historical orphans.
 validator reports those records and never repairs them automatically.
 verification procedure.
 
