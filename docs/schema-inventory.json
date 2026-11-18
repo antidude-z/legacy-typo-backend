@@ -1,0 +1,471 @@
+{
+  "dump_tables": [
+    "actions",
+    "afterprint_parameter_values",
+    "afterprint_parameters",
+    "afterprint_stage_materials",
+    "afterprint_stages",
+    "afterprints",
+    "bills",
+    "blank_afterprints",
+    "blank_imagesetters",
+    "blanks",
+    "compile_stage_materials",
+    "compile_stages",
+    "compiles",
+    "customer_contacts",
+    "customer_groups",
+    "customer_payer",
+    "customers",
+    "formats",
+    "materials",
+    "measures",
+    "migrations",
+    "options",
+    "order_compiles",
+    "order_markups",
+    "order_other_works",
+    "order_prepresses",
+    "order_redactions",
+    "order_statuses",
+    "orders",
+    "other_works",
+    "paper_format_formats",
+    "paper_formats",
+    "paper_types",
+    "papers",
+    "password_resets",
+    "payers",
+    "payments",
+    "payroll_orders",
+    "payrolls",
+    "permissions",
+    "prepresses",
+    "prices",
+    "printer_fields",
+    "printer_process_stages",
+    "printer_processes",
+    "printers",
+    "rates",
+    "redactions",
+    "report_params",
+    "reports",
+    "role_permissions",
+    "roles",
+    "services",
+    "users"
+  ],
+  "rework_tables": [
+    "actions",
+    "afterprint_parameter_values",
+    "afterprint_parameters",
+    "afterprint_stage_materials",
+    "afterprint_stages",
+    "afterprints",
+    "bills",
+    "blank_afterprints",
+    "blank_imagesetters",
+    "blanks",
+    "compile_stage_materials",
+    "compile_stages",
+    "compiles",
+    "customer_groups",
+    "customer_payer",
+    "customers",
+    "materials",
+    "measures",
+    "order_compiles",
+    "order_markups",
+    "order_other_works",
+    "order_prepresses",
+    "order_redactions",
+    "order_statuses",
+    "orders",
+    "other_works",
+    "paper_formats",
+    "paper_types",
+    "papers",
+    "password_resets",
+    "payers",
+    "payments",
+    "payroll_orders",
+    "payrolls",
+    "permissions",
+    "prepresses",
+    "prices",
+    "printer_fields",
+    "printer_process_stages",
+    "printer_processes",
+    "printers",
+    "rates",
+    "redactions",
+    "report_params",
+    "reports",
+    "role_permissions",
+    "roles",
+    "schema_versions",
+    "services",
+    "users"
+  ],
+  "missing_tables_in_rework": [
+    "customer_contacts",
+    "formats",
+    "migrations",
+    "options",
+    "paper_format_formats"
+  ],
+  "extra_tables_in_rework": [
+    "schema_versions"
+  ],
+  "column_differences": {
+    "actions": {
+      "missing_in_rework": [
+        "actionable_id",
+        "actionable_type",
+        "updated_at"
+      ],
+      "extra_in_rework": [
+        "item_id"
+      ]
+    },
+    "afterprint_parameter_values": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "afterprint_parameters": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "afterprint_stage_materials": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "afterprint_stages": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "afterprints": {
+      "missing_in_rework": [
+        "applying",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": [
+        "production"
+      ]
+    },
+    "bills": {
+      "missing_in_rework": [
+        "created_at",
+        "customer_id",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "blank_afterprints": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "blank_imagesetters": {
+      "missing_in_rework": [
+        "created_at",
+        "deleted_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "blanks": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "compile_stage_materials": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "compile_stages": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "compiles": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "customer_groups": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "customers": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "materials": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "measures": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "order_compiles": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "order_markups": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "order_other_works": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "order_prepresses": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "order_redactions": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "order_statuses": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "orders": {
+      "missing_in_rework": [
+        "compile",
+        "created_at",
+        "other",
+        "prepress",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "other_works": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "paper_formats": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "paper_types": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "papers": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "payers": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "payments": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "payroll_orders": {
+      "missing_in_rework": [
+        "created_at",
+        "payer_id",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "payrolls": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "permissions": {
+      "missing_in_rework": [
+        "created_at",
+        "deleted_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "prepresses": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "prices": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "printer_fields": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "printer_process_stages": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "printer_processes": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at",
+        "weight"
+      ],
+      "extra_in_rework": []
+    },
+    "printers": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": [
+        "production"
+      ]
+    },
+    "rates": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "redactions": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "report_params": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "reports": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "role_permissions": {
+      "missing_in_rework": [
+        "created_at",
+        "deleted_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "roles": {
+      "missing_in_rework": [
+        "created_at",
+        "deleted_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "services": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    },
+    "users": {
+      "missing_in_rework": [
+        "created_at",
+        "updated_at"
+      ],
+      "extra_in_rework": []
+    }
+  },
+  "dump_path": "..\\dump_full.sql",
+  "note": "Names only; dump SQL was not executed. Type, constraint, index, and data mapping require separate review."
+}

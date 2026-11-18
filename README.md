@@ -34,6 +34,17 @@ uv run python -m app.migrate upgrade
 This establishes the rework migration history; it does not import the legacy
 MySQL dump.  Dump conversion and live MySQL verification remain separate tasks.
 
+To regenerate the dump/model schema-name comparison without importing data:
+
+```text
+uv run python -m app.schema_inventory ../dump_full.sql --output docs/schema-inventory.json
+```
+
+The command streams the dump as text and compares table/column names with model
+metadata. It does not execute SQL. The tracked JSON is a reconciliation baseline,
+not a type/constraint compatibility check. Missing timestamps, polymorphic action
+fields, and unmodeled legacy tables must be mapped explicitly before import.
+
 ## Reports — initial implementation slice
 
 Report/parameter models mirror the deployed dump schema. `/options/reports`
