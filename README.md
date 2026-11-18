@@ -106,6 +106,23 @@ not a replacement for imported-data or browser acceptance.
 
 ## SQLite backup and restore
 
+Read-only startup/database diagnostics are available at:
+
+```text
+GET /api/system/diagnostics
+```
+
+For local CLI diagnostics:
+
+```text
+uv run python -m app.diagnostics --output data/diagnostics.json
+```
+
+The result reports database mode, masked connection information, table count,
+tracked schema migrations, application versions, SQLite integrity, foreign-key
+mode, journal mode, and pending migrations. It never reports passwords or
+session secrets and never modifies the database.
+
 Create a verified backup without overwriting an existing destination:
 
 ```text

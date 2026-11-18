@@ -26,6 +26,7 @@ from .orders import blank_metadata, calculate_afterprint, calculate_blank, calcu
 from .payroll import register_payroll_routes
 from .csrf import CSRF_COOKIE, CSRFMiddleware, token_for_session
 from .bootstrap import initialize_database
+from .diagnostics import database_diagnostics
 
 
 @asynccontextmanager
@@ -104,6 +105,11 @@ def health() -> dict[str, str]:
 @app.get("/api/system/database", tags=["system"])
 def database_status() -> dict[str, str]:
     return {"mode": DATABASE_MODE, "url": DATABASE_URL.split("@")[-1] if DATABASE_MODE == "mysql" else DATABASE_URL}
+
+
+@app.get("/api/system/diagnostics", tags=["system"])
+def system_diagnostics() -> dict:
+    return database_diagnostics(engine)
 
 
 PRICEABLE_TYPES = {
