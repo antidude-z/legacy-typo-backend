@@ -532,11 +532,13 @@ def register_report_routes(app, current_user):
         params = [param_data(row) for row in params_for(report_id, db)]
         if report_id == "order_shipping":
             accountants = [row["value"] for row in params if row["alias"] == "buh"]
-            return {"report": serialize_report(report), "fields": [{"name": "vars[buh]", "title": "Бухгалтер", "type": "select", "options": accountants, "default": accountants[0] if accountants else ""}]}
-        return {"report": serialize_report(report), "fields": [
+            fields = [{"name": "vars[buh]", "title": "Бухгалтер", "type": "select", "options": accountants, "default": accountants[0] if accountants else ""}]
+            return {"report": serialize_report(report), "params": params, "fields": fields}
+        fields = [
             {"name": "vars[institute]", "title": "Институт, подразделение, кафедра", "type": "text", "default": ""},
             {"name": "vars[customer]", "title": "ФИО заказчика", "type": "text", "default": ""},
-        ]}
+        ]
+        return {"report": serialize_report(report), "params": params, "fields": fields}
 
     @app.api_route("/reports/{report_id}/item/{identity}", methods=["GET", "POST"], tags=["reports"])
     def generate(report_id: str, identity: int, request: Request, payload: dict | None = None, institute: str | None = Form(None, alias="vars[institute]"), customer: str | None = Form(None, alias="vars[customer]"), buh: str | None = Form(None, alias="vars[buh]"), db: Session = Depends(get_db)):

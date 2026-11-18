@@ -188,6 +188,22 @@ class ReportTests(unittest.TestCase):
         posted_sheet = xlrd.open_workbook(file_contents=posted.content).sheet_by_name('Заявка на оплату')
         self.assertTrue(any('Институт' in str(cell) for row in posted_sheet._cell_values for cell in row))
 
+    def test_report_forms_expose_configured_parameters_and_defaults(self):
+        self.seed()
+        bill = Bill(id=25, number='INV-25', bill_date=__import__('datetime').date(2024, 2, 3), amount=1)
+        shipping = Report(id='order_shipping', program='ipc', kind='pdf', form=False, title='Отгрузка', model='App\\Bill', model_title='Счет')
+        params = [
+            ReportParam(id=20, alias='buh', report_id='order_shipping', title='Бухгалтер', value='Accountant'),
+            ReportParam(id=21, alias='boss', report_id='order_payment', title='Директор', value='Director'),
+        ]
+        self.db.add_all([bill, shipping, *params]); self.db.commit()
+        shipping_form = self.client.get('/api/reports/form/order_shipping/25').json()
+        self.assertEqual(shipping_form['fields'][0]['default'], 'Accountant')
+        self.assertEqual(shipping_form['params'][0]['alias'], 'buh')
+        payment_form = self.client.get('/api/reports/form/order_payment/25').json()
+        self.assertEqual(payment_form['params'][0]['alias'], 'boss')
+        self.assertEqual(payment_form['fields'][0]['name'], 'vars[institute]')
+
     def test_payment_pdf_template_is_not_an_active_report_definition(self):
         self.seed()
         payment = self.db.get(Report, 'order_payment')
