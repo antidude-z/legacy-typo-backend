@@ -188,6 +188,13 @@ class ReportTests(unittest.TestCase):
         posted_sheet = xlrd.open_workbook(file_contents=posted.content).sheet_by_name('Заявка на оплату')
         self.assertTrue(any('Институт' in str(cell) for row in posted_sheet._cell_values for cell in row))
 
+    def test_payment_pdf_template_is_not_an_active_report_definition(self):
+        self.seed()
+        payment = self.db.get(Report, 'order_payment')
+        self.assertEqual(payment.kind, 'xls')
+        self.assertTrue(payment.form)
+        self.assertEqual(self.client.get('/reports/order_payment_pdf/item/20').status_code, 404)
+
     def test_shipping_pdf_uses_bill_orders_and_signatory_parameters(self):
         self.seed()
         bill = Bill(id=30, number='INV-30', bill_date=__import__('datetime').date(2024, 3, 4), amount=275)
