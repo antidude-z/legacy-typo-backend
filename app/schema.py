@@ -59,9 +59,31 @@ def migration_2026_11_19_01(connection) -> None:
             connection.execute(text("SET SESSION sql_mode=:mode"), {"mode": original_mode})
 
 
+def migration_2026_11_19_02(connection) -> None:
+    """Permit application NULLs in imported legacy MySQL columns."""
+    if connection.dialect.name != "mysql":
+        return
+    original_mode = connection.execute(text("SELECT @@SESSION.sql_mode")).scalar()
+    connection.execute(text("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'"))
+    try:
+        inspector = inspect(connection)
+        quote = connection.dialect.identifier_preparer.quote
+        for table in Base.metadata.sorted_tables:
+            for column in inspector.get_columns(table.name):
+                model_column = table.c.get(column['name'])
+                legacy_action_field = table.name == 'actions' and column['name'] in {'actionable_id', 'actionable_type'}
+                if not column['nullable'] and ((model_column is not None and model_column.nullable) or legacy_action_field):
+                    declaration = column['type'].compile(dialect=connection.dialect)
+                    connection.execute(text(f"ALTER TABLE {quote(table.name)} MODIFY COLUMN {quote(column['name'])} {declaration} NULL DEFAULT NULL"))
+    finally:
+        connection.execute(text("SET SESSION sql_mode=:mode"), {'mode': original_mode})
+
+
 MIGRATIONS = (
     ("2026-11-13-01", migration_2026_11_13_01),
     ("2026-11-19-01", migration_2026_11_19_01),
+    ("2026-11-19-02", migration_2026_11_19_02),
+    ("2026-11-19-03", migration_2026_11_19_02),
 )
 
 

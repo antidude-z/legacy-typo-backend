@@ -7,10 +7,17 @@ support. Migration `2026-11-19-01` adds deployed-schema compatibility columns
 and maps order history identifiers; it temporarily relaxes zero-date validation
 only for its own DDL connection and restores the original SQL mode afterward.
 
-Set `MYSQL_TEST_URL` to a dedicated database named `typography_runtime_test`,
+Set `MYSQL_TEST_URL` to a dedicated database named `typography_runtime_test`
+or `typography_imported_test`,
 then run `uv run python -m unittest tests.test_mysql_runtime -v`. The test
 creates fixtures and leaves them in that test database for inspection. Never
 use a business database. Without this variable the MySQL integration test skips.
+
+The imported-schema test uses a schema-only copy of the historical database,
+not a full historical-data clone. MySQL compatibility upgrades permit NULL in
+columns declared optional by the ORM and in obsolete polymorphic action fields;
+existing values are retained. Back up MySQL before applying these DDL changes,
+which are not transactional on legacy MyISAM tables.
 
 
 FastAPI/SQLAlchemy backend for the migrated typography application. SQLite is

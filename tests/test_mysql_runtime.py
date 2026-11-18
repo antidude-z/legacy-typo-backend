@@ -3,6 +3,7 @@ import os
 import unittest
 from uuid import uuid4
 from datetime import date
+from decimal import Decimal
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.main import app
-from app.models import Bill, Order, OrderStatus, Payer, User
+from app.models import Bill, Order, OrderStatus, Payer, Role, User
 from app.orders import legacy_date
 from app.schema import apply_migrations
 
@@ -28,14 +29,21 @@ class LegacyDateTests(unittest.TestCase):
 class MySQLRuntimeTests(unittest.TestCase):
     def test_real_mysql_crud_round_trip(self):
         url = os.environ['MYSQL_TEST_URL']
-        if make_url(url).database != 'typography_runtime_test':
-            self.fail('Refusing database other than typography_runtime_test')
+        if make_url(url).database not in {'typography_runtime_test', 'typography_imported_test'}:
+            self.fail('Refusing database other than a dedicated typography test database')
         engine = create_engine(url)
         apply_migrations(engine)
         with Session(engine) as db:
-            actor = User(name='VM test', email=f'{uuid4().hex}@example.test', password='unused')
-            status = OrderStatus(title='VM test', sequence=1)
-            payer = Payer(title='VM test payer')
+            role = db.get(Role, 1)
+            if role is None:
+                role = Role(id=1, title='VM test')
+                db.add(role)
+                db.flush()
+            actor = User(name='VM test', surname='Test', phone='', post='', role_id=1, email=f'{uuid4().hex}@example.test', password='unused')
+            status = db.get(OrderStatus, 1)
+            if status is None:
+                status = OrderStatus(id=1, title='VM test', sequence=1)
+            payer = Payer(title='VM test payer', inn='', phone='', address='', description='')
             db.add_all([actor, status, payer]); db.commit()
             def database():
                 yield db
@@ -53,7 +61,7 @@ class MySQLRuntimeTests(unittest.TestCase):
                     payment_id = response.json()['id']
                     self.assertEqual(client.get(f'/api/accounting/bills/{bill_id}').json()['item']['paid_sum'], '12.34')
                     self.assertEqual(client.delete(f'/api/accounting/bills/{bill_id}/payments/{payment_id}').status_code, 200)
-                    self.assertEqual(client.get(f'/api/accounting/bills/{bill_id}').json()['item']['paid_sum'], '0.00')
+                    self.assertEqual(Decimal(client.get(f'/api/accounting/bills/{bill_id}').json()['item']['paid_sum']), Decimal('0.00'))
                     response = client.post('/api/orders/add/poly', data={'order_title': 'VM test order', 'order_printing': '100'})
                     self.assertEqual(response.status_code, 200, response.text)
                     order_id = response.json()['id']
