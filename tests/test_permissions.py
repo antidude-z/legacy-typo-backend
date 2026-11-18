@@ -3,6 +3,7 @@ from unittest.mock import patch
 from sqlalchemy import select
 
 from app.models import Permission, Role, role_permissions
+from app.permission_audit import AUTHORIZATION_MATRIX, DEDICATED_PERMISSION_IDS
 from tests import test_reference_dictionaries as fixtures
 
 
@@ -56,6 +57,12 @@ class PermissionMatrixTests(unittest.TestCase):
         self.assertIn('edit_price', payload['dedicated_permissions'])
         self.assertFalse(payload['catalog_complete'])
         self.assertIn('edit_price', payload['missing_catalog_permissions'])
+
+    def test_authorization_matrix_is_complete_and_uses_known_contracts(self):
+        self.assertGreaterEqual(len(AUTHORIZATION_MATRIX), 15)
+        self.assertEqual(len({(row['method'], row['path']) for row in AUTHORIZATION_MATRIX}), len(AUTHORIZATION_MATRIX))
+        self.assertTrue(all(row['unauthenticated'] == 401 for row in AUTHORIZATION_MATRIX))
+        self.assertTrue(all(row['unauthorized'] == 'authenticated-only' or row['unauthorized'] in DEDICATED_PERMISSION_IDS or row['unauthorized'] in {'restore_trashed'} for row in AUTHORIZATION_MATRIX))
 
     def test_matrix_requires_administration_permission(self):
         self.permission_mock.return_value = False

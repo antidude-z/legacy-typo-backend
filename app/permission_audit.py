@@ -94,6 +94,26 @@ DEDICATED_PERMISSION_IDS = frozenset({
     "view_menu_options_reports", "view_menu_reports_payrolls", "edit_reports_payrolls",
 })
 
+AUTHORIZATION_MATRIX = (
+    {"family": "orders", "method": "GET", "path": "/api/orders", "unauthenticated": 401, "unauthorized": "authenticated-only"},
+    {"family": "orders", "method": "POST", "path": "/api/orders/{id}/prepresses", "unauthenticated": 401, "unauthorized": "authenticated-only"},
+    {"family": "orders", "method": "POST", "path": "/api/orders/{id}/restore", "unauthenticated": 401, "unauthorized": "restore_trashed"},
+    {"family": "pricing", "method": "GET", "path": "/api/prices/{kind}/{item}/records", "unauthenticated": 401, "unauthorized": "authenticated-only"},
+    {"family": "pricing", "method": "POST", "path": "/api/prices/{kind}/{item}/records", "unauthenticated": 401, "unauthorized": "edit_price"},
+    {"family": "accounting bills", "method": "GET", "path": "/api/accounting/bills", "unauthenticated": 401, "unauthorized": "view_accounting_bills"},
+    {"family": "accounting bills", "method": "POST", "path": "/api/accounting/bills", "unauthenticated": 401, "unauthorized": "edit_accounting_bills"},
+    {"family": "accounting payments", "method": "POST", "path": "/api/accounting/bills/{id}/payments", "unauthenticated": 401, "unauthorized": "edit_accounting_bills"},
+    {"family": "accounting payers", "method": "GET", "path": "/api/accounting/payers", "unauthenticated": 401, "unauthorized": "authenticated-only"},
+    {"family": "references", "method": "GET", "path": "/api/references/{kind}", "unauthenticated": 401, "unauthorized": "authenticated-only"},
+    {"family": "user administration", "method": "POST", "path": "/api/employee-references", "unauthenticated": 401, "unauthorized": "user_create"},
+    {"family": "user administration", "method": "PATCH", "path": "/api/employee-references/{id}", "unauthenticated": 401, "unauthorized": "user_edit"},
+    {"family": "permissions administration", "method": "GET", "path": "/api/options/permissions", "unauthenticated": 401, "unauthorized": "view_menu_options_permissions"},
+    {"family": "reports", "method": "GET", "path": "/api/reports/for/{model}/{id}", "unauthenticated": 401, "unauthorized": "authenticated-only"},
+    {"family": "report settings", "method": "PATCH", "path": "/api/report-settings/{id}", "unauthenticated": 401, "unauthorized": "view_menu_options_reports"},
+    {"family": "payroll", "method": "GET", "path": "/api/reports/payrolls/{id}", "unauthenticated": 401, "unauthorized": "view_menu_reports_payrolls"},
+    {"family": "payroll", "method": "POST", "path": "/api/reports/payrolls", "unauthenticated": 401, "unauthorized": "edit_reports_payrolls"},
+)
+
 
 def audit_payload(permission_ids=None) -> dict:
     available = set(permission_ids or ())
@@ -102,4 +122,5 @@ def audit_payload(permission_ids=None) -> dict:
         "dedicated_permissions": sorted(DEDICATED_PERMISSION_IDS),
         "missing_catalog_permissions": sorted(DEDICATED_PERMISSION_IDS - available) if permission_ids is not None else [],
         "catalog_complete": permission_ids is None or not (DEDICATED_PERMISSION_IDS - available),
+        "authorization_matrix": [dict(item) for item in AUTHORIZATION_MATRIX],
     }
