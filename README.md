@@ -45,6 +45,26 @@ metadata. It does not execute SQL. The tracked JSON is a reconciliation baseline
 not a type/constraint compatibility check. Missing timestamps, polymorphic action
 fields, and unmodeled legacy tables must be mapped explicitly before import.
 
+## Optional dump conversion
+
+`app.import_dump` is a deliberately opt-in converter for a **new disposable
+SQLite file**. It parses only `INSERT` data, never executes SQL from the dump,
+skips Laravel/framework bookkeeping, preserves raw source rows in the target's
+`legacy_import_rows` archive, and converts MySQL zero dates to `NULL` where the
+target model permits it. The source dump is never changed.
+
+Example dry run (the target and report paths must not already exist):
+
+```text
+uv run python -m app.import_dump ../dump_full.sql --target ../data/dump-test.db --dry-run --limit 100 --report ../data/dump-test.json
+```
+
+Remove `--dry-run` only for a disposable import. The converter currently accepts
+SQLite targets only, refuses non-empty target tables, rejects unsupported
+polymorphic action types and malformed/required-field-missing rows, and reports
+skipped framework rows. It is not yet an approved production import or MySQL
+verification procedure.
+
 ## Reports — initial implementation slice
 
 Report/parameter models mirror the deployed dump schema. `/options/reports`
