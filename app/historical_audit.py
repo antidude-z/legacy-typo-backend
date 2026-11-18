@@ -59,12 +59,40 @@ def audit_database(database_engine) -> dict[str, object]:
         if "payments" in tables:
             payment_total = connection.execute(text("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE deleted_at IS NULL")).scalar()
 
+        payer_associations = {
+            "pivot_rows": 0,
+            "valid_customer_rows": 0,
+            "valid_payer_rows": 0,
+            "valid_pairs": 0,
+            "orphan_customer_rows": 0,
+            "orphan_payer_rows": 0,
+            "duplicate_pairs": 0,
+            "bills_with_payers": 0,
+            "orders_with_customer_and_bill": 0,
+        }
+        if "customer_payer" in tables:
+            payer_associations["pivot_rows"] = connection.execute(text("SELECT COUNT(*) FROM customer_payer")).scalar() or 0
+            if "customers" in tables:
+                payer_associations["valid_customer_rows"] = connection.execute(text("SELECT COUNT(*) FROM customer_payer p JOIN customers c ON c.id = p.customer_id")).scalar() or 0
+            if "payers" in tables:
+                payer_associations["valid_payer_rows"] = connection.execute(text("SELECT COUNT(*) FROM customer_payer p JOIN payers x ON x.id = p.payer_id")).scalar() or 0
+            if {"customers", "payers"}.issubset(tables):
+                payer_associations["valid_pairs"] = connection.execute(text("SELECT COUNT(*) FROM customer_payer p JOIN customers c ON c.id=p.customer_id JOIN payers x ON x.id=p.payer_id")).scalar() or 0
+                payer_associations["duplicate_pairs"] = connection.execute(text("SELECT COALESCE(SUM(n-1),0) FROM (SELECT customer_id,payer_id,COUNT(*) n FROM customer_payer GROUP BY customer_id,payer_id HAVING COUNT(*) > 1)")).scalar() or 0
+            payer_associations["orphan_customer_rows"] = payer_associations["pivot_rows"] - payer_associations["valid_customer_rows"]
+            payer_associations["orphan_payer_rows"] = payer_associations["pivot_rows"] - payer_associations["valid_payer_rows"]
+        if "bills" in tables and "payers" in tables:
+            payer_associations["bills_with_payers"] = connection.execute(text("SELECT COUNT(*) FROM bills b JOIN payers p ON p.id=b.payer_id WHERE b.payer_id IS NOT NULL")).scalar() or 0
+        if {"orders", "customers", "bills"}.issubset(tables):
+            payer_associations["orders_with_customer_and_bill"] = connection.execute(text("SELECT COUNT(*) FROM orders o JOIN customers c ON c.id=o.customer_id JOIN bills b ON b.id=o.bill_id WHERE o.customer_id IS NOT NULL AND o.bill_id IS NOT NULL")).scalar() or 0
+
     return {
         "table_counts": counts,
         "calculation_details": {**dict(calc), "invalid_samples": calc_samples},
         "distributions": distributions,
         "missing_role_users": missing_role_users,
         "active_payment_total": str(payment_total) if payment_total is not None else None,
+        "customer_payer": payer_associations,
         "read_only": True,
     }
 
