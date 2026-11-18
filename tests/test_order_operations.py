@@ -1,7 +1,7 @@
 import unittest
 
 from tests import test_reference_dictionaries as fixtures
-from app.models import Compile, Order, Prepress, Redaction
+from app.models import Blank, BlankAfterprint, BlankImagesetter, Compile, Order, OrderCompile, OrderMarkup, Prepress, Redaction
 
 
 class OrderOperationTests(unittest.TestCase):
@@ -48,6 +48,26 @@ class OrderOperationTests(unittest.TestCase):
         self.assertTrue(visible['permissions']['restore'])
         self.assertEqual(self.client.post(f'/api/orders/10/prepresses/{item_id}/restore').status_code, 200)
         self.assertFalse(self.client.get('/api/orders/10/operations').json()['operations']['prepresses'][0]['deleted'])
+
+    def test_order_copy_preserves_active_operations_blanks_and_markups(self):
+        self.db.add_all([
+            OrderMarkup(order_id=10, markup_type='design', value=17, active=True),
+            OrderCompile(order_id=10, compile_id=10, quantity=3, fitting=True),
+            Blank(id=20, order_id=10, title='Cover', printer_id=0, details_per_blank=1),
+        ])
+        self.db.commit()
+        self.db.add(BlankImagesetter(blank_id=20, plates=2, fix=False))
+        self.db.add(BlankAfterprint(blank_id=20, afterprint_id=1, active=True, parameters='a:0:{}'))
+        self.db.commit()
+        copied = self.client.post('/api/orders/10/copy', json={'title': 'Copy'})
+        self.assertEqual(copied.status_code, 200)
+        new_id = copied.json()['id']
+        self.assertEqual(self.db.query(OrderCompile).filter_by(order_id=new_id).count(), 1)
+        copied_blank = self.db.query(Blank).filter_by(order_id=new_id).one()
+        self.assertEqual(copied_blank.title, 'Cover')
+        self.assertEqual(self.db.query(BlankImagesetter).filter_by(blank_id=copied_blank.id).one().plates, 2)
+        self.assertTrue(self.db.query(BlankAfterprint).filter_by(blank_id=copied_blank.id).one().active)
+        self.assertEqual(self.db.query(OrderMarkup).filter_by(order_id=new_id, markup_type='design').one().value, 17)
 
 
 if __name__ == '__main__':

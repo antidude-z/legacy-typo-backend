@@ -664,6 +664,33 @@ def order_copy(order_id: int, request: Request, payload: dict, db: Session = Dep
     if source is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
     item = create_order(db, user.id, source.order_type, {"title": payload.get("title", source.title), "format": payload.get("format", source.format), "printing": payload.get("printing", source.printing), "volume": payload.get("volume", source.volume), "total": source.total}, source)
+    # Preserve the operational content of an order copy while keeping deleted
+    # historical children out of the new order.
+    source_markups = db.scalars(select(OrderMarkup).where(OrderMarkup.order_id == source.id, OrderMarkup.deleted_at.is_(None))).all()
+    target_markups = {markup.markup_type: markup for markup in db.scalars(select(OrderMarkup).where(OrderMarkup.order_id == item.id)).all()}
+    for markup in source_markups:
+        target = target_markups.get(markup.markup_type)
+        if target:
+            target.value = markup.value
+            target.active = markup.active
+    for model, foreign_key in OPERATION_MODELS.values():
+        for operation in db.scalars(select(model).where(model.order_id == source.id, model.deleted_at.is_(None))).all():
+            values = {"order_id": item.id, foreign_key: getattr(operation, foreign_key), "quantity": operation.quantity, "price_id": getattr(operation, "price_id", None)}
+            if model is OrderCompile:
+                values["fitting"] = operation.fitting
+            db.add(model(**values))
+    for source_blank in db.scalars(select(Blank).where(Blank.order_id == source.id, Blank.deleted_at.is_(None))).all():
+        blank_values = {field: getattr(source_blank, field) for field in ("title", "printer_id", "printer_process_id", "paper_id", "material_id", "cutting", "width", "height", "colors_front", "colors_back", "details_per_sheet", "pages_per_sheet", "details_per_blank", "different_details", "comments", "paper_price", "cost")}
+        clone = Blank(order_id=item.id, **blank_values)
+        db.add(clone)
+        db.flush()
+        image = db.scalar(select(BlankImagesetter).where(BlankImagesetter.blank_id == source_blank.id))
+        if image:
+            clone_image = BlankImagesetter(blank_id=clone.id, plates=image.plates, fix=image.fix)
+            setattr(clone_image, "self", getattr(image, "self", False))
+            db.add(clone_image)
+        for afterprint in db.scalars(select(BlankAfterprint).where(BlankAfterprint.blank_id == source_blank.id, BlankAfterprint.deleted_at.is_(None))).all():
+            db.add(BlankAfterprint(blank_id=clone.id, afterprint_id=afterprint.afterprint_id, active=afterprint.active, parameters=afterprint.parameters, price=afterprint.price))
     db.add(Action(user_id=user.id, module="Заказы", item_id=item.id, comment=f"Заказ скопирован с заказа №{source.id}", url=f"orders/{item.id}"))
     db.commit()
     return {"id": item.id, "location": f"/orders/{item.id}"}
