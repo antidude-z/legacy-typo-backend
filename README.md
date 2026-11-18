@@ -103,6 +103,30 @@ The historical audit also reports payroll statement status distributions,
 eligible/deleted order counts, paid snapshot rows, orphan or duplicate payroll
 order rows, and invalid manager-percentage bounds. It is an integrity audit,
 not a replacement for imported-data or browser acceptance.
+
+## SQLite backup and restore
+
+Create a verified backup without overwriting an existing destination:
+
+```text
+uv run python -m app.backup backup data/typography.db data/backups/typography-YYYYMMDD.db --report data/backups/backup.json
+```
+
+Restore to a new destination by default:
+
+```text
+uv run python -m app.backup restore data/backups/typography-YYYYMMDD.db data/restore-test.db
+```
+
+Replacing an existing destination requires an explicit flag:
+
+```text
+uv run python -m app.backup restore data/backups/typography-YYYYMMDD.db data/typography.db --replace
+```
+
+The utility performs SQLite integrity checks before and after copying, uses a
+temporary file followed by an atomic rename, refuses source/destination identity,
+and reports a SHA-256 digest. MySQL backups remain a deployment-specific task.
 Browser CSRF policy: every state-changing request after the browser has
 obtained the `typography_csrf` cookie must carry the matching cookie and
 `X-CSRF-Token` header. Stateless compatibility callers that never obtain the
