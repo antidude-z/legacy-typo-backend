@@ -108,6 +108,18 @@ cookie-authenticated clients.
 
 ## Reports — initial implementation slice
 
+To compare a legacy-generated artifact with a rework artifact without modifying
+either file:
+
+```text
+uv run python -m app.compare_reports legacy.xls rework.xls --output comparison.json
+```
+
+The comparator supports PDF and BIFF8 XLS files and reports byte hashes,
+extractable PDF text, XLS cell/merge snapshots, and explicit `not_checked`
+states for visual acceptance and formulas/print settings. A successful content
+comparison is not a substitute for browser or print-layout acceptance.
+
 Report/parameter models mirror the deployed dump schema. `/options/reports`
 provides settings and scoped variable editing; APIs are under `/api/report-settings`.
 Settings require the report-options permission; original controller omissions
