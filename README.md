@@ -20,14 +20,43 @@ results without printing credentials, and refuses skipped tests. It mutates the
 clone and does not create or reset it. Use separate test credentials restricted
 to that database; hostname aliases cannot be reliably detected by the guard.
 
-For an explicitly disposable clone, `python -m app.mysql_clone_reset DUMP
---confirm RESET-typography_fullclone_test` recreates that database and imports
-the dump using `MYSQL_TEST_DEFAULTS_FILE` (a protected MySQL client option file).
-Use an account whose privileges are restricted to that database; dump SQL can
-contain `USE` or other statements and the script does not sandbox SQL. The reset
-is destructive and not transactional. Do not run it with production credentials.
-Run compatibility migrations on the clone and then the guarded test runner.
-This reset procedure has not yet been verified against the VM's actual dump.
+### Repeatable full-data QA on the Docker VM
+
+From the Compose directory (`/root/rework` on the validation VM):
+
+```sh
+python3 backend/scripts/mysql_fullclone_qa.py \
+  --dump /root/legacy/dump_full.sql \
+  --confirm RESET-typography_fullclone_test
+```
+
+This uses the existing `rework-backend` image and running `backend`/`mysql`
+services. It builds a separate QA image, creates a temporary clone-only MySQL
+account, resets **only** `typography_fullclone_test`, imports the read-only dump,
+and executes the integration suite (including compatibility migrations).
+The application services are not rebuilt or restarted. Expect several minutes
+and sufficient disk for another database copy. The VM's working database is
+`typography_restored`; do not repurpose the hard-coded test database for business.
+
+Logs and JSON diagnostics are in `qa-results/`: `reset.log`, `reset.json`,
+`tests.log`, `tests.json`, and `working-integrity.json`. Credentials are temporary,
+mode 0600, and removed with the test account in `finally`. A directory lock
+prevents concurrent runs. After abrupt process termination, inspect for surviving
+QA containers/accounts before removing `qa-fullclone.lock` and retrying.
+
+Both commands reject global/cross-database grants. The workflow also proves
+working-database access is denied and compares working orders/bills/payments
+checksums before and after. Concurrent business edits can change checksums and
+fail this check; schedule a quiet validation window. Checksums cover these three
+tables only; restricted database grants provide the mutation boundary.
+
+Standalone reset is available via `python -m app.mysql_clone_reset DUMP
+--confirm RESET-typography_fullclone_test --report reset.json`, with
+`MYSQL_TEST_DEFAULTS_FILE` pointing to a protected MySQL client option file.
+Dump SQL is executed only by this opt-in command using clone-restricted grants;
+the reset is destructive/nontransactional and may leave a partial clone on error.
+Never use production credentials. The QA-only client disables TLS inside the
+isolated Docker network; this is not an external MySQL connection configuration.
 
 The imported-schema test uses a schema-only copy of the historical database,
 not a full historical-data clone. MySQL compatibility upgrades permit NULL in

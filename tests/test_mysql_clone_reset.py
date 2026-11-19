@@ -19,8 +19,23 @@ class MySQLCloneResetTests(unittest.TestCase):
             defaults = Path(directory) / 'client.cnf'
             dump.write_bytes(b'INSERT INTO sample VALUES (1);')
             defaults.write_text('[client]\n')
+            defaults.chmod(0o600)
             with patch('app.mysql_clone_reset.subprocess.run') as run:
+                run.return_value.stdout = r'GRANT ALL PRIVILEGES ON `typography\_fullclone\_test`.* TO `test`@`%`'
                 reset_clone(dump, defaults, CONFIRMATION)
-            self.assertEqual(run.call_count, 2)
-            self.assertIn('`typography_fullclone_test`', run.call_args_list[0].args[0][-1])
-            self.assertEqual(run.call_args_list[1].args[0][-1], 'typography_fullclone_test')
+            self.assertEqual(run.call_count, 3)
+            self.assertIn('`typography_fullclone_test`', run.call_args_list[1].args[0][-1])
+            self.assertEqual(run.call_args_list[2].args[0][-1], 'typography_fullclone_test')
+
+    def test_global_account_is_rejected_before_drop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dump = Path(directory) / 'dump.sql'
+            defaults = Path(directory) / 'client.cnf'
+            dump.write_text('SELECT 1;')
+            defaults.write_text('[client]\n')
+            defaults.chmod(0o600)
+            with patch('app.mysql_clone_reset.subprocess.run') as run:
+                run.return_value.stdout = 'GRANT ALL PRIVILEGES ON *.* TO `root`@`%`'
+                with self.assertRaises(ValueError):
+                    reset_clone(dump, defaults, CONFIRMATION)
+                self.assertEqual(run.call_count, 1)
