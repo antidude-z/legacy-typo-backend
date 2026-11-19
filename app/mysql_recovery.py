@@ -17,7 +17,7 @@ def backup(destination: Path, defaults: Path) -> dict:
         raise ValueError('MySQL defaults file must be private')
     if destination.exists():
         raise ValueError('Backup destination already exists')
-    grants = subprocess.run(['mysql', f'--defaults-extra-file={defaults}', '--batch',
+    grants = subprocess.run(['mysql', f'--defaults-extra-file={defaults}', '--batch', '--raw',
                              '--skip-column-names', '--execute', 'SHOW GRANTS'],
                             check=True, capture_output=True, text=True)
     validate_grants(grants.stdout.splitlines(), TARGET)
