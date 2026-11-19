@@ -967,6 +967,7 @@ def blanks(order_id: int, request: Request, db: Session = Depends(get_db)):
 
 @app.post("/api/orders/{order_id}/blanks", tags=["orders"])
 def blank_create(order_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    payload = {**payload, **{field: payload.get(field) or None for field in ("printer_id", "printer_process_id", "paper_id", "material_id")}}
     user = current_user(request, db)
     if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
@@ -988,6 +989,7 @@ def blank_create(order_id: int, request: Request, payload: dict, db: Session = D
 
 @app.patch("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])
 def blank_update(order_id: int, blank_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
+    payload = {**payload, **{field: payload[field] or None for field in ("printer_id", "printer_process_id", "paper_id", "material_id") if field in payload}}
     user = current_user(request, db)
     item = db.get(Blank, blank_id)
     if user is None:

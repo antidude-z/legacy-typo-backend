@@ -193,8 +193,11 @@ class MySQLRuntimeTests(unittest.TestCase):
                     response = client.post('/api/orders/add/poly', data={'order_title': 'VM test order', 'order_printing': '100'})
                     self.assertEqual(response.status_code, 200, response.text)
                     order_id = response.json()['id']
-                    response = client.post(f'/api/orders/{order_id}/blanks', json={'title': 'VM test blank', 'details_per_sheet': 1})
+                    response = client.post(f'/api/orders/{order_id}/blanks', json={'title': 'VM test blank', 'details_per_sheet': 1, 'printer_process_id': '', 'paper_id': '', 'material_id': ''})
                     self.assertEqual(response.status_code, 200, response.text)
+                    blank_id = response.json()['id']
+                    updated = client.patch(f'/api/orders/{order_id}/blanks/{blank_id}', json={'printer_process_id': '', 'paper_id': '', 'material_id': ''})
+                    self.assertEqual(updated.status_code, 200, updated.text)
                     self.assertEqual(client.get(f'/api/orders/{order_id}/blanks').status_code, 200)
                     self.assertEqual(client.delete(f'/api/orders/{order_id}').status_code, 200)
                     self.assertEqual(client.post(f'/api/orders/{order_id}/restore').status_code, 200)
