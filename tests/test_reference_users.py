@@ -40,7 +40,7 @@ class EmployeeReferenceTests(unittest.TestCase):
         self.permission_mock.return_value = True
         self.client.delete(target)
         self.permission_mock.return_value = False
-        self.assertEqual(self.client.get(target).status_code,404)
+        self.assertEqual(self.client.get(target).status_code,403)
         self.assertEqual(self.client.delete(target).status_code,403)
         self.assertEqual(self.client.post(target+'/restore').status_code,403)
         self.permission_mock.return_value = True
@@ -57,6 +57,7 @@ class EmployeeReferenceTests(unittest.TestCase):
         payload = self.payload()
         identity = self.client.post('/api/employee-references',json=payload).json()['id']
         self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda permission: permission == 'view_menu_references_users'
         response = self.client.get(f'/api/employee-references/{identity}').json()
         self.assertEqual(response['roles'], [])
         self.assertFalse(response['can_edit'])

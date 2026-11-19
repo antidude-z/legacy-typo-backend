@@ -31,7 +31,9 @@ def register_user_reference_routes(app, current_user):
 
     def flags(user):
         return {"can_create": user.has_permission("user_create"), "can_edit": user.has_permission("user_edit"),
-                "can_restore": user.has_permission("restore_trashed"), "can_delete_trashed": user.has_permission("delete_trashed")}
+                "can_delete": user.has_permission("user_delete"),
+                "can_restore": user.has_permission("user_delete") and user.has_permission("restore_trashed"),
+                "can_delete_trashed": user.has_permission("user_delete") and user.has_permission("delete_trashed")}
 
     def values(payload, db, identity=None):
         result = {}
@@ -66,7 +68,7 @@ def register_user_reference_routes(app, current_user):
 
     @app.get("/api/employee-references", tags=["references"])
     def index(request: Request, page: int = Query(1,ge=1), per_page: int = Query(30,ge=1), sort: str = "id", order: str = "desc", db: Session = Depends(get_db)):
-        user = actor(request, db)
+        user = actor(request, db, "view_menu_references_users")
         query = select(User)
         if not user.has_permission("view_trashed"): query = query.where(User.deleted_at.is_(None))
         column = getattr(User, sort if sort in {"id","surname","post","phone","email","fired"} else "id")
@@ -81,7 +83,7 @@ def register_user_reference_routes(app, current_user):
 
     @app.get("/api/employee-references/{identity}", tags=["references"])
     def detail(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = actor(request,db); row = account(identity,db)
+        user = actor(request,db,"view_menu_references_users"); row = account(identity,db)
         if row.deleted_at and not user.has_permission("view_trashed"): raise HTTPException(404)
         return {"item":serialize(row), "roles":[{"id":r.id,"title":r.title} for r in db.scalars(select(Role).order_by(Role.id)).all()] if user.has_permission("user_edit") else [], **flags(user)}
 
@@ -99,7 +101,7 @@ def register_user_reference_routes(app, current_user):
 
     @app.delete("/api/employee-references/{identity}", tags=["references"])
     def delete(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = actor(request,db); row = account(identity,db)
+        user = actor(request,db,"user_delete"); row = account(identity,db)
         if row.deleted_at:
             if not user.has_permission("delete_trashed"): raise HTTPException(403)
             db.delete(row)
@@ -108,5 +110,7 @@ def register_user_reference_routes(app, current_user):
 
     @app.post("/api/employee-references/{identity}/restore", tags=["references"])
     def restore(identity: int, request: Request, db: Session = Depends(get_db)):
-        actor(request,db,"restore_trashed"); row = account(identity,db)
+        user = actor(request,db,"user_delete")
+        if not user.has_permission("restore_trashed"): raise HTTPException(403)
+        row = account(identity,db)
         row.deleted_at = None; db.commit(); return {"status":"ok"}
