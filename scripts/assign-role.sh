@@ -13,7 +13,7 @@ if [[ -f "$ROOT/compose.mysql.yaml" ]]; then
   COMPOSE+=(-f "$ROOT/compose.mysql.yaml")
   COMPOSE+=(--profile mysql)
 fi
-"${COMPOSE[@]}" exec -T backend .venv/bin/python -m app.assign_role "$1" "$2"
+"${COMPOSE[@]}" exec -T backend .venv/bin/python -m app.assign_role "$1" "$2" < /dev/null
 read -r -p 'Apply this role assignment? Type YES: ' confirmation
 [[ "$confirmation" == YES ]] || { echo 'Cancelled'; exit 1; }
 "${COMPOSE[@]}" exec -T backend .venv/bin/python -m app.assign_role "$1" "$2" --apply
