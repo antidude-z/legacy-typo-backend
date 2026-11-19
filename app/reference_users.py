@@ -94,14 +94,19 @@ def register_user_reference_routes(app, current_user):
 
     @app.patch("/api/employee-references/{identity}", tags=["references"])
     def update(identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):
-        actor(request,db,"user_edit"); row = account(identity,db)
+        user = actor(request,db,"user_edit"); row = account(identity,db)
         if row.deleted_at: raise HTTPException(404)
-        for key,value in values(payload,db,identity).items(): setattr(row,key,value)
+        changes = values(payload,db,identity)
+        if user.id == row.id and changes["fired"]:
+            raise HTTPException(403, "Нельзя уволить собственную учетную запись.")
+        for key,value in changes.items(): setattr(row,key,value)
         db.commit(); return {"status":"ok"}
 
     @app.delete("/api/employee-references/{identity}", tags=["references"])
     def delete(identity: int, request: Request, db: Session = Depends(get_db)):
         user = actor(request,db,"user_delete"); row = account(identity,db)
+        if user.id == row.id:
+            raise HTTPException(403, "Нельзя удалить собственную учетную запись.")
         if row.deleted_at:
             if not user.has_permission("delete_trashed"): raise HTTPException(403)
             db.delete(row)

@@ -61,3 +61,16 @@ Validation: 7 focused employee tests passed; full backend suite 222 run, OK with
 11 opt-in MySQL skips; frontend 19 helper tests passed; production build and both
 repository diff checks passed. No Phase 2 scenario was run. No deployment or
 shared database was accessed. Changes are limited to the employee boundary.
+
+## S01 self-disable increment — 2026-11-20
+
+Employee delete and update now reject deleting or marking the acting user fired.
+A real-session regression checks both denials against snapshots of all modeled
+tables and confirms a normal self-edit still succeeds. Eight focused tests passed;
+the full backend suite ran 223 tests successfully with 11 MySQL-only skips;
+19 frontend helper tests and the production build passed.
+
+Still open: self-demotion, privileged-target handling, and last-effective-admin
+protection across user edits and role-matrix updates, including concurrent MySQL
+transactions. The current changes do not protect a last administrator from a
+different authorized actor and must not be treated as complete S01 remediation.

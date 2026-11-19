@@ -5,7 +5,9 @@ from app.models import Role, User
 
 
 class EmployeeReferenceTests(unittest.TestCase):
-    setUp = fixtures.ReferenceDictionaryTests.setUp
+    def setUp(self):
+        fixtures.ReferenceDictionaryTests.setUp(self)
+        self.user.id = -1  # The mocked actor is not the employee created by these tests.
     tearDown = fixtures.ReferenceDictionaryTests.tearDown
 
     def payload(self):
