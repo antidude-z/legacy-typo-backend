@@ -171,7 +171,12 @@ def migration_2026_11_19_06(connection):
     elif connection.dialect.name == 'mysql':
         column = next(c for c in inspect(connection).get_columns('order_markups') if c['name'] == 'markup_type')
         if column['type'].length < 50:
-            connection.execute(text('ALTER TABLE order_markups MODIFY COLUMN markup_type VARCHAR(50) NOT NULL'))
+            mode = connection.scalar(text('SELECT @@SESSION.sql_mode'))
+            connection.execute(text("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'"))
+            try:
+                connection.execute(text('ALTER TABLE order_markups MODIFY COLUMN markup_type VARCHAR(50) NOT NULL'))
+            finally:
+                connection.execute(text('SET SESSION sql_mode=:mode'), {'mode': mode})
 
 
 MIGRATIONS = (
