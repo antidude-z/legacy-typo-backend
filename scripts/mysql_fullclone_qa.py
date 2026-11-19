@@ -4,6 +4,7 @@ Run from the Compose directory with the backend repository at ./backend.
 Never supplies working-database credentials to the QA container.
 """
 import argparse
+import os
 import json
 from pathlib import Path
 import secrets
@@ -57,7 +58,10 @@ def execute(args):
     reports.mkdir(mode=0o700, exist_ok=True)
     for name in ('reset.json', 'tests.json', 'working-integrity.json', 'access-boundary.json'):
         (reports / name).unlink(missing_ok=True)
-    dockerfile = '''FROM rework-backend
+    base_image = os.environ.get('QA_BASE_IMAGE', 'rework-backend')
+    if not base_image or any(char.isspace() for char in base_image):
+        raise ValueError('QA_BASE_IMAGE must be a single Docker image reference')
+    dockerfile = f'''FROM {base_image}
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends default-mysql-client && rm -rf /var/lib/apt/lists/*
 COPY app/ /app/app/
