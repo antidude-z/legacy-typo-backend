@@ -1,11 +1,12 @@
 """Legacy role/permission matrix administration."""
 from fastapi import Depends, HTTPException, Request
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 
 from .db import get_db
 from .models import Permission, Role, role_permissions
 from .permission_audit import audit_payload
+from .admin_safety import require_surviving_admin, security_writer
 
 
 MODULES = {
@@ -55,6 +56,7 @@ def register_permission_routes(app, current_user):
         return audit_payload(permission_ids)
 
     @app.post("/api/options/permissions", tags=["permissions"])
+    @security_writer
     def update_matrix(request: Request, payload: dict, db: Session = Depends(get_db)):
         require_admin(request, db)
         raw = payload.get("permissions")
@@ -78,17 +80,24 @@ def register_permission_routes(app, current_user):
                 selected.add((role_id, permission_id))
         security_permission = "view_menu_options_permissions"
         if security_permission in raw:
-            existing = set(db.scalars(select(role_permissions.c.role_id).where(
-                role_permissions.c.permission_id == security_permission)).all())
             retained = {role_id for role_id, permission_id in selected if permission_id == security_permission}
-            if existing - retained:
-                raise HTTPException(409, "Отзыв административного разрешения временно запрещен.")
-        if raw:
-            db.execute(delete(role_permissions).where(role_permissions.c.permission_id.in_(raw)))
-        if selected:
+            require_surviving_admin(db, admin_roles=retained)
+        existing_pairs = set(db.execute(select(role_permissions.c.role_id,
+                                               role_permissions.c.permission_id)).all())
+        additions = selected - existing_pairs
+        removals = {pair for pair in existing_pairs if pair[1] in raw} - selected
+        # Insert replacement grants before removing old grants. Imported
+        # MyISAM cannot roll back a failed DELETE/INSERT replacement sequence.
+        if additions:
             db.execute(role_permissions.insert(), [
                 {"role_id": role_id, "permission_id": permission_id}
-                for role_id, permission_id in selected
+                for role_id, permission_id in additions
             ])
+        if removals:
+            db.execute(delete(role_permissions).where(or_(*[
+                and_(role_permissions.c.role_id == role_id,
+                     role_permissions.c.permission_id == permission_id)
+                for role_id, permission_id in removals
+            ])))
         db.commit()
         return {"status": "ok"}

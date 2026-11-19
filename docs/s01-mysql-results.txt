@@ -1,0 +1,26 @@
+test_admin_can_disable_peer_but_cannot_revoke_last_admin_grant (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_admin_can_disable_peer_but_cannot_revoke_last_admin_grant) ... ok
+test_domain_and_lifecycle_grants_are_both_required (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_domain_and_lifecycle_grants_are_both_required) ... ok
+test_last_admin_demotion_by_cli_and_repeated_matrix_revocation_are_denied (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_last_admin_demotion_by_cli_and_repeated_matrix_revocation_are_denied) ... ok
+test_privileged_target_and_self_role_change_are_denied (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_privileged_target_and_self_role_change_are_denied) ... ok
+test_roleless_and_reader_denials_preserve_every_table (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_roleless_and_reader_denials_preserve_every_table) ... ok
+test_self_delete_and_firing_are_rejected_without_changes (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_self_delete_and_firing_are_rejected_without_changes) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 8.058s
+
+OK
+[('role_permissions', 'MyISAM'), ('roles', 'MyISAM'), ('users', 'MyISAM')]
+test_competing_demotions_preserve_exactly_one_effective_admin (tests.test_admin_concurrency.MySQLAdminConcurrencyTests.test_competing_demotions_preserve_exactly_one_effective_admin) ... ok
+test_matrix_revocation_competes_with_operator_demotion (tests.test_admin_concurrency.MySQLAdminConcurrencyTests.test_matrix_revocation_competes_with_operator_demotion) ... ok
+test_admin_can_disable_peer_but_cannot_revoke_last_admin_grant (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_admin_can_disable_peer_but_cannot_revoke_last_admin_grant) ... ok
+test_domain_and_lifecycle_grants_are_both_required (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_domain_and_lifecycle_grants_are_both_required) ... ok
+test_last_admin_demotion_by_cli_and_repeated_matrix_revocation_are_denied (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_last_admin_demotion_by_cli_and_repeated_matrix_revocation_are_denied) ... ok
+test_privileged_target_and_self_role_change_are_denied (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_privileged_target_and_self_role_change_are_denied) ... ok
+test_roleless_and_reader_denials_preserve_every_table (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_roleless_and_reader_denials_preserve_every_table) ... ok
+test_self_delete_and_firing_are_rejected_without_changes (tests.test_review_employee_authorization.MySQLEmployeeAuthorizationReviewTests.test_self_delete_and_firing_are_rejected_without_changes) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 7.370s
+
+OK
+S01_MYSQL_PASSED

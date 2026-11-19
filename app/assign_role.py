@@ -6,8 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import Role, User
+from .admin_safety import require_surviving_admin, security_writer
 
 
+@security_writer
 def assign_role(db, user_selector, role_selector, apply=False):
     user_query = select(User).where(User.deleted_at.is_(None))
     user_query = user_query.where(User.id == int(user_selector[3:])) if user_selector.startswith('id:') else user_query.where(User.email == user_selector)
@@ -20,8 +22,12 @@ def assign_role(db, user_selector, role_selector, apply=False):
     user, role = users[0], roles[0]
     if user.fired:
         raise ValueError('Refusing assignment to a fired account')
-    if apply and user.role_id != role.id and user.has_permission('view_menu_options_permissions'):
-        raise ValueError('Refusing to change a security administrator role until safe administrative recovery is available')
+    if apply:
+        from fastapi import HTTPException
+        try:
+            require_surviving_admin(db, identity=user.id, changes={'role_id': role.id})
+        except HTTPException as exc:
+            raise ValueError(exc.detail) from exc
     result = {'user_id': user.id, 'email': user.email, 'previous_role_id': user.role_id,
               'role_id': role.id, 'role': role.title, 'applied': apply}
     if apply:

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import Role, User
 from .reference_inventory import integer
+from .admin_safety import require_surviving_admin, security_writer
 
 
 def serialize(row):
@@ -88,11 +89,13 @@ def register_user_reference_routes(app, current_user):
         return {"item":serialize(row), "roles":[{"id":r.id,"title":r.title} for r in db.scalars(select(Role).order_by(Role.id)).all()] if user.has_permission("user_edit") else [], **flags(user)}
 
     @app.post("/api/employee-references", tags=["references"])
+    @security_writer
     def create(request: Request, payload: dict, db: Session = Depends(get_db)):
         actor(request,db,"user_create")
         row = User(**values(payload,db)); db.add(row); db.commit(); return {"id":row.id}
 
     @app.patch("/api/employee-references/{identity}", tags=["references"])
+    @security_writer
     def update(identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):
         user = actor(request,db,"user_edit"); row = account(identity,db)
         if row.deleted_at: raise HTTPException(404)
@@ -103,20 +106,19 @@ def register_user_reference_routes(app, current_user):
             raise HTTPException(403, "Нельзя изменить собственную роль.")
         if row.has_permission("view_menu_options_permissions") and not user.has_permission("view_menu_options_permissions"):
             raise HTTPException(403, "Недостаточно прав для изменения администратора.")
-        if row.has_permission("view_menu_options_permissions") and (changes["fired"] or changes["role_id"] != row.role_id):
-            raise HTTPException(409, "Изменение статуса или роли администратора временно запрещено.")
+        require_surviving_admin(db, identity=row.id, changes=changes)
         for key,value in changes.items(): setattr(row,key,value)
         db.commit(); return {"status":"ok"}
 
     @app.delete("/api/employee-references/{identity}", tags=["references"])
+    @security_writer
     def delete(identity: int, request: Request, db: Session = Depends(get_db)):
         user = actor(request,db,"user_delete"); row = account(identity,db)
         if user.id == row.id:
             raise HTTPException(403, "Нельзя удалить собственную учетную запись.")
         if row.has_permission("view_menu_options_permissions") and not user.has_permission("view_menu_options_permissions"):
             raise HTTPException(403, "Недостаточно прав для удаления администратора.")
-        if row.has_permission("view_menu_options_permissions"):
-            raise HTTPException(409, "Удаление администратора временно запрещено.")
+        require_surviving_admin(db, identity=row.id, removed=True)
         if row.deleted_at:
             if not user.has_permission("delete_trashed"): raise HTTPException(403)
             db.delete(row)
@@ -124,8 +126,11 @@ def register_user_reference_routes(app, current_user):
         db.commit(); return {"status":"ok"}
 
     @app.post("/api/employee-references/{identity}/restore", tags=["references"])
+    @security_writer
     def restore(identity: int, request: Request, db: Session = Depends(get_db)):
         user = actor(request,db,"user_delete")
         if not user.has_permission("restore_trashed"): raise HTTPException(403)
         row = account(identity,db)
+        if row.has_permission("view_menu_options_permissions") and not user.has_permission("view_menu_options_permissions"):
+            raise HTTPException(403, "Недостаточно прав для восстановления администратора.")
         row.deleted_at = None; db.commit(); return {"status":"ok"}

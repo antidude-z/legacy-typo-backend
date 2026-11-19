@@ -1,5 +1,6 @@
 """Phase 1 S01 regressions: real sessions, disposable in-memory data only."""
 import unittest
+import os
 
 import bcrypt
 from fastapi.testclient import TestClient
@@ -13,12 +14,21 @@ from app.models import Permission, Role, User
 
 
 class EmployeeAuthorizationReviewTests(unittest.TestCase):
+    mysql = False
+
     def setUp(self):
-        self.engine = create_engine('sqlite://', poolclass=StaticPool,
-                                    connect_args={'check_same_thread': False})
-        self.assertIsNone(self.engine.url.database)
+        if self.mysql:
+            from app.mysql_test_guard import verify_test_database
+            url = os.environ['MYSQL_ADMIN_TEST_URL']
+            verify_test_database(url, os.getenv('DATABASE_URL'))
+            self.engine = create_engine(url)
+        else:
+            self.engine = create_engine('sqlite://', poolclass=StaticPool,
+                                        connect_args={'check_same_thread': False})
+            self.assertIsNone(self.engine.url.database)
         Base.metadata.create_all(self.engine)
         self.db = Session(self.engine)
+        self.assertIsNone(self.db.scalar(select(User.id).limit(1)), 'Requires empty disposable fixture')
         self.previous = app.dependency_overrides.copy()
         app.dependency_overrides[get_db] = lambda: self.db
         self.role = Role(title='Synthetic staff')
@@ -37,6 +47,11 @@ class EmployeeAuthorizationReviewTests(unittest.TestCase):
     def tearDown(self):
         self.client.close()
         app.dependency_overrides.clear(); app.dependency_overrides.update(self.previous)
+        self.db.rollback()
+        if self.mysql:
+            for table in reversed(Base.metadata.sorted_tables):
+                self.db.execute(table.delete())
+            self.db.commit()
         self.db.close(); self.engine.dispose()
 
     def grant(self, *names):
@@ -111,7 +126,7 @@ class EmployeeAuthorizationReviewTests(unittest.TestCase):
                                            headers=self.headers, json=own).status_code, 403)
         self.assertEqual(self.snapshot(), before)
 
-    def test_security_administrator_cannot_disable_or_revoke_security_admin(self):
+    def test_admin_can_disable_peer_but_cannot_revoke_last_admin_grant(self):
         self.grant('user_delete', 'user_edit', 'view_menu_options_permissions')
         self.target.role = self.role
         self.db.commit()
@@ -119,25 +134,28 @@ class EmployeeAuthorizationReviewTests(unittest.TestCase):
         payload = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
                    'email': self.target.email, 'post': 'Staff', 'role_id': self.role.id,
                    'fired': True}
+        self.assertEqual(self.client.patch(path, headers=self.headers, json=payload).status_code, 200)
+        self.assertEqual(self.client.delete(path, headers=self.headers).status_code, 200)
         before = self.snapshot()
-        self.assertEqual(self.client.delete(path, headers=self.headers).status_code, 409)
-        self.assertEqual(self.client.patch(path, headers=self.headers, json=payload).status_code, 409)
         self.assertEqual(self.client.post('/api/options/permissions', headers=self.headers,
                          json={'permissions': {'view_menu_options_permissions': []}}).status_code, 409)
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(self.client.post('/api/options/permissions', headers=self.headers,
                          json={'permissions': {'view_menu_options_permissions': [self.role.id]}}).status_code, 200)
 
-    def test_admin_demotion_and_repeated_delete_leave_data_unchanged(self):
+    def test_last_admin_demotion_by_cli_and_repeated_matrix_revocation_are_denied(self):
+        from app.assign_role import assign_role
         self.grant('user_delete', 'user_edit', 'view_menu_options_permissions')
         staff = Role(title='Ordinary staff')
-        self.target.role = self.role
         self.db.add(staff); self.db.commit()
-        payload = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
-                   'email': self.target.email, 'post': 'Staff', 'role_id': staff.id,
-                   'fired': False}
         before = self.snapshot()
         for _ in range(2):
-            self.assertEqual(self.client.patch(self.path, headers=self.headers, json=payload).status_code, 409)
-            self.assertEqual(self.client.delete(self.path, headers=self.headers).status_code, 409)
+            with self.assertRaises(ValueError):
+                assign_role(self.db, f'id:{self.actor.id}', f'id:{staff.id}', True)
+            self.assertEqual(self.client.post('/api/options/permissions', headers=self.headers,
+                             json={'permissions': {'view_menu_options_permissions': []}}).status_code, 409)
         self.assertEqual(self.snapshot(), before)
+
+@unittest.skipUnless(os.getenv('MYSQL_ADMIN_TEST_URL'), 'Dedicated empty MySQL schema required')
+class MySQLEmployeeAuthorizationReviewTests(EmployeeAuthorizationReviewTests):
+    mysql = True

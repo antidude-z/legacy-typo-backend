@@ -7,7 +7,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 
 | Finding | Status | Evidence / next step |
 |---|---|---|
-| S01 | in progress | Employee read/delete/restore gates and UI capabilities implemented; real-session SQLite regressions added. Self-disable, privileged-target, last-admin and concurrency protection remain release blockers. |
+| S01 | verified | Domain/lifecycle gates, self-disable and privileged-target restrictions, shared writer serialization, projected last-admin invariant; verified on SQLite and isolated MySQL InnoDB/MyISAM. See completion evidence below. |
 | S02 | unstarted | Public registration / pending-account containment. |
 | S03 | unstarted | Business write authorization across domains and aliases. |
 | S04 | unstarted | Role delegation and privileged-target policy. |
@@ -109,3 +109,44 @@ Additional verification: repeated administrator demotion/deletion requests
 leave every modeled table unchanged, and operator CLI preview remains read-only.
 Eight focused tests and 227 backend tests passed (11 MySQL-only skips). These
 checks do not resolve concurrent role-assignment/permission-matrix races.
+
+## S01 completion — 2026-11-20
+
+Supersedes the conservative administrator freeze and concurrency blockers above.
+`app/admin_safety.py` serializes employee create/update/delete/restore, matrix
+updates, operator role assignment and startup catalog writers. MySQL uses a
+database-scoped named lock on a dedicated checked-out connection, held through
+commit even for MyISAM; SQLite uses an OS file lock shared across processes.
+Timeout/unsupported dialect fails closed. Sessions discard pre-lock snapshots
+and refresh identity-map state before checking authorization and proposed changes.
+
+Effective administrator: active, non-fired user whose role contains
+`view_menu_options_permissions`; no numeric role-ID or role-title assumptions.
+The proposed mutation cannot reduce an existing nonzero administrator population
+to zero. Authorized removal of a peer is permitted if another remains. Self-delete,
+self-firing and self-role changes remain denied. Non-security staff cannot edit,
+delete or restore security-administrator targets. Domain plus lifecycle permissions
+are required. Matrix replacement adds grants before removing old grants to avoid
+the MyISAM delete-before-insert lockout hazard.
+
+Validation on the post-fix source:
+- Full backend: 237 run, OK, 19 opt-in MySQL skips.
+- VM isolated MySQL 8.0: 6 real-session tests passed on InnoDB.
+- VM isolated MySQL 8.0: 8 tests passed with users/roles/role_permissions confirmed
+  MyISAM, including two concurrent demotions and matrix revocation racing an
+  operator demotion; exactly one effective administrator remained.
+- Frontend: 19 helper tests, 17 Chromium workflows and production build passed.
+- Compilation and repository diff checks passed.
+
+VM evidence: `/root/rework/qa-results/s01-authorization/run.log`. QA used a separate
+temporary MySQL container/network, tmpfs storage and database-restricted account;
+the URL/grant guard ran before fixture writes. No working database credentials
+were supplied to the QA containers. Temporary database container/network were
+removed. No working container was restarted or application deployment upgraded.
+
+Limits: cooperative application writers only; direct DBA SQL, third-party writers,
+manual restores and maintenance must run with application writers stopped. Named
+locks are not a general replacement for transactional MyISAM persistence. Recovery
+from a historically zero-admin database remains an explicit operator operation.
+General role delegation and credential takeover are S04/S07, not silently claimed
+resolved here. These are Phase 1 checks, not Phase 2 scenario executions.

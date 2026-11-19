@@ -92,6 +92,15 @@ OPTIONS = (
 
 
 def initialize_database(database_engine=engine) -> None:
+    from .admin_safety import security_lock
+    # Include startup seed writers in the same serialization boundary as HTTP
+    # and operator changes, including on imported nontransactional tables.
+    with Session(database_engine) as lock_session:
+        with security_lock(lock_session):
+            _initialize_database(database_engine)
+
+
+def _initialize_database(database_engine) -> None:
     """Create the local schema and add legacy-confirmed catalog data.
 
     This is deliberately additive: existing business rows and role assignments
