@@ -51,9 +51,12 @@ def migration_2026_11_19_01(connection) -> None:
         })
         columns = {c["name"] for c in inspect(connection).get_columns("actions")}
         if {"actionable_id", "actionable_type"}.issubset(columns):
-            for row in connection.execute(text("SELECT id, actionable_id, actionable_type FROM actions WHERE item_id IS NULL")).mappings().all():
-                if row["actionable_type"] == "App\\Order" and str(row["actionable_id"]).isdigit():
-                    connection.execute(text("UPDATE actions SET item_id=:item WHERE id=:id"), {"item": int(row["actionable_id"]), "id": row["id"]})
+            if connection.dialect.name == 'mysql':
+                connection.execute(text("UPDATE actions SET item_id=CAST(actionable_id AS UNSIGNED) WHERE item_id IS NULL AND actionable_type=:kind AND actionable_id REGEXP '^[0-9]+$'"), {'kind': 'App\\Order'})
+            else:
+                for row in connection.execute(text("SELECT id, actionable_id, actionable_type FROM actions WHERE item_id IS NULL")).mappings().all():
+                    if row["actionable_type"] == "App\\Order" and str(row["actionable_id"]).isdigit():
+                        connection.execute(text("UPDATE actions SET item_id=:item WHERE id=:id"), {"item": int(row["actionable_id"]), "id": row["id"]})
     finally:
         if original_mode is not None:
             connection.execute(text("SET SESSION sql_mode=:mode"), {"mode": original_mode})

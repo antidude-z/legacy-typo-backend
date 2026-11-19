@@ -7,7 +7,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -23,13 +23,16 @@ class LegacyDateTests(unittest.TestCase):
         self.assertIsNone(legacy_date('0000-00-00'))
         self.assertIsNone(legacy_date(None))
         self.assertEqual(legacy_date(date(2024, 1, 2)), '2024-01-02')
+        from app.reports import _date
+        self.assertEqual(_date('0000-00-00'), '')
+        self.assertEqual(_date('2024-01-02'), '02.01.2024')
 
 
 @unittest.skipUnless(os.getenv('MYSQL_TEST_URL'), 'MYSQL_TEST_URL not configured')
 class MySQLRuntimeTests(unittest.TestCase):
     def test_real_mysql_crud_round_trip(self):
         url = os.environ['MYSQL_TEST_URL']
-        if make_url(url).database not in {'typography_runtime_test', 'typography_imported_test'}:
+        if make_url(url).database not in {'typography_runtime_test', 'typography_imported_test', 'typography_fullclone_test'}:
             self.fail('Refusing database other than a dedicated typography test database')
         engine = create_engine(url)
         apply_migrations(engine)
@@ -75,3 +78,36 @@ class MySQLRuntimeTests(unittest.TestCase):
             finally:
                 app.dependency_overrides.clear()
         engine.dispose()
+
+    def test_full_clone_historical_reads_and_reports(self):
+        url = os.environ['MYSQL_TEST_URL']
+        if make_url(url).database != 'typography_fullclone_test':
+            self.skipTest('Requires full historical clone')
+        engine = create_engine(url)
+        apply_migrations(engine)
+        failures = []
+        with Session(engine) as db:
+            actor = db.scalars(select(User).where(User.deleted_at.is_(None))).first()
+            def database():
+                yield db
+            app.dependency_overrides[get_db] = database
+            try:
+                with patch('app.main.current_user', return_value=actor), patch.object(User, 'has_permission', return_value=True):
+                    client = TestClient(app, raise_server_exceptions=False)
+                    for kind in ('book', 'poly', 'wide', 'souvenir'):
+                        orders = db.scalars(select(Order).where(Order.order_type == kind, Order.deleted_at.is_(None), Order.calc_details.is_not(None)).order_by(Order.id.desc()).limit(3)).all()
+                        for order in orders:
+                            paths = [f'/api/orders/{order.id}', f'/api/orders/{order.id}/blanks', f'/api/orders/{order.id}/operations', f'/api/orders/{order.id}/history']
+                            for report in ('order_transcript', 'order_passport', 'order_economy', 'order_design'):
+                                paths.append(f'/reports/{report}/item/{order.id}')
+                            for path in paths:
+                                response = client.get(path)
+                                if response.status_code not in (200, 403, 422):
+                                    failures.append((path, response.status_code, response.text[:200]))
+                            response = client.post(f'/api/orders/{order.id}/recalculate', json={})
+                            if response.status_code != 200:
+                                failures.append((f'recalculate/{order.id}', response.status_code, response.text[:200]))
+            finally:
+                app.dependency_overrides.clear()
+        engine.dispose()
+        self.assertEqual(failures, [], failures)

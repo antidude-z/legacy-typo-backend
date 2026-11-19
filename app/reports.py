@@ -50,7 +50,12 @@ def php_print_r(value, depth=0):
 
 
 def _date(value):
-    return value.strftime("%d.%m.%Y") if value else ""
+    if not value or str(value).startswith('0000-'):
+        return ""
+    if isinstance(value, str):
+        from datetime import date
+        value = date.fromisoformat(value[:10])
+    return value.strftime("%d.%m.%Y")
 
 
 def _safe_pdf_value(value):

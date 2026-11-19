@@ -846,6 +846,8 @@ def validate_operation_reference(operation: str, order: Order, related_id, db: S
 
 @app.post("/api/orders/{order_id}/{operation}", tags=["orders"])
 def operation_create(order_id: int, operation: str, request: Request, payload: dict, db: Session = Depends(get_db)):
+    if operation == "recalculate":
+        return order_recalculate(order_id, request, db)
     if operation == "blanks":
         return blank_create(order_id, request, payload, db)
     user = current_user(request, db)
