@@ -11,6 +11,17 @@ checks tracked upgrades and their repeat execution using a clone-only account.
 Results are in `qa-results/schema-drift.json`; working-table checksum checks are
 in `qa-results/schema-working-integrity.json`.
 
+Migration `2026-11-19-06` preserves decimal work quantities in existing SQLite
+tables and permits non-order history rows without an order ID. SQLite rebuilds
+retain extra columns, indexes, and triggers and refuse incoming foreign keys;
+back up custom deployments before upgrading. MySQL upgrades widen markup-type
+storage, temporarily relaxing legacy zero-date checks only for the DDL session.
+
+Synchronize deployments through GitHub: push backend `fix/mysql-runtime` and
+frontend `main`, then pull the matching branches with `git pull --ff-only` on
+the VM. Preserve local VM edits before pulling. Updating a checkout does not
+rebuild running containers or apply upgrades to the working database.
+
 ## MySQL runtime regression checks
 
 The image installs the frozen `uv.lock`, including PyMySQL RSA authentication
