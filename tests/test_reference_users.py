@@ -8,6 +8,7 @@ class EmployeeReferenceTests(unittest.TestCase):
     def setUp(self):
         fixtures.ReferenceDictionaryTests.setUp(self)
         self.user.id = -1  # The mocked actor is not the employee created by these tests.
+        self.permission_mock.side_effect = lambda permission: permission != 'view_menu_options_permissions'
     tearDown = fixtures.ReferenceDictionaryTests.tearDown
 
     def payload(self):
@@ -37,6 +38,7 @@ class EmployeeReferenceTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/employee-references',json=payload).status_code,422)
         target = f'/api/employee-references/{identity}'
         self.permission_mock.return_value = False
+        self.permission_mock.side_effect = None
         self.assertEqual(self.client.patch(target,json=payload).status_code,403)
         self.assertEqual(self.client.get('/api/employee-references/form').status_code,403)
         self.permission_mock.return_value = True

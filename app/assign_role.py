@@ -20,6 +20,8 @@ def assign_role(db, user_selector, role_selector, apply=False):
     user, role = users[0], roles[0]
     if user.fired:
         raise ValueError('Refusing assignment to a fired account')
+    if apply and user.role_id != role.id and user.has_permission('view_menu_options_permissions'):
+        raise ValueError('Refusing to change a security administrator role until safe administrative recovery is available')
     result = {'user_id': user.id, 'email': user.email, 'previous_role_id': user.role_id,
               'role_id': role.id, 'role': role.title, 'applied': apply}
     if apply:

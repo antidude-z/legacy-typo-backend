@@ -88,3 +88,19 @@ The operator-only `app.assign_role` CLI is another role-change path. A shared
 transactional lock and effective-admin invariant must cover all three paths and
 be tested concurrently on disposable MySQL before S01 can be marked fixed.
 General delegation of privileged roles on creation/update remains S04.
+
+## S01 conservative containment — 2026-11-20
+
+Confirmed that the historical dump uses MyISAM; row locks and rollback cannot
+be assumed. Added conservative restrictions: administrator accounts cannot
+be deleted, fired, or moved to another role through employee APIs or the
+operator role-assignment CLI; the permission matrix cannot remove an existing
+`view_menu_options_permissions` role grant. This intentionally blocks legitimate
+administrative changes until a safe replacement and recovery policy exist.
+Real-session tests cover rejected changes and permitted grant retention; CLI
+coverage confirms refusal. Full suite: 226 run, OK, 11 MySQL-only skips.
+
+S01 remains open: these checks are not atomic against concurrent assignment or
+matrix changes, direct SQL, or other writers; MyISAM rollback is unavailable.
+A transactional schema/concurrency strategy and disposable MySQL concurrency
+tests are required. No VM deployment or production-like database was changed.

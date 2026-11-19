@@ -76,6 +76,13 @@ def register_permission_routes(app, current_user):
                 if role_id not in role_ids:
                     raise HTTPException(422, "Неизвестная роль.")
                 selected.add((role_id, permission_id))
+        security_permission = "view_menu_options_permissions"
+        if security_permission in raw:
+            existing = set(db.scalars(select(role_permissions.c.role_id).where(
+                role_permissions.c.permission_id == security_permission)).all())
+            retained = {role_id for role_id, permission_id in selected if permission_id == security_permission}
+            if existing - retained:
+                raise HTTPException(409, "Отзыв административного разрешения временно запрещен.")
         if raw:
             db.execute(delete(role_permissions).where(role_permissions.c.permission_id.in_(raw)))
         if selected:

@@ -110,3 +110,20 @@ class EmployeeAuthorizationReviewTests(unittest.TestCase):
         self.assertEqual(self.client.patch(f'/api/employee-references/{self.actor.id}',
                                            headers=self.headers, json=own).status_code, 403)
         self.assertEqual(self.snapshot(), before)
+
+    def test_security_administrator_cannot_disable_or_revoke_security_admin(self):
+        self.grant('user_delete', 'user_edit', 'view_menu_options_permissions')
+        self.target.role = self.role
+        self.db.commit()
+        path = self.path
+        payload = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
+                   'email': self.target.email, 'post': 'Staff', 'role_id': self.role.id,
+                   'fired': True}
+        before = self.snapshot()
+        self.assertEqual(self.client.delete(path, headers=self.headers).status_code, 409)
+        self.assertEqual(self.client.patch(path, headers=self.headers, json=payload).status_code, 409)
+        self.assertEqual(self.client.post('/api/options/permissions', headers=self.headers,
+                         json={'permissions': {'view_menu_options_permissions': []}}).status_code, 409)
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.client.post('/api/options/permissions', headers=self.headers,
+                         json={'permissions': {'view_menu_options_permissions': [self.role.id]}}).status_code, 200)

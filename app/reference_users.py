@@ -103,6 +103,8 @@ def register_user_reference_routes(app, current_user):
             raise HTTPException(403, "Нельзя изменить собственную роль.")
         if row.has_permission("view_menu_options_permissions") and not user.has_permission("view_menu_options_permissions"):
             raise HTTPException(403, "Недостаточно прав для изменения администратора.")
+        if row.has_permission("view_menu_options_permissions") and (changes["fired"] or changes["role_id"] != row.role_id):
+            raise HTTPException(409, "Изменение статуса или роли администратора временно запрещено.")
         for key,value in changes.items(): setattr(row,key,value)
         db.commit(); return {"status":"ok"}
 
@@ -113,6 +115,8 @@ def register_user_reference_routes(app, current_user):
             raise HTTPException(403, "Нельзя удалить собственную учетную запись.")
         if row.has_permission("view_menu_options_permissions") and not user.has_permission("view_menu_options_permissions"):
             raise HTTPException(403, "Недостаточно прав для удаления администратора.")
+        if row.has_permission("view_menu_options_permissions"):
+            raise HTTPException(409, "Удаление администратора временно запрещено.")
         if row.deleted_at:
             if not user.has_permission("delete_trashed"): raise HTTPException(403)
             db.delete(row)
