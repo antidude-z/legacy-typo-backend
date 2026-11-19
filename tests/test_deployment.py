@@ -25,6 +25,15 @@ class DeploymentTests(unittest.TestCase):
         proxy = validate_nginx_proxy(ROOT / "frontend" / "nginx.conf")
         self.assertEqual(proxy["target"], "backend:8000")
 
+    def test_tracked_compose_matches_workspace_and_has_no_database_port(self):
+        tracked = ROOT / 'backend' / 'deploy' / 'compose.yaml'
+        self.assertEqual(tracked.read_text(), (ROOT / 'docker-compose.yaml').read_text())
+        content = tracked.read_text()
+        self.assertNotIn('3306:3306', content)
+        self.assertNotIn('8000:8000', content)
+        self.assertIn('SESSION_SECRET: ${SESSION_SECRET:?', content)
+        self.assertIn('condition: service_healthy', content)
+
 
 if __name__ == "__main__":
     unittest.main()

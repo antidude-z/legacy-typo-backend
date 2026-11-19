@@ -41,8 +41,8 @@ def validate_compose(path: str | Path) -> dict:
         "- mysql",
         "backend_data:/app/data",
         "mysql_data:/var/lib/mysql",
-        '"8000:8000"',
-        '"8080:80"',
+        'condition: service_healthy',
+        'FRONTEND_PORT:-8080',
     ):
         if marker not in text:
             errors.append(f"missing compose marker: {marker}")

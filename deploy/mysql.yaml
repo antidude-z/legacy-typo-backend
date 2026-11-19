@@ -1,0 +1,10 @@
+services:
+  backend:
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-typography}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-typography}?charset=utf8mb4
+    depends_on:
+      mysql:
+        condition: service_healthy
+  mysql:
+    # Bound QA/import binlog growth; review retention before production use.
+    command: [--binlog-expire-logs-seconds=259200]
