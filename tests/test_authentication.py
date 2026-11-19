@@ -17,6 +17,7 @@ from app.db import Base, get_db
 from app.main import app
 from app.models import PasswordReset, User
 from app.csrf import CSRF_COOKIE
+from app.clock import utc_now
 
 
 class AuthenticationTests(unittest.TestCase):
@@ -77,7 +78,7 @@ class AuthenticationTests(unittest.TestCase):
 
             self.client.post("/api/password/email", data={"email": self.user.email})
             reset = self.db.get(PasswordReset, self.user.email)
-            reset.created_at = datetime.utcnow() - timedelta(minutes=61)
+            reset.created_at = utc_now() - timedelta(minutes=61)
             self.db.commit()
             expired_mail = BytesParser(policy=policy.default).parsebytes(next(Path(directory).iterdir()).read_bytes())
             expired_token = expired_mail.get_content().split("/password/reset/", 1)[1].strip()

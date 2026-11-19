@@ -4,9 +4,9 @@ version = "0.1.0"
 description = "Compatibility backend for the legacy typography application"
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    "fastapi==0.115.6",
-    "uvicorn[standard]==0.34.0",
-    "sqlalchemy==2.0.38",
+    "fastapi>=0.125,<1",
+    "uvicorn[standard]>=0.40,<1",
+    "sqlalchemy>=2.0.45,<2.1",
     "bcrypt==4.2.1",
     "pymysql[rsa]==1.1.1",
     "python-multipart==0.0.20",
@@ -21,6 +21,7 @@ package = false
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "httpx2>=2.16.2",
     "pypdf>=7.0.0",
     "xlrd>=2.0.2",
 ]

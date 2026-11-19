@@ -1,5 +1,14 @@
 # Typography backend
 
+## Runtime regression check
+
+`uv run python -W error -m unittest discover -s tests -q` runs the backend suite
+with warnings treated as errors. The frozen lock includes Python 3.14-compatible
+FastAPI/Starlette, SQLAlchemy and Uvicorn; TestClient uses `httpx2`. SQL DATETIME
+values remain naive UTC through `app.clock.utc_now`, not local time. CLI audit
+and import engines are explicitly disposed. `requirements.txt` is a generated
+runtime-only export; Docker continues to install the frozen `uv.lock`.
+
 ## Production security
 
 Set `APP_ENV=production`, a random `SESSION_SECRET` (32+ characters),

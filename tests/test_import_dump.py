@@ -77,6 +77,7 @@ INSERT INTO `migrations` VALUES (1,'ignored');
     def test_import_is_allowlisted_and_converts_zero_dates(self):
         with tempfile.TemporaryDirectory() as directory:
             engine = create_engine("sqlite://")
+            self.addCleanup(engine.dispose)
             Base.metadata.create_all(engine)
             result = import_dump(engine, self.make_dump(directory))
             self.assertEqual(result["rows"], {"options": 1, "orders": 1})

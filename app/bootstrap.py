@@ -1,3 +1,4 @@
+from .clock import utc_now
 """Repeatable local database initialization and legacy catalog seeding."""
 
 from datetime import date, datetime
@@ -121,7 +122,7 @@ def initialize_database(database_engine=engine) -> None:
             manager = roles.get("Менеджер")
             if manager:
                 manager.permissions = list({*manager.permissions, *(permissions[x] for x in ("view_menu_orders", "view_menu_references", "view_menu_references_customers"))})
-            db.add(SchemaVersion(version=SCHEMA_VERSION, applied_at=datetime.utcnow()))
+            db.add(SchemaVersion(version=SCHEMA_VERSION, applied_at=utc_now()))
             db.commit()
 
         # Existing installations must expose the write gate in the matrix too;

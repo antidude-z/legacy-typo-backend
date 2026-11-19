@@ -194,8 +194,11 @@ def main():
     from . import models  # noqa: F401
     args.target.parent.mkdir(parents=True, exist_ok=True)
     target_engine = create_engine(f"sqlite:///{args.target.resolve()}")
-    Base.metadata.create_all(target_engine)
-    result = import_dump(target_engine, args.dump, dry_run=args.dry_run, limit=args.limit, tables=args.tables)
+    try:
+        Base.metadata.create_all(target_engine)
+        result = import_dump(target_engine, args.dump, dry_run=args.dry_run, limit=args.limit, tables=args.tables)
+    finally:
+        target_engine.dispose()
     rendered = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if args.report:
         args.report.write_text(rendered, encoding="utf-8")

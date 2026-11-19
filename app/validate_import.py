@@ -99,7 +99,10 @@ def main() -> None:
     if not args.database.is_file():
         parser.error("database does not exist")
     database_engine = create_engine(f"sqlite:///{args.database.resolve()}")
-    result = validate_import(database_engine)
+    try:
+        result = validate_import(database_engine)
+    finally:
+        database_engine.dispose()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -1,3 +1,4 @@
+from .clock import utc_now
 from datetime import datetime
 
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Table, Text
@@ -55,7 +56,7 @@ class ReportParam(Base):
 class SchemaVersion(Base):
     __tablename__ = "schema_versions"
     version = Column(String(50), primary_key=True)
-    applied_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    applied_at = Column(DateTime, nullable=False, default=utc_now)
 
 
 class Permission(Base):
@@ -103,7 +104,7 @@ class PasswordReset(Base):
     __tablename__ = "password_resets"
     email = Column(String(255), primary_key=True)
     token = Column(String(128), nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
 
 
 class OrderStatus(Base):
@@ -397,7 +398,7 @@ class Action(Base):
     item_id = Column(Integer, nullable=True)
     comment = Column(String(255), nullable=False)
     url = Column(String(100), nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
     deleted_at = Column(DateTime, nullable=True)
     user = relationship("User")
 

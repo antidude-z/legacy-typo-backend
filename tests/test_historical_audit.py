@@ -10,6 +10,7 @@ from app import models  # noqa: F401
 class HistoricalAuditTests(unittest.TestCase):
     def test_audit_is_read_only_and_reports_calc_details(self):
         engine = create_engine("sqlite://")
+        self.addCleanup(engine.dispose)
         Base.metadata.create_all(engine)
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO orders (id,title,order_type,status_id,printing,total,calc_details) VALUES (1,'A','poly',1,1,0,'a:1:{s:8:\"printing\";i:1;}')"))

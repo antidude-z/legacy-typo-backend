@@ -10,6 +10,7 @@ from app.validate_import import validate_import
 class ImportValidationTests(unittest.TestCase):
     def test_clean_import_is_valid(self):
         engine = create_engine("sqlite://")
+        self.addCleanup(engine.dispose)
         Base.metadata.create_all(engine)
         result = validate_import(engine)
         self.assertTrue(result["valid"])
@@ -23,6 +24,7 @@ class ImportValidationTests(unittest.TestCase):
             connection.execute(text("INSERT INTO orders (id, title, order_type, status_id, printing, total) VALUES (1, 'Order', 'poly', 1, 1, 0)"))
         engine.dispose()
         engine = create_engine("sqlite://")
+        self.addCleanup(engine.dispose)
         Base.metadata.create_all(engine)
         with engine.begin() as connection:
             connection.execute(text("INSERT INTO order_statuses (id, title, sequence) VALUES (1, 'Status', 1)"))

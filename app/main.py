@@ -1,3 +1,4 @@
+from .clock import utc_now
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -464,7 +465,7 @@ def password_email(request: Request, email: str = Form(...), db: Session = Depen
         raw_token = secrets.token_urlsafe(48)
         existing = db.get(PasswordReset, email)
         if existing: db.delete(existing)
-        db.add(PasswordReset(email=email, token=_reset_digest(raw_token), created_at=datetime.utcnow()))
+        db.add(PasswordReset(email=email, token=_reset_digest(raw_token), created_at=utc_now()))
         try:
             deliver_reset_mail(email, raw_token)
             db.commit()
@@ -482,7 +483,7 @@ def password_reset(
     if current_user(request, db):
         return RedirectResponse("/orders", status_code=303)
     row = db.get(PasswordReset, email.strip().lower())
-    if not row or not secrets.compare_digest(row.token, _reset_digest(token)) or datetime.utcnow() - row.created_at > timedelta(minutes=RESET_TOKEN_MINUTES):
+    if not row or not secrets.compare_digest(row.token, _reset_digest(token)) or utc_now() - row.created_at > timedelta(minutes=RESET_TOKEN_MINUTES):
         return _auth_error("Ссылка для сброса пароля недействительна или устарела.")
     if len(password) < 6 or len(password.encode()) > 72 or password != password_confirmation:
         return _auth_error("Пароли должны совпадать и содержать минимум 6 символов.", {"password": "Неверный пароль."})
@@ -781,7 +782,7 @@ def order_delete(order_id: int, request: Request, db: Session = Depends(get_db))
     if item.deleted_at is not None and user.has_permission("delete_trashed"):
         db.delete(item)
     else:
-        item.deleted_at = __import__("datetime").datetime.utcnow()
+        item.deleted_at = utc_now()
         db.add(Action(user_id=user.id, module="Заказы", item_id=item.id, comment="Заказ удален", url=f"orders/{item.id}"))
     db.commit()
     return {"status": "ok"}
@@ -953,7 +954,7 @@ def operation_delete(order_id: int, operation: str, item_id: int, request: Reque
     if item.deleted_at is not None and user.has_permission("delete_trashed"):
         db.delete(item)
     else:
-        item.deleted_at = __import__("datetime").datetime.utcnow()
+        item.deleted_at = utc_now()
     db.commit()
     return {"status": "ok"}
 
@@ -1110,7 +1111,7 @@ def blank_delete(order_id: int, blank_id: int, request: Request, db: Session = D
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
-    item.deleted_at = __import__("datetime").datetime.utcnow()
+    item.deleted_at = utc_now()
     db.commit()
     return {"status": "ok"}
 
