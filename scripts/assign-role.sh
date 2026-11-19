@@ -11,6 +11,7 @@ fi
 COMPOSE=(docker compose --project-directory "$ROOT" -f "$ROOT/docker-compose.yaml")
 if [[ -f "$ROOT/compose.mysql.yaml" ]]; then
   COMPOSE+=(-f "$ROOT/compose.mysql.yaml")
+  COMPOSE+=(--profile mysql)
 fi
 "${COMPOSE[@]}" exec -T backend .venv/bin/python -m app.assign_role "$1" "$2"
 read -r -p 'Apply this role assignment? Type YES: ' confirmation
