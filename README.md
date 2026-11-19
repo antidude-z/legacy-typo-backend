@@ -20,6 +20,15 @@ results without printing credentials, and refuses skipped tests. It mutates the
 clone and does not create or reset it. Use separate test credentials restricted
 to that database; hostname aliases cannot be reliably detected by the guard.
 
+For an explicitly disposable clone, `python -m app.mysql_clone_reset DUMP
+--confirm RESET-typography_fullclone_test` recreates that database and imports
+the dump using `MYSQL_TEST_DEFAULTS_FILE` (a protected MySQL client option file).
+Use an account whose privileges are restricted to that database; dump SQL can
+contain `USE` or other statements and the script does not sandbox SQL. The reset
+is destructive and not transactional. Do not run it with production credentials.
+Run compatibility migrations on the clone and then the guarded test runner.
+This reset procedure has not yet been verified against the VM's actual dump.
+
 The imported-schema test uses a schema-only copy of the historical database,
 not a full historical-data clone. MySQL compatibility upgrades permit NULL in
 columns declared optional by the ORM and in obsolete polymorphic action fields;
