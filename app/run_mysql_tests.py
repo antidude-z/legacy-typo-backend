@@ -24,6 +24,7 @@ def main() -> int:
         return 2
     print(json.dumps({'preflight': 'passed', **info}), flush=True)
     suite = unittest.defaultTestLoader.loadTestsFromName('tests.test_mysql_runtime.MySQLRuntimeTests')
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromName('tests.test_session_security.MySQLSessionSecurityTests'))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     report = {**info, 'tests_run': result.testsRun, 'failures': len(result.failures),
               'errors': len(result.errors), 'skipped': len(result.skipped),
