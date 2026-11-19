@@ -104,3 +104,8 @@ S01 remains open: these checks are not atomic against concurrent assignment or
 matrix changes, direct SQL, or other writers; MyISAM rollback is unavailable.
 A transactional schema/concurrency strategy and disposable MySQL concurrency
 tests are required. No VM deployment or production-like database was changed.
+
+Additional verification: repeated administrator demotion/deletion requests
+leave every modeled table unchanged, and operator CLI preview remains read-only.
+Eight focused tests and 227 backend tests passed (11 MySQL-only skips). These
+checks do not resolve concurrent role-assignment/permission-matrix races.

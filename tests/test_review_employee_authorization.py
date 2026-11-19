@@ -127,3 +127,17 @@ class EmployeeAuthorizationReviewTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(self.client.post('/api/options/permissions', headers=self.headers,
                          json={'permissions': {'view_menu_options_permissions': [self.role.id]}}).status_code, 200)
+
+    def test_admin_demotion_and_repeated_delete_leave_data_unchanged(self):
+        self.grant('user_delete', 'user_edit', 'view_menu_options_permissions')
+        staff = Role(title='Ordinary staff')
+        self.target.role = self.role
+        self.db.add(staff); self.db.commit()
+        payload = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
+                   'email': self.target.email, 'post': 'Staff', 'role_id': staff.id,
+                   'fired': False}
+        before = self.snapshot()
+        for _ in range(2):
+            self.assertEqual(self.client.patch(self.path, headers=self.headers, json=payload).status_code, 409)
+            self.assertEqual(self.client.delete(self.path, headers=self.headers).status_code, 409)
+        self.assertEqual(self.snapshot(), before)

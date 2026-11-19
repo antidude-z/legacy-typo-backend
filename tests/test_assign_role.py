@@ -18,6 +18,7 @@ class AssignRoleTests(unittest.TestCase):
                 db.add_all([Role(id=1, title='Admin', permissions=[permission]), Role(id=2, title='Staff'),
                             User(id=1, name='Admin', email='admin@example.test', password='unused', role_id=1)])
                 db.commit()
+                self.assertFalse(assign_role(db, 'id:1', 'id:2')['applied'])
                 with self.assertRaises(ValueError):
                     assign_role(db, 'id:1', 'id:2', True)
                 self.assertEqual(db.get(User, 1).role_id, 1)
