@@ -13,6 +13,13 @@ then run `uv run python -m unittest tests.test_mysql_runtime -v`. The test
 creates fixtures and leaves them in that test database for inspection. Never
 use a business database. Without this variable the MySQL integration test skips.
 
+For the existing full clone, set `MYSQL_TEST_URL` to the dedicated
+`typography_fullclone_test` database and run `uv run python -m app.run_mysql_tests`.
+The runner checks the target name and configured `DATABASE_URL`, reports test
+results without printing credentials, and refuses skipped tests. It mutates the
+clone and does not create or reset it. Use separate test credentials restricted
+to that database; hostname aliases cannot be reliably detected by the guard.
+
 The imported-schema test uses a schema-only copy of the historical database,
 not a full historical-data clone. MySQL compatibility upgrades permit NULL in
 columns declared optional by the ORM and in obsolete polymorphic action fields;

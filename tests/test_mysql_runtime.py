@@ -16,6 +16,7 @@ from app.main import app
 from app.models import Bill, Order, OrderStatus, Payer, Role, User
 from app.orders import legacy_date
 from app.schema import apply_migrations
+from app.mysql_test_guard import validate_test_url
 
 
 class LegacyDateTests(unittest.TestCase):
@@ -32,8 +33,7 @@ class LegacyDateTests(unittest.TestCase):
 class MySQLRuntimeTests(unittest.TestCase):
     def test_real_mysql_crud_round_trip(self):
         url = os.environ['MYSQL_TEST_URL']
-        if make_url(url).database not in {'typography_runtime_test', 'typography_imported_test', 'typography_fullclone_test'}:
-            self.fail('Refusing database other than a dedicated typography test database')
+        validate_test_url(url, os.getenv('DATABASE_URL'))
         engine = create_engine(url)
         apply_migrations(engine)
         with Session(engine) as db:
@@ -81,6 +81,7 @@ class MySQLRuntimeTests(unittest.TestCase):
 
     def test_full_clone_historical_reads_and_reports(self):
         url = os.environ['MYSQL_TEST_URL']
+        validate_test_url(url, os.getenv('DATABASE_URL'))
         if make_url(url).database != 'typography_fullclone_test':
             self.skipTest('Requires full historical clone')
         engine = create_engine(url)
