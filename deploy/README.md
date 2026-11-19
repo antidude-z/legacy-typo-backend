@@ -35,6 +35,14 @@ Back up the original file, explicitly map that exact external volume, preserve
 the database URL, secrets and port 8080, and plan a maintenance deployment. The
 QA test below uses a separate project and never mounts that volume.
 
+The tracked `validation-vm.yaml` overlay captures that existing volume/database
+mapping without secrets. During an approved maintenance deployment use all three
+files (`compose.yaml`, `mysql.yaml`, `validation-vm.yaml`) with project name
+`rework`. Preserve the original Compose file, set `FRONTEND_BIND=0.0.0.0` only if
+LAN access is intended, and verify the resolved configuration privately before
+running `up`. This overlay has been configuration-validated, not applied to the
+working VM containers. Never use it for the isolated QA test.
+
 ```sh
 python3 backend/scripts/compose_qa.py
 ```
@@ -43,3 +51,7 @@ This builds current images, creates an isolated MySQL and backend-data volume,
 checks health/proxy/SPA routes and persistence across restarts/recreation, then
 removes only its `typography_deployqa` containers/volumes. Results are in
 `qa-results/compose/`. Do not run another QA stack on port 8082 concurrently.
+
+VM verification on 19 November 2026 passed fresh builds, health-gated startup,
+API/report/SPA proxy checks, MySQL restart persistence, container recreation
+persistence, and backend restart recovery. The working stack was not restarted.

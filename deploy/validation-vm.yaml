@@ -1,0 +1,9 @@
+# Existing validation VM only; never use on a fresh server.
+services:
+  backend:
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-typography}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/typography_restored?charset=utf8mb4
+volumes:
+  mysql_data:
+    external: true
+    name: rework_mysql_validation
