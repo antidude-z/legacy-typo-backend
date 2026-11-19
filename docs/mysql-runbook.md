@@ -77,3 +77,26 @@ the pre-upgrade snapshot before declaring recovery successful.
 
 The automated clone procedure does not authorize production replacement. Full
 restore/upgrade-rollback exercise and target-environment acceptance remain required.
+
+## Recovery rehearsal
+
+From the VM Compose directory run:
+
+```sh
+python3 backend/scripts/mysql_recovery_qa.py
+```
+
+This resets the disposable clone from `/root/legacy/dump_full.sql`, backs up its
+unmodified schema/data, upgrades and seeds, restores the backup, and re-upgrades.
+It compares all table counts, checksums, DDL, and migration version lists. Migration
+timestamps are excluded only from the re-upgrade equality check. Temporary
+credentials are clone-scoped and removed afterward. The verified clone backup is
+deleted to conserve disk; diagnostics remain in `qa-results/recovery-TIMESTAMP/`.
+On failure the backup is retained for inspection. This is not a production backup
+retention procedure. A shared lock prevents concurrent clone QA runs.
+
+The VM rehearsal passed on 19 November 2026: 54 original tables restored exactly,
+re-upgrade business snapshots matched, and working orders/bills/payments checksums
+were unchanged. Rollback was backup-based, not reverse DDL. The working application
+was not restarted or upgraded. Source dump and existing recovery backups were
+retained. Repeat this rehearsal after migration changes and before real cutover.
