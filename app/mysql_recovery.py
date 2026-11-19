@@ -28,7 +28,7 @@ def backup(destination: Path, defaults: Path) -> dict:
         temporary.chmod(0o600)
         try:
             subprocess.run(['mysqldump', f'--defaults-extra-file={defaults}',
-                            '--lock-all-tables', '--skip-add-locks', '--no-tablespaces',
+                            '--lock-tables', '--skip-add-locks', '--no-tablespaces',
                             '--hex-blob', TARGET], stdout=output, check=True)
         except BaseException:
             output.close()

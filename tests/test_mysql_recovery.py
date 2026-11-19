@@ -19,7 +19,8 @@ class MySQLRecoveryTests(unittest.TestCase):
                 if command[0] == 'mysql':
                     self.assertIn('--raw', command)
                     return subprocess.CompletedProcess(command, 0, r'GRANT ALL PRIVILEGES ON `typography\_fullclone\_test`.* TO `qa`@`%`')
-                self.assertIn('--lock-all-tables', command)
+                self.assertIn('--lock-tables', command)
+                self.assertNotIn('--lock-all-tables', command)
                 kwargs['stdout'].write(b'CREATE TABLE sample (id int);\n')
 
             with patch('app.mysql_recovery.subprocess.run', side_effect=execute) as run:

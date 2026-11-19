@@ -48,7 +48,7 @@ python -m app.mysql_recovery restore /backups/clone-before-upgrade.sql \
   --report /backups/clone-restored.json
 ```
 
-Use new report/backup paths each run. Backup uses table locks for MyISAM
+Use new report/backup paths each run. Backup uses database-scoped table locks for MyISAM
 consistency; it does not claim recoverability until a restore is tested. Restore
 is destructive, verifies the expected source hash first, checks account grants,
 then drops/recreates only the clone. SQL imports require trusted source files:
