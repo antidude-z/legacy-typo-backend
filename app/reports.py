@@ -496,8 +496,8 @@ def register_report_routes(app, current_user):
         if not item or item.deleted_at: raise HTTPException(404)
         rows = db.scalars(select(Report).where(Report.model == model_name,Report.deleted_at.is_(None)).order_by(Report.id)).all()
         return {"items":[serialize_report(row) | {
-            "available":((row.id in {"order_transcript"} and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide", "order_design"} and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_payment" and row.model == "App\\Order" and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_shipping" and row.model == "App\\Bill" and row.program == "ipc" and row.kind == "pdf")) and (row.id == "order_payment" or not row.form),
-            "blocked":str(getattr(item,"status_id","")) in row.prohibitions.split(","),
+            "available":((row.id in {"order_transcript"} and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide", "order_design"} and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_payment" and row.model == "App\\Bill" and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_shipping" and row.model == "App\\Bill" and row.program == "ipc" and row.kind == "pdf")) and (row.id in {"order_payment", "order_shipping"} or not row.form),
+            "blocked":str(getattr(item,"status_id","")) in [value.strip() for value in row.prohibitions.split(",") if value.strip()],
             "url":f"/reports/{row.id}/item/{identity}",
         } for row in rows]}
 

@@ -48,6 +48,21 @@ class ReportTests(unittest.TestCase):
         self.db.get(Report,'order_transcript').download=True; self.db.commit()
         self.assertIn('attachment',self.client.get('/reports/order_transcript/item/1').headers['content-disposition'])
 
+    def test_bill_form_reports_are_available_without_empty_status_blocks(self):
+        self.seed()
+        self.db.add_all([
+            Bill(id=91, number='Historical', amount=10, currency='RUB'),
+            Report(id='order_shipping', program='ipc', kind='pdf', form=True,
+                   title='Shipping', model='App\\Bill', model_title='Bill'),
+        ])
+        self.db.commit()
+        response = self.client.get('/api/reports/for/bills/91')
+        self.assertEqual(response.status_code, 200)
+        actions = {row['id']: row for row in response.json()['items']}
+        for name in ('order_payment', 'order_shipping'):
+            self.assertTrue(actions[name]['available'])
+            self.assertFalse(actions[name]['blocked'])
+
     def test_status_blocking_and_unported_formats_explicit(self):
         self.seed()
         actions=self.client.get('/api/reports/for/orders/1').json()['items']
