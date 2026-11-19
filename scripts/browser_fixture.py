@@ -27,7 +27,8 @@ def main():
     initialize_database(engine)
     with Session(engine) as db:
         role = Role(title='Browser QA', permissions=db.scalars(select(Permission)).all())
-        for email, name, assigned_role in [('browser@example.test', 'Browser', role), ('limited@example.test', 'Limited', None)]:
+        reader = Role(title='Browser Orders reader', permissions=[db.get(Permission, 'view_menu_orders')])
+        for email, name, assigned_role in [('browser@example.test', 'Browser', role), ('limited@example.test', 'Pending', None), ('reader@example.test', 'Reader', reader)]:
             user = db.scalar(select(User).where(User.email == email))
             if user is None:
                 user = User(email=email)

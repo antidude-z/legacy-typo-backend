@@ -8,7 +8,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 | Finding | Status | Evidence / next step |
 |---|---|---|
 | S01 | verified | Domain/lifecycle gates, self-disable and privileged-target restrictions, shared writer serialization, projected last-admin invariant; verified on SQLite and isolated MySQL InnoDB/MyISAM. See completion evidence below. |
-| S02 | unstarted | Public registration / pending-account containment. |
+| S02 | in progress | Default-disabled registration and pending-account business admission verified locally; 242 backend tests OK (19 MySQL skips), 17 Chromium workflows pass. Disposable MySQL admission verification and pre-rollout account inventory remain; no deployment. |
 | S03 | unstarted | Business write authorization across domains and aliases. |
 | S04 | unstarted | Role delegation and privileged-target policy. |
 | S05 | unstarted | Report domain-read authorization. |
@@ -150,3 +150,29 @@ locks are not a general replacement for transactional MyISAM persistence. Recove
 from a historically zero-admin database remains an explicit operator operation.
 General role delegation and credential takeover are S04/S07, not silently claimed
 resolved here. These are Phase 1 checks, not Phase 2 scenario executions.
+## S02 admission boundary — in progress
+Public registration defaults off in every environment. Explicit opt-in creates a roleless pending account, never a default manager/admin. A shared FastAPI dependency covers business routes and compatibility aliases; auth, recovery, session, CSRF and health are exempt. Session metadata advertises registration availability and business admission. Frontend hides disabled registration and presents pending approval. Read-only inventory: uv run python -m app.audit_pending_accounts (IDs/state only; no deletion). Existing user schema has no creation timestamp, so this cannot classify accounts by registration date.
+Validation: eight focused registration/auth tests passed; frontend 19 helper tests and build passed. Full backend 240 run: 68 failures, 29 errors, 19 skips, primarily legacy roleless mocked fixtures. S02 is NOT complete: reconcile legitimate staff fixtures without overriding admission; run browser pending/disabled-registration tests and disposable MySQL admission tests. Existing S01 real-session regressions must stay green. No working database or VM changed. Phase 2 has not started.
+
+## S02 regression reconciliation
+
+Supersedes the failing-suite status above. Mock-auth CRUD fixtures now explicitly
+carry a synthetic admitted role; the admission dependency is never overridden.
+Real-session tests separately enumerate every registered business route/method
+for guest, roleless and empty-role denial with valid CSRF and unchanged modeled
+tables. Opt-in registration remains pending. Approval/revocation takes effect on
+subsequent requests; pending accounts can log out. Inventory is read-only.
+
+Browser fixtures distinguish pending accounts from Orders-only staff. Disabled
+registration has no form or navigation links. Pending accounts cannot mount
+business screens or see business menus; direct API calls still return 403.
+
+Validation: backend 242 run, OK, 19 opt-in MySQL skips, warnings treated as errors;
+17 Chromium workflows, 19 frontend helpers, production build, compilation and
+diff checks passed. S01 regressions remain green locally. No production/shared
+database or VM was accessed. No historical accounts were deleted or reassigned.
+
+Remaining S02 gates: run admission regressions on guarded disposable MySQL;
+run the read-only account inventory before rollout and have an operator review
+unassigned accounts. Registration date cannot be inferred from the mapped schema.
+Per-action permissions/delegation remain S03/S04. Phase 2 has not started.

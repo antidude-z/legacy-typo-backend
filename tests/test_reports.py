@@ -190,6 +190,8 @@ class ReportTests(unittest.TestCase):
         self.db.add_all([bill, order, manager, ReportParam(id=2, alias='prorector', report_id='order_payment', title='Prorector', value='A'), ReportParam(id=3, alias='zam_prorectora', report_id='order_payment', title='Deputy', value='B'), ReportParam(id=4, alias='boss', report_id='order_payment', title='Boss', value='C'), ReportParam(id=5, alias='buh', report_id='order_payment', title='Accountant', value='D'), ReportParam(id=6, alias='pfu', report_id='order_payment', title='PFU', value='E')])
         self.db.commit()
         self.auth_mock.return_value = manager
+        from tests.staff_fixture import admit_mock_staff
+        admit_mock_staff(manager)
         response = self.client.get('/reports/order_payment/item/20')
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.headers['content-type'], 'application/vnd.ms-excel')

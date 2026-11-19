@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import app
+from tests.staff_fixture import admit_mock_staff
 from app.models import Measure, Order, PaperFormat, PaperType, User
 
 
@@ -22,6 +23,7 @@ class ReferenceDictionaryTests(unittest.TestCase):
             yield self.db
         app.dependency_overrides[get_db] = database
         self.user = User(id=1, name='Test', email='test', password='unused')
+        admit_mock_staff(self.user)
         self.auth = patch('app.main.current_user', return_value=self.user)
         self.auth_mock = self.auth.start()
         self.permission = patch.object(User, 'has_permission', return_value=True)

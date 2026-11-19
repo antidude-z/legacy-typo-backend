@@ -1,5 +1,19 @@
 # Typography backend
 
+## Staff admission and registration
+
+Public registration is disabled by default on both aliases. Only set
+`PUBLIC_REGISTRATION_ENABLED=true` if pending self-registration is required.
+Such accounts receive no role or business access. Provision staff through the
+authorized employee editor or assign an existing role through the operator CLI.
+Business endpoints require an active, non-fired account with an existing role
+containing permissions; individual endpoint permissions still apply separately.
+Roleless and empty-permission accounts retain login, logout and password recovery.
+Review unassigned accounts without changing them using
+`uv run python -m app.audit_pending_accounts`. Output contains IDs and state,
+not credentials. No account is deleted automatically; registration age cannot
+be inferred because the mapped user schema has no creation timestamp.
+
 ## Final regression commands
 
 From `backend/` run `uv sync --frozen`, then

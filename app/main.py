@@ -13,7 +13,7 @@ from email.message import EmailMessage
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 
 import bcrypt
-from fastapi import Depends, FastAPI, Form, Query, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
@@ -30,6 +30,19 @@ from .bootstrap import initialize_database
 from .diagnostics import database_diagnostics
 from .config import PRODUCTION, LOGIN_LIMIT_DB
 from .login_limits import reserve_attempt, clear_attempts
+from .config import PUBLIC_REGISTRATION_ENABLED
+
+
+def require_staff_admission(request: Request, db: Session = Depends(get_db)):
+    """Fail closed for business routes, including compatibility aliases."""
+    path = request.url.path
+    if path in {"/", "/health", "/api/health", "/api/session", "/session", "/api/csrf-token"} or path.startswith(("/auth/", "/api/auth/", "/password/", "/api/password/")):
+        return
+    user = current_user(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    if user.role is None or not user.role.permissions:
+        raise HTTPException(status_code=403, detail="staff_approval_required")
 
 
 @asynccontextmanager
@@ -39,6 +52,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
+    dependencies=[Depends(require_staff_admission)],
     title="Typography Backend",
     description="Compatibility backend for the legacy typography application.",
     version="0.1.0",
@@ -310,6 +324,8 @@ def session_info(request: Request, db: Session = Depends(get_db)) -> dict:
     user = current_user(request, db)
     return {
         "authenticated": user is not None,
+        "business_access": bool(user and user.role and user.role.permissions),
+        "public_registration_enabled": PUBLIC_REGISTRATION_ENABLED,
         "user": ({"id": user.id, "name": user.name, "surname": user.surname, "email": user.email} if user else None),
         "menu": build_navigation(user),
     }
@@ -409,6 +425,8 @@ def register(
     password_confirmation: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    if not PUBLIC_REGISTRATION_ENABLED:
+        return JSONResponse({"error": "registration_disabled", "message": "Регистрация отключена. Обратитесь к администратору."}, status_code=403)
     if current_user(request, db):
         return JSONResponse({"message": "Вы уже вошли в систему."}, status_code=409)
     email = email.strip().lower()

@@ -39,6 +39,7 @@ class AuthenticationTests(unittest.TestCase):
         self.db.close()
         self.engine.dispose()
 
+    @patch('app.main.PUBLIC_REGISTRATION_ENABLED', True)
     def test_registration_validates_and_creates_session(self):
         invalid = self.client.post("/api/auth/register", data={"name": "", "email": "bad", "password": "short", "password_confirmation": "other"})
         self.assertEqual(invalid.status_code, 422)
