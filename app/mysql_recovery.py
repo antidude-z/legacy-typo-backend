@@ -25,6 +25,7 @@ def backup(destination: Path, defaults: Path) -> dict:
     temporary = destination.with_name(destination.name + '.partial')
     # Exclusive creation prevents clobbering another run's in-progress backup.
     with temporary.open('xb') as output:
+        temporary.chmod(0o600)
         try:
             subprocess.run(['mysqldump', f'--defaults-extra-file={defaults}',
                             '--lock-all-tables', '--skip-add-locks', '--no-tablespaces',
