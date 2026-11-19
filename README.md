@@ -1,5 +1,33 @@
 # Typography backend
 
+## Final regression commands
+
+From `backend/` run `uv sync --frozen`, then
+`uv run python -W error -m unittest discover -s tests -q`.
+The local suite deliberately skips opt-in MySQL tests when no test URL is set.
+From `frontend/` run `npm ci`, `npx playwright install chromium`, `npm test`,
+`npm run build`, and `npm run test:e2e -- --reporter=line`.
+
+For the actual MySQL suite, from the VM Compose directory build a fresh locked
+image and pass its name explicitly, so QA does not inherit stale dependencies:
+
+```sh
+docker build -t rework-finalqa backend
+QA_BASE_IMAGE=rework-finalqa python3 backend/scripts/mysql_fullclone_qa.py \
+  --dump /root/legacy/dump_full.sql \
+  --confirm RESET-typography_fullclone_test
+```
+
+This destroys/reset only the named QA clone. Do not run concurrent clone QA
+jobs. Inspect `qa-results/tests.json`, `access-boundary.json`, and
+`working-integrity.json`; successful tests alone do not establish business or
+visual acceptance. Test setup creates temporary accounts and fixtures only in
+the clone. Running checkout tests/builds does not deploy working containers.
+
+Remaining acceptance limits: sampled Chromium coverage; no physical printing,
+business approval of totals, real SMTP delivery, or organizational TLS approval.
+Use the manual acceptance list in `../MIGRATION.md`. No PHP runtime is used.
+
 ## Runtime regression check
 
 `uv run python -W error -m unittest discover -s tests -q` runs the backend suite
