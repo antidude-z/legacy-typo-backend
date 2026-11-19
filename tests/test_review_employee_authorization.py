@@ -93,3 +93,20 @@ class EmployeeAuthorizationReviewTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
         payload['fired'] = False
         self.assertEqual(self.client.patch(path, headers=self.headers, json=payload).status_code, 200)
+
+    def test_privileged_target_and_self_role_change_are_denied(self):
+        self.grant('user_delete', 'user_edit')
+        admin_role = Role(title='Security administrator', permissions=[Permission(
+            id='view_menu_options_permissions', title='Security', module='options')])
+        self.target.role = admin_role
+        self.db.commit()
+        payload = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
+                   'email': self.target.email, 'post': 'Staff', 'role_id': self.role.id,
+                   'fired': False}
+        before = self.snapshot()
+        self.assertEqual(self.client.delete(self.path, headers=self.headers).status_code, 403)
+        self.assertEqual(self.client.patch(self.path, headers=self.headers, json=payload).status_code, 403)
+        own = {**payload, 'name': 'Actor', 'email': self.actor.email, 'role_id': admin_role.id}
+        self.assertEqual(self.client.patch(f'/api/employee-references/{self.actor.id}',
+                                           headers=self.headers, json=own).status_code, 403)
+        self.assertEqual(self.snapshot(), before)

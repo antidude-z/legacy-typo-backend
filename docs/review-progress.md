@@ -74,3 +74,17 @@ Still open: self-demotion, privileged-target handling, and last-effective-admin
 protection across user edits and role-matrix updates, including concurrent MySQL
 transactions. The current changes do not protect a last administrator from a
 different authorized actor and must not be treated as complete S01 remediation.
+
+## S01 privileged-target increment — 2026-11-20
+
+Self-role changes are denied. Employee edit/delete requests targeting a holder
+of `view_menu_options_permissions` require that same security-administration
+permission. Real-session tests verify denial with all modeled tables unchanged.
+Nine focused tests passed; 224 backend tests passed with 11 MySQL-only skips.
+
+Release blocker remains: a security administrator can still disable the last
+effective administrator through another account or permission-matrix updates.
+The operator-only `app.assign_role` CLI is another role-change path. A shared
+transactional lock and effective-admin invariant must cover all three paths and
+be tested concurrently on disposable MySQL before S01 can be marked fixed.
+General delegation of privileged roles on creation/update remains S04.

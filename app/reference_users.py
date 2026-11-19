@@ -99,6 +99,10 @@ def register_user_reference_routes(app, current_user):
         changes = values(payload,db,identity)
         if user.id == row.id and changes["fired"]:
             raise HTTPException(403, "Нельзя уволить собственную учетную запись.")
+        if user.id == row.id and changes["role_id"] != row.role_id:
+            raise HTTPException(403, "Нельзя изменить собственную роль.")
+        if row.has_permission("view_menu_options_permissions") and not user.has_permission("view_menu_options_permissions"):
+            raise HTTPException(403, "Недостаточно прав для изменения администратора.")
         for key,value in changes.items(): setattr(row,key,value)
         db.commit(); return {"status":"ok"}
 
@@ -107,6 +111,8 @@ def register_user_reference_routes(app, current_user):
         user = actor(request,db,"user_delete"); row = account(identity,db)
         if user.id == row.id:
             raise HTTPException(403, "Нельзя удалить собственную учетную запись.")
+        if row.has_permission("view_menu_options_permissions") and not user.has_permission("view_menu_options_permissions"):
+            raise HTTPException(403, "Недостаточно прав для удаления администратора.")
         if row.deleted_at:
             if not user.has_permission("delete_trashed"): raise HTTPException(403)
             db.delete(row)
