@@ -1,6 +1,7 @@
 """Dependency-free, tracked schema migrations for the local rework database."""
 
 from datetime import UTC, datetime
+import re
 
 from sqlalchemy import inspect, text
 
@@ -131,6 +132,48 @@ def migration_2026_11_19_05(connection) -> None:
         connection.execute(text('SET SESSION sql_mode=:mode'), {'mode': mode})
 
 
+def _sqlite_redeclare(connection, table, field, declaration):
+    """Rebuild a table while retaining extra columns, indexes and triggers."""
+    sql = connection.scalar(text("SELECT sql FROM sqlite_master WHERE type='table' AND name=:name"), {'name': table})
+    if not sql:
+        return
+    # These fixed targets have no incoming model foreign keys. Fail closed if
+    # a deployment added one rather than silently cascading on DROP TABLE.
+    for other in inspect(connection).get_table_names():
+        if any(fk['referred_table'] == table for fk in inspect(connection).get_foreign_keys(other)):
+            raise RuntimeError(f'Cannot rebuild {table}: incoming foreign key from {other}')
+    pattern = rf'(?P<prefix>(?:"{field}"|\b{field}\b)\s+)(?:NUMERIC\s*\([^)]*\)|INTEGER)(?:\s+NOT NULL)?'
+    changed, count = re.subn(pattern, lambda match: match['prefix'] + declaration, sql, count=1, flags=re.I)
+    if count != 1:
+        raise RuntimeError(f'Unrecognized SQLite declaration: {table}.{field}')
+    temp = f'_upgrade_{table}'
+    changed = re.sub(r'^(CREATE TABLE\s+)(?:"' + table + r'"|' + table + r')(?=\s|\()', lambda m: m[1] + '"' + temp + '"', changed, count=1, flags=re.I)
+    objects = connection.execute(text("SELECT sql FROM sqlite_master WHERE tbl_name=:name AND type IN ('index','trigger') AND sql IS NOT NULL"), {'name': table}).scalars().all()
+    quote = connection.dialect.identifier_preparer.quote
+    columns = ', '.join(quote(c['name']) for c in inspect(connection).get_columns(table))
+    connection.execute(text(changed))
+    connection.execute(text(f'INSERT INTO {quote(temp)} ({columns}) SELECT {columns} FROM {quote(table)}'))
+    connection.execute(text(f'DROP TABLE {quote(table)}'))
+    connection.execute(text(f'ALTER TABLE {quote(temp)} RENAME TO {quote(table)}'))
+    for statement in objects:
+        connection.execute(text(statement))
+
+
+def migration_2026_11_19_06(connection):
+    if connection.dialect.name == 'sqlite':
+        for table in ('order_prepresses', 'order_redactions'):
+            column = next(c for c in inspect(connection).get_columns(table) if c['name'] == 'quantity')
+            if str(column['type']).upper() != 'NUMERIC(8, 2)':
+                _sqlite_redeclare(connection, table, 'quantity', 'NUMERIC(8,2) NOT NULL')
+        column = next(c for c in inspect(connection).get_columns('actions') if c['name'] == 'item_id')
+        if not column['nullable']:
+            _sqlite_redeclare(connection, 'actions', 'item_id', 'INTEGER')
+    elif connection.dialect.name == 'mysql':
+        column = next(c for c in inspect(connection).get_columns('order_markups') if c['name'] == 'markup_type')
+        if column['type'].length < 50:
+            connection.execute(text('ALTER TABLE order_markups MODIFY COLUMN markup_type VARCHAR(50) NOT NULL'))
+
+
 MIGRATIONS = (
     ("2026-11-13-01", migration_2026_11_13_01),
     ("2026-11-19-01", migration_2026_11_19_01),
@@ -138,6 +181,7 @@ MIGRATIONS = (
     ("2026-11-19-03", migration_2026_11_19_02),
     ("2026-11-19-04", migration_2026_11_19_04),
     ("2026-11-19-05", migration_2026_11_19_05),
+    ("2026-11-19-06", migration_2026_11_19_06),
 )
 
 

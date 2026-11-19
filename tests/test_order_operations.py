@@ -7,6 +7,26 @@ from app.models import OtherWork, OrderOtherWork, Paper, Price
 
 
 class OrderOperationTests(unittest.TestCase):
+    def test_fractional_work_edit_copy_and_calculation(self):
+        from decimal import Decimal
+        from app.models import OrderPrepress, OrderRedaction
+        for operation, field, model, kind in [('prepresses', 'prepress_id', OrderPrepress, 'Prepress'),
+                                              ('redactions', 'redaction_id', OrderRedaction, 'Redaction')]:
+            created = self.client.post(f'/api/orders/10/{operation}', json={field: 10, 'quantity': '1.25'})
+            self.assertEqual(created.status_code, 200, created.text)
+            identity = created.json()['id']
+            self.assertEqual(self.client.patch(f'/api/orders/10/{operation}/{identity}', json={'quantity':'2.75'}).status_code, 200)
+            self.assertEqual(self.client.patch(f'/api/orders/10/{operation}/{identity}', json={'quantity':'1.001'}).status_code, 422)
+            self.db.add(Price(priceable_type=f'App\\{kind}', priceable_id=10, amount=4,
+                              currency='RUB', actual_since=date(2020,1,1), actual_from=0))
+        self.db.commit()
+        from app.orders import calculate_order
+        result = calculate_order(self.db, self.db.get(Order,10))
+        self.assertEqual(Decimal(result['components']['design']), Decimal('11'))
+        copied = self.client.post('/api/orders/10/copy', json={}).json()['id']
+        for model in (OrderPrepress, OrderRedaction):
+            self.assertEqual(self.db.query(model).filter_by(order_id=copied).one().quantity, Decimal('2.75'))
+
     tearDown = fixtures.ReferenceDictionaryTests.tearDown
 
     def setUp(self):

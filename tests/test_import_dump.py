@@ -11,6 +11,22 @@ from app.models import Option, Order
 
 
 class DumpImportTests(unittest.TestCase):
+    def test_fractional_work_quantities_are_not_truncated(self):
+        from decimal import Decimal
+        from app.models import OrderPrepress, OrderRedaction
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'work.sql'
+            path.write_text("INSERT INTO `order_prepresses` (`id`,`order_id`,`prepress_id`,`quantity`) VALUES (1,7,2,1.25);\n"
+                            "INSERT INTO `order_redactions` (`id`,`order_id`,`redaction_id`,`quantity`) VALUES (1,7,2,2.75);\n")
+            engine = create_engine('sqlite://')
+            try:
+                Base.metadata.create_all(engine)
+                import_dump(engine, path)
+                with Session(engine) as db:
+                    self.assertEqual(db.get(OrderPrepress,1).quantity, Decimal('1.25'))
+                    self.assertEqual(db.get(OrderRedaction,1).quantity, Decimal('2.75'))
+            finally:
+                engine.dispose()
     def make_dump(self, directory):
         path = Path(directory) / "small.sql"
         path.write_text(

@@ -394,7 +394,7 @@ class Action(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     module = Column(String(50), nullable=False)
-    item_id = Column(Integer, nullable=False)
+    item_id = Column(Integer, nullable=True)
     comment = Column(String(255), nullable=False)
     url = Column(String(100), nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

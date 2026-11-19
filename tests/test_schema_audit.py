@@ -5,6 +5,23 @@ from app.schema import apply_migrations, migration_2026_11_19_04
 
 
 class SchemaAuditTests(unittest.TestCase):
+    def test_upgrade_old_sqlite_declarations_preserves_extra_data_and_indexes(self):
+        engine = create_engine('sqlite://')
+        try:
+            with engine.begin() as c:
+                c.execute(text('CREATE TABLE order_prepresses (id INTEGER PRIMARY KEY, order_id INTEGER, prepress_id INTEGER, quantity INTEGER NOT NULL DEFAULT 1, archived_note TEXT)'))
+                c.execute(text("INSERT INTO order_prepresses VALUES (7,1,1,1.25,'preserved')"))
+                c.execute(text('CREATE INDEX legacy_work_order ON order_prepresses(order_id)'))
+                c.execute(text('CREATE TABLE actions (id INTEGER PRIMARY KEY, item_id INTEGER NOT NULL, actionable_type TEXT)'))
+                c.execute(text("INSERT INTO actions VALUES (9,7,'App\\Order')"))
+            apply_migrations(engine)
+            self.assertEqual(apply_migrations(engine), [])
+            with engine.connect() as c:
+                self.assertEqual(tuple(c.execute(text('SELECT quantity, archived_note FROM order_prepresses')).one()), (1.25, 'preserved'))
+            self.assertTrue(next(c for c in inspect(engine).get_columns('actions') if c['name'] == 'item_id')['nullable'])
+            self.assertIn('legacy_work_order', {i['name'] for i in inspect(engine).get_indexes('order_prepresses')})
+        finally:
+            engine.dispose()
     def test_fractional_work_quantities_round_trip_in_fresh_schema(self):
         from sqlalchemy.orm import Session
         from app.models import OrderPrepress, OrderRedaction
