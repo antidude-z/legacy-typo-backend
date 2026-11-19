@@ -4,6 +4,7 @@ import secrets
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+from .config import PRODUCTION
 
 
 
@@ -28,10 +29,12 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request, call_next):
-        if request.method not in SAFE_METHODS and request.cookies.get(CSRF_COOKIE):
+        if request.method not in SAFE_METHODS and (PRODUCTION or request.cookies.get(CSRF_COOKIE)):
             cookie_token = request.cookies.get(CSRF_COOKIE)
             header_token = request.headers.get(CSRF_HEADER)
-            if not cookie_token or not header_token or not secrets.compare_digest(cookie_token, header_token):
+            session_token = request.session.get('csrf_token')
+            if (not cookie_token or not header_token or not secrets.compare_digest(cookie_token, header_token)
+                    or (PRODUCTION and (not session_token or not secrets.compare_digest(session_token, header_token)))):
                 return JSONResponse({"error": "csrf_failed", "message": "Недействительный CSRF-токен."}, status_code=419)
         response = await call_next(request)
         return response

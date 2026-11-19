@@ -7,6 +7,14 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
       APP_URL: ${APP_URL:-http://localhost:8080}
       SESSION_SECURE: ${SESSION_SECURE:-false}
+      APP_ENV: ${APP_ENV:-development}
+      LOGIN_LIMIT_DB: /app/data/login-limits.db
+      RESET_MAIL_MODE: ${RESET_MAIL_MODE:-disabled}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
     volumes:
       - backend_data:/app/data
     healthcheck:

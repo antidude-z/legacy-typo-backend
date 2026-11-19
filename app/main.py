@@ -27,6 +27,8 @@ from .payroll import register_payroll_routes
 from .csrf import CSRF_COOKIE, CSRFMiddleware, token_for_session
 from .bootstrap import initialize_database
 from .diagnostics import database_diagnostics
+from .config import PRODUCTION, LOGIN_LIMIT_DB
+from .login_limits import reserve_attempt, clear_attempts
 
 
 @asynccontextmanager
@@ -41,6 +43,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
@@ -49,12 +52,13 @@ app.add_middleware(
     same_site="lax",
     https_only=SESSION_SECURE,
 )
-app.add_middleware(CSRFMiddleware)
 
 _login_attempts: dict[str, list[float]] = {}
 
 
 def login_rate_limited(key: str) -> bool:
+    if PRODUCTION:
+        return not reserve_attempt(LOGIN_LIMIT_DB, key, LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_SECONDS)
     now = time.monotonic()
     attempts = [stamp for stamp in _login_attempts.get(key, []) if now - stamp < LOGIN_RATE_WINDOW_SECONDS]
     _login_attempts[key] = attempts
@@ -62,6 +66,8 @@ def login_rate_limited(key: str) -> bool:
 
 
 def record_login_failure(key: str) -> None:
+    if PRODUCTION:
+        return  # Attempts are reserved atomically before password verification.
     attempts = _login_attempts.setdefault(key, [])
     attempts.append(time.monotonic())
 
@@ -103,12 +109,20 @@ def health() -> dict[str, str]:
 
 
 @app.get("/api/system/database", tags=["system"])
-def database_status() -> dict[str, str]:
+def database_status(request: Request, db: Session = Depends(get_db)):
+    if PRODUCTION:
+        user = current_user(request, db)
+        if not user or not user.has_permission('view_menu_options_permissions'):
+            return JSONResponse({'error': 'forbidden'}, status_code=403 if user else 401)
     return {"mode": DATABASE_MODE, "url": DATABASE_URL.split("@")[-1] if DATABASE_MODE == "mysql" else DATABASE_URL}
 
 
 @app.get("/api/system/diagnostics", tags=["system"])
-def system_diagnostics() -> dict:
+def system_diagnostics(request: Request, db: Session = Depends(get_db)):
+    if PRODUCTION:
+        user = current_user(request, db)
+        if not user or not user.has_permission('view_menu_options_permissions'):
+            return JSONResponse({'error': 'forbidden'}, status_code=403 if user else 401)
     return database_diagnostics(engine)
 
 
@@ -320,7 +334,8 @@ def main_options(request: Request, db: Session = Depends(get_db)):
 def csrf_token(request: Request):
     token = token_for_session(request)
     response = JSONResponse({"token": token})
-    response.set_cookie(CSRF_COOKIE, token, httponly=False, secure=SESSION_SECURE, samesite="lax", max_age=120 * 60)
+    response.set_cookie(CSRF_COOKIE, token, httponly=False, secure=SESSION_SECURE, samesite="lax", max_age=SESSION_MINUTES * 60)
+    response.headers['Cache-Control'] = 'no-store'
     return response
 
 
@@ -352,6 +367,8 @@ def login(
         record_login_failure(rate_key)
         return JSONResponse({"message": "Неверные учетные данные."}, status_code=422)
     _login_attempts.pop(rate_key, None)
+    if PRODUCTION:
+        clear_attempts(LOGIN_LIMIT_DB, rate_key)
     request.session["user_id"] = user.id
     request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
     response = RedirectResponse("/orders", status_code=303)

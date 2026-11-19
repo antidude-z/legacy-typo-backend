@@ -1,5 +1,28 @@
 # Typography backend
 
+## Production security
+
+Set `APP_ENV=production`, a random `SESSION_SECRET` (32+ characters),
+`APP_URL=https://YOUR_HOST`, and `SESSION_SECURE=true`. Startup rejects unsafe
+production settings. Serve only through HTTPS with a private/loopback frontend
+bind and no public MySQL/backend ports. Keep `.env` mode 0600 and rotate temporary
+VM/root credentials. Never commit dumps, mail outboxes, credentials or backups.
+
+Production requires a session-bound CSRF token/header for every unsafe request,
+including login/reset forms; `/api/csrf-token` initializes it. Non-browser callers
+must obtain a session/token too: no cookie-absence bypass applies in production.
+Diagnostics require the permission-administration gate; `/health` remains public.
+Login throttles are atomic across workers sharing `/app/data/login-limits.db`.
+This is a single-host volume solution, not a multi-host/network-filesystem store.
+
+SMTP uses verified STARTTLS; set `RESET_MAIL_MODE=smtp`, `MAIL_HOST`, `MAIL_PORT`,
+`MAIL_FROM` and credentials. Otherwise explicitly leave resets disabled.
+Never trust arbitrary forwarded headers: no wildcard `FORWARDED_ALLOW_IPS`.
+Current Nginx overwrites forwarded headers; an outer TLS terminator must be
+configured with explicit trusted hops before relying on client IP/scheme.
+Throttling may conservatively group users behind Nginx until trusted real-IP
+forwarding is configured. End-to-end HTTPS/SMTP delivery remains operator QA.
+
 ## MySQL migration and recovery runbook
 
 See [docs/mysql-runbook.md](docs/mysql-runbook.md) for the consolidated import,
