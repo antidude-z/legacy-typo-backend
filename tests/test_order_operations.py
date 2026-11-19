@@ -30,7 +30,7 @@ class OrderOperationTests(unittest.TestCase):
         self.assertEqual(created.status_code, 200)
         payload = self.client.get('/api/orders/10/operations').json()
         self.assertEqual(payload['operations']['prepresses'][0]['reference_id'], 10)
-        self.assertEqual(payload['operations']['prepresses'][0]['quantity'], '2')
+        self.assertEqual(payload['operations']['prepresses'][0]['quantity'], '2.00')
 
     def test_operation_create_rejects_wrong_production_reference_and_quantity(self):
         self.assertEqual(self.client.post('/api/orders/10/compiles', json={'compile_id': 11}).status_code, 422)

@@ -82,11 +82,62 @@ def migration_2026_11_19_02(connection) -> None:
         connection.execute(text("SET SESSION sql_mode=:mode"), {'mode': original_mode})
 
 
+def migration_2026_11_19_04(connection) -> None:
+    """Restore missing non-unique model indexes on pre-existing tables.
+
+    Do not create foreign keys or uniqueness constraints over historical data.
+    Equivalent differently named indexes are retained instead of duplicated.
+    """
+    inspector = inspect(connection)
+    for table in Base.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue
+        columns = {row['name'] for row in inspector.get_columns(table.name)}
+        existing = {tuple(row['column_names']) for row in inspector.get_indexes(table.name)}
+        existing.add(tuple(inspector.get_pk_constraint(table.name).get('constrained_columns') or []))
+        for index in sorted(table.indexes, key=lambda item: item.name):
+            names = tuple(column.name for column in index.columns)
+            if not index.unique and set(names).issubset(columns) and names not in existing:
+                index.create(bind=connection)
+                existing.add(names)
+
+
+def migration_2026_11_19_05(connection) -> None:
+    """Widen confirmed writable MySQL fields without narrowing source data."""
+    if connection.dialect.name != 'mysql':
+        return
+    inspector = inspect(connection)
+    mode = connection.scalar(text('SELECT @@SESSION.sql_mode'))
+    connection.execute(text("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'"))
+    try:
+        for table, field, declaration in (
+            ('users', 'surname', 'VARCHAR(255)'),
+            ('actions', 'comment', 'VARCHAR(255)'),
+            ('order_markups', 'value', 'NUMERIC(10,2)'),
+        ):
+            columns = {row['name']: row for row in inspector.get_columns(table)}
+            current = columns.get(field)
+            if current is None:
+                continue
+            target = Base.metadata.tables[table].c[field].type.compile(dialect=connection.dialect)
+            if current['type'].compile(dialect=connection.dialect).upper() == target.upper():
+                continue
+            nullable = 'NULL' if current['nullable'] else 'NOT NULL'
+            # Preserve the imported scalar default, quoted by the driver.
+            default = current.get('default')
+            suffix = f' DEFAULT {default}' if default is not None else ''
+            connection.execute(text(f'ALTER TABLE {table} MODIFY COLUMN {field} {declaration} {nullable}{suffix}'))
+    finally:
+        connection.execute(text('SET SESSION sql_mode=:mode'), {'mode': mode})
+
+
 MIGRATIONS = (
     ("2026-11-13-01", migration_2026_11_13_01),
     ("2026-11-19-01", migration_2026_11_19_01),
     ("2026-11-19-02", migration_2026_11_19_02),
     ("2026-11-19-03", migration_2026_11_19_02),
+    ("2026-11-19-04", migration_2026_11_19_04),
+    ("2026-11-19-05", migration_2026_11_19_05),
 )
 
 

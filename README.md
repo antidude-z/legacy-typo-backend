@@ -1,5 +1,16 @@
 # Typography backend
 
+## Schema drift checks
+
+Run `uv run python -m app.schema_audit --output data/schema-drift.json` for a
+read-only model/database inventory of types, decimal precision, nullability,
+defaults, indexes, uniqueness, and foreign keys. Client-side defaults are listed
+separately from database defaults; differences are not automatically repaired.
+From the VM Compose directory, `python3 backend/scripts/mysql_schema_qa.py`
+checks tracked upgrades and their repeat execution using a clone-only account.
+Results are in `qa-results/schema-drift.json`; working-table checksum checks are
+in `qa-results/schema-working-integrity.json`.
+
 ## MySQL runtime regression checks
 
 The image installs the frozen `uv.lock`, including PyMySQL RSA authentication

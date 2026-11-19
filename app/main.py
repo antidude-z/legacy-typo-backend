@@ -865,10 +865,12 @@ def operation_create(order_id: int, operation: str, request: Request, payload: d
     if invalid:
         return invalid
     try:
-        quantity = int(payload.get("quantity", 1))
-        if quantity < 0:
+        raw_quantity = Decimal(str(payload.get("quantity", 1)))
+        fractional = model in (OrderPrepress, OrderRedaction)
+        if not raw_quantity.is_finite() or raw_quantity < 0 or (fractional and (raw_quantity >= 1000000 or raw_quantity != raw_quantity.quantize(Decimal('0.01')))) or (not fractional and raw_quantity != raw_quantity.to_integral_value()):
             raise ValueError
-    except (TypeError, ValueError):
+        quantity = raw_quantity if fractional else int(raw_quantity)
+    except (TypeError, ValueError, InvalidOperation):
         return JSONResponse({"error": "invalid_quantity"}, status_code=422)
     values = {"order_id": order_id, foreign_key: int(related_id), "quantity": quantity, "price_id": payload.get("price_id")}
     if model is OrderCompile:
@@ -904,10 +906,12 @@ def operation_update(order_id: int, operation: str, item_id: int, request: Reque
                 return invalid
     if "quantity" in payload:
         try:
-            payload["quantity"] = int(payload["quantity"])
-            if payload["quantity"] < 0:
+            quantity = Decimal(str(payload['quantity']))
+            fractional = model_info[0] in (OrderPrepress, OrderRedaction)
+            if not quantity.is_finite() or quantity < 0 or (fractional and (quantity >= 1000000 or quantity != quantity.quantize(Decimal('0.01')))) or (not fractional and quantity != quantity.to_integral_value()):
                 raise ValueError
-        except (TypeError, ValueError):
+            payload['quantity'] = quantity if fractional else int(quantity)
+        except (TypeError, ValueError, InvalidOperation):
             return JSONResponse({"error": "invalid_quantity"}, status_code=422)
     for key in (model_info[1], "quantity", "price_id", "fitting"):
         if key in payload:
