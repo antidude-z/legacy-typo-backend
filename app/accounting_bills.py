@@ -17,7 +17,7 @@ def bill_date(value):
     raise HTTPException(422, "Введите корректную дату счета.")
 
 
-def bill_values(payload, db):
+def bill_values(payload, db, existing=None):
     def get(key, default=None):
         alias = {"user_id":"bill_manager", "payer_id":"bill_payer", "bill_date":"bill_date"}.get(key, f"bill_{key}")
         return payload.get(alias, payload.get(key, default))
@@ -34,7 +34,10 @@ def bill_values(payload, db):
         raise HTTPException(422, "Проверьте сумму, менеджера и плательщика.")
     for model, identity in ((User, manager), (Payer, payer)):
         row = db.get(model, identity) if identity else None
-        if identity and (not row or row.deleted_at): raise HTTPException(422, "Связанный объект недоступен.")
+        key = "user_id" if model is User else "payer_id"
+        unchanged = existing is not None and identity == getattr(existing, key)
+        if identity and (not row or row.deleted_at) and not unchanged:
+            raise HTTPException(422, "Связанный объект недоступен.")
     currency = get("currency", "RUB")
     if currency not in {"RUB", "USD", "EUR"}: raise HTTPException(422, "Некорректная валюта.")
     values = {"number":number, "bill_date":bill_date(get("bill_date")), "amount":amount,
@@ -147,7 +150,7 @@ def register_bill_routes(app, current_user):
     def update(identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):
         user = actor(request,db,True); row = row_for(identity,user,db)
         if row.deleted_at: raise HTTPException(404)
-        for key,value in bill_values(payload,db).items(): setattr(row,key,value)
+        for key,value in bill_values(payload,db,existing=row).items(): setattr(row,key,value)
         db.commit(); return {"status":"ok"}
 
     @app.delete("/api/accounting/bills/{identity}", tags=["accounting"])

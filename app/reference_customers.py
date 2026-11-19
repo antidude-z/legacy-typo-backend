@@ -37,7 +37,7 @@ def register_customer_routes(app, current_user):
         if row is None: raise HTTPException(404)
         return row
 
-    def values(payload, db):
+    def values(payload, db, existing=None):
         result = {}
         for key, _, _ in FIELDS:
             if key == "customer_group_id": continue
@@ -51,7 +51,8 @@ def register_customer_routes(app, current_user):
         except (ValueError, TypeError, InvalidOperation): raise HTTPException(422, "Выберите группу")
         if group_id:
             group = db.get(CustomerGroup, group_id)
-            if not group or group.deleted_at: raise HTTPException(422, "Группа не существует")
+            if (not group or group.deleted_at) and not (existing and existing.customer_group_id == group_id):
+                raise HTTPException(422, "Группа не существует")
         result["customer_group_id"] = group_id or None
         return result
 
@@ -87,7 +88,7 @@ def register_customer_routes(app, current_user):
     def update(identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):
         user_for(request, db); row = row_for(identity, db)
         if row.deleted_at: raise HTTPException(404)
-        for key, value in values(payload, db).items(): setattr(row, key, value)
+        for key, value in values(payload, db, existing=row).items(): setattr(row, key, value)
         db.commit(); return {"status":"ok"}
 
     @app.delete("/api/customer-references/{identity}", tags=["references"])
