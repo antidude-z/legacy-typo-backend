@@ -19,7 +19,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(db.query(SchemaVersion).count(), 1)
             self.assertIsNotNone(db.get(SchemaVersion, SCHEMA_VERSION))
             self.assertEqual(db.query(Role).count(), 7)
-            self.assertEqual(db.query(Permission).count(), 47)
+            self.assertEqual(db.query(Permission).count(), 48)
             self.assertEqual(db.query(OrderStatus).count(), 6)
             self.assertEqual(db.query(Report).count(), 6)
             self.assertEqual(db.query(ReportParam).count(), 8)
@@ -31,7 +31,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(db.query(PaperFormatFormat).count(), 0)
             admin = db.scalar(select(Role).where(Role.title == "Администратор"))
             manager = db.scalar(select(Role).where(Role.title == "Менеджер"))
-            self.assertEqual(len(admin.permissions), 47)
+            self.assertEqual(len(admin.permissions), 48)
             self.assertEqual({permission.id for permission in manager.permissions}, {
                 "view_menu_orders", "view_menu_references", "view_menu_references_customers"
             })
@@ -44,12 +44,12 @@ class BootstrapTests(unittest.TestCase):
         with Session(engine) as db:
             self.assertEqual(db.query(SchemaVersion).count(), 1)
             self.assertEqual(db.query(Role).count(), 7)
-            self.assertEqual(db.query(Permission).count(), 47)
+            self.assertEqual(db.query(Permission).count(), 48)
             self.assertEqual(db.query(ReportParam).count(), 8)
             self.assertEqual(db.query(Service).count(), 1)
             self.assertEqual(db.query(Rate).count(), 7)
             self.assertEqual(db.query(Option).count(), 3)
-            self.assertEqual(db.execute(select(role_permissions.c.role_id, role_permissions.c.permission_id)).all().__len__(), 97)
+            self.assertEqual(db.execute(select(role_permissions.c.role_id, role_permissions.c.permission_id)).all().__len__(), 99)
         engine.dispose()
 
     def test_existing_rows_and_nonstandard_role_ids_are_preserved(self):
@@ -65,7 +65,21 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(admin.id, 50)
             self.assertIsNotNone(db.get(OrderStatus, 50))
             self.assertEqual(db.scalar(select(OrderStatus).where(OrderStatus.title == "Custom")).sequence, 99)
-            self.assertEqual(len(admin.permissions), 47)
+            self.assertEqual(len(admin.permissions), 48)
+        engine.dispose()
+
+    def test_existing_catalog_gets_payroll_gate_without_role_escalation(self):
+        engine = self.make_engine()
+        Base.metadata.create_all(engine)
+        with Session(engine) as db:
+            db.add(SchemaVersion(version=SCHEMA_VERSION))
+            db.add(Role(title="Existing role"))
+            db.commit()
+        initialize_database(engine)
+        initialize_database(engine)
+        with Session(engine) as db:
+            self.assertIsNotNone(db.get(Permission, 'edit_reports_payrolls'))
+            self.assertEqual(db.scalar(select(Role)).permissions, [])
         engine.dispose()
 
 

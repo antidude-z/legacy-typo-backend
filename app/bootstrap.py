@@ -44,6 +44,7 @@ PERMISSIONS = (
     ("view_menu_reports", "Просмотр пункта меню \"отчеты\"", "reports"),
     ("view_menu_reports_actions", "Просмотр пункта меню \"отчеты-журнал событий\"", "reports"),
     ("view_menu_reports_payrolls", "Просмотр пункта меню \"отчеты-зарплата менеджеров\"", "reports"),
+    ("edit_reports_payrolls", "Редактирование расчета зарплаты менеджеров", "reports"),
     ("view_menu_options", "Просмотр пункта меню \"настройки\"", "options"),
     ("view_menu_options_main", "Просмотр пункта меню \"настройки-основные\"", "options"),
     ("view_menu_options_paper_type", "Просмотр пункта меню \"настройки-виды бумаги\"", "options"),
@@ -123,6 +124,10 @@ def initialize_database(database_engine=engine) -> None:
             db.add(SchemaVersion(version=SCHEMA_VERSION, applied_at=datetime.utcnow()))
             db.commit()
 
+        # Existing installations must expose the write gate in the matrix too;
+        # do not silently grant it to existing roles during an upgrade.
+        if db.get(Permission, "edit_reports_payrolls") is None:
+            db.add(Permission(id="edit_reports_payrolls", title="Редактирование расчета зарплаты менеджеров", module="reports"))
         for identity, kind, form, title, model in REPORTS:
             if db.get(Report, identity) is None:
                 db.add(Report(id=identity, kind=kind, form=form, title=title, model=model, model_title="Заказ" if "Order" in model else "Счет"))
