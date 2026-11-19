@@ -33,6 +33,49 @@ class LegacyDateTests(unittest.TestCase):
 
 @unittest.skipUnless(os.getenv('MYSQL_TEST_URL'), 'MYSQL_TEST_URL not configured')
 class MySQLRuntimeTests(unittest.TestCase):
+    def test_historical_orphan_edits_preserve_references(self):
+        from sqlalchemy import text
+        from app.models import Customer, Blank
+        from app.db import get_db
+        with self.historical_client() as (db, client):
+            # MyISAM has no rollback. Snapshot and explicitly restore every
+            # edited scalar; this fixture changes no relation or history rows.
+            cases = [
+                (Bill, 'payer_id', 'payers', 'number', '/api/accounting/bills', 'PATCH'),
+                (Customer, 'customer_group_id', 'customer_groups', 'title', '/api/customer-references', 'PATCH'),
+            ]
+            for model, key, parent, label, path, method in cases:
+                row = db.scalar(select(model).where(getattr(model, key).is_not(None),
+                    ~getattr(model, key).in_(select(text('id')).select_from(text(parent))),
+                    model.deleted_at.is_(None)).limit(1))
+                self.assertIsNotNone(row, f'Required historical orphan: {model.__tablename__}.{key}')
+                old, reference = getattr(row, label), getattr(row, key)
+                detail = client.get(f'{path}/{row.id}')
+                self.assertEqual(detail.status_code, 200, detail.text[:200])
+                payload = detail.json()['item']
+                if model is Customer:
+                    for field in ('phone', 'inn', 'address', 'description'):
+                        payload[field] = payload.get(field) or ''
+                payload[label] = 'QA orphan edit'
+                try:
+                    response = client.request(method, f'{path}/{row.id}', json=payload)
+                    self.assertEqual(response.status_code, 200, response.text[:200])
+                    db.expire_all()
+                    self.assertEqual(getattr(db.get(model, row.id), key), reference)
+                finally:
+                    db.rollback()
+                    setattr(db.get(model, row.id), label, old)
+                    db.commit()
+            orphan_order = db.scalar(select(Order).where(Order.bill_id.is_not(None),
+                ~Order.bill_id.in_(select(Bill.id)), Order.deleted_at.is_(None)).limit(1))
+            self.assertIsNotNone(orphan_order)
+            for suffix in ('', '/blanks', '/operations', '/history'):
+                self.assertEqual(client.get(f'/api/orders/{orphan_order.id}{suffix}').status_code, 200)
+            orphan_blank = db.scalar(select(Blank).where(Blank.printer_id.is_not(None),
+                ~Blank.printer_id.in_(select(text('id')).select_from(text('printers')))).limit(1))
+            self.assertIsNotNone(orphan_blank)
+            self.assertEqual(client.get(f'/api/orders/{orphan_blank.order_id}/blanks/{orphan_blank.id}').status_code, 200)
+
     @contextmanager
     def historical_client(self):
         url = os.environ['MYSQL_TEST_URL']

@@ -60,8 +60,7 @@ def execute(args):
     dockerfile = '''FROM rework-backend
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends default-mysql-client && rm -rf /var/lib/apt/lists/*
-COPY app/mysql_test_guard.py app/mysql_clone_reset.py app/run_mysql_tests.py /app/app/
-COPY app/reports.py /app/app/
+COPY app/ /app/app/
 COPY tests/test_mysql_runtime.py /app/tests/
 COPY tests/test_session_security.py /app/tests/
 '''

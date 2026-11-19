@@ -5,7 +5,7 @@ import argparse
 import bcrypt
 from sqlalchemy import create_engine, select
 from app.bootstrap import initialize_database
-from app.models import User, Role, Permission, Prepress
+from app.models import User, Role, Permission, Prepress, Bill, Customer
 from sqlalchemy.orm import Session
 from app.mysql_test_guard import verify_test_database
 
@@ -37,6 +37,11 @@ def main():
             user.password = bcrypt.hashpw(b'Browser-test-123', bcrypt.gensalt()).decode()
         if db.scalar(select(Prepress).where(Prepress.title == 'Browser prepress')) is None:
             db.add(Prepress(title='Browser prepress'))
+        if not args.mysql_clone:
+            from datetime import date
+            db.add(Bill(id=88001, number='Orphan browser', bill_date=date(2024, 1, 1),
+                        amount=10, currency='RUB', payer_id=88002, user_id=88003))
+            db.add(Customer(id=88001, title='Orphan browser', customer_group_id=88002))
         db.commit()
     engine.dispose()
 

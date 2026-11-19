@@ -2,7 +2,7 @@
 from datetime import date
 import unittest
 
-from app.models import Bill, Blank, Customer, Order
+from app.models import Bill, Blank, Customer, Order, OrderPrepress
 from tests import test_reference_dictionaries as fixtures
 
 
@@ -28,6 +28,13 @@ class OrphanPreservationTests(unittest.TestCase):
                          (9001, 9002, 9003, 9004))
         blank = self.db.get(Blank, 51)
         self.assertEqual((blank.printer_id, blank.printer_process_id, blank.paper_id), (9005, 9006, 9007))
+        response = self.client.patch('/api/orders/50/blanks/51', json={'title': 'Edited blank'})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.db.add(OrderPrepress(id=52, order_id=50, prepress_id=9008, quantity=1))
+        self.db.commit()
+        response = self.client.patch('/api/orders/50/prepresses/52', json={'prepress_id': 9008, 'quantity': 2})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.client.patch('/api/orders/50/prepresses/52', json={'prepress_id': 9009}).status_code, 422)
 
     def test_bill_preserves_old_missing_parents_but_rejects_new_orphans(self):
         self.db.add(Bill(id=60, number='Historical', bill_date=date(2024, 1, 1),

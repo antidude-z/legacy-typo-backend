@@ -42,6 +42,10 @@ def bill_values(payload, db, existing=None):
     if currency not in {"RUB", "USD", "EUR"}: raise HTTPException(422, "Некорректная валюта.")
     values = {"number":number, "bill_date":bill_date(get("bill_date")), "amount":amount,
               "currency":currency, "user_id":manager or None, "payer_id":payer or None}
+    if existing is not None:
+        for key, identity in (("user_id", manager), ("payer_id", payer)):
+            if identity == getattr(existing, key):
+                values[key] = identity
     for key in ("paid", "closed", "filed"):
         value = get(key, False)
         if value not in (True, False, 0, 1, "0", "1"): raise HTTPException(422, "Некорректный статус счета.")

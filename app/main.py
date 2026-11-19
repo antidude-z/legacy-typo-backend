@@ -894,13 +894,14 @@ def operation_update(order_id: int, operation: str, item_id: int, request: Reque
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
     if model_info[1] in payload:
-        invalid = validate_operation_reference(operation, order, payload[model_info[1]], db)
-        if invalid:
-            return invalid
         try:
             payload[model_info[1]] = int(payload[model_info[1]])
         except (TypeError, ValueError):
             return JSONResponse({"error": "invalid_reference"}, status_code=422)
+        if payload[model_info[1]] != getattr(item, model_info[1]):
+            invalid = validate_operation_reference(operation, order, payload[model_info[1]], db)
+            if invalid:
+                return invalid
     if "quantity" in payload:
         try:
             payload["quantity"] = int(payload["quantity"])

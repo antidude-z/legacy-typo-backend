@@ -42,6 +42,9 @@ def register_customer_routes(app, current_user):
         for key, _, _ in FIELDS:
             if key == "customer_group_id": continue
             value = payload.get(f"customer_{key}", payload.get(key, ""))
+            if key != "title" and value is None and existing is not None and getattr(existing, key) is None:
+                result[key] = None
+                continue
             limit = {"title":100, "inn":12, "phone":200}.get(key)
             if not isinstance(value, str) or (key == "title" and not value.strip()) or (limit and len(value) > limit):
                 raise HTTPException(422, f"Некорректное поле: {key}")
@@ -54,6 +57,8 @@ def register_customer_routes(app, current_user):
             if (not group or group.deleted_at) and not (existing and existing.customer_group_id == group_id):
                 raise HTTPException(422, "Группа не существует")
         result["customer_group_id"] = group_id or None
+        if existing is not None and existing.customer_group_id == group_id:
+            result["customer_group_id"] = group_id
         return result
 
     @app.get("/api/customer-references", tags=["references"])
