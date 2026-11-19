@@ -1,5 +1,11 @@
 # Typography backend
 
+## MySQL migration and recovery runbook
+
+See [docs/mysql-runbook.md](docs/mysql-runbook.md) for the consolidated import,
+upgrade, seeding, validation, clone backup/restore, and operator-controlled rollback
+sequence. Clone recovery tooling refuses working-database credentials and targets.
+
 ## Schema drift checks
 
 Run `uv run python -m app.schema_audit --output data/schema-drift.json` for a
