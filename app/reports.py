@@ -139,7 +139,9 @@ def build_economy_xls(order, report, calc_details):
             printing = info.get("print", {}) if isinstance(info.get("print"), dict) else {}
             wide_rows.append([identity, info.get("title", ""), info.get("width", ""), info.get("height", ""), paper.get("material_count", ""), printing.get("steps_count", ""), "", marked_cost(blank.get("cost"), "print")])
         section("Широкоформатная печать", ["ID", "Заготовка", "Ширина", "Высота", "Площадь/материал", "Проходы", "", "Стоимость"], wide_rows or [["", "Нет данных", "", "", "", "", "", 0]], "wide")
-    grand_total = sum(totals.values())
+    # Wide-format rows repeat the same blanks for production detail, not an
+    # additional charge. Include those costs only once in the document total.
+    grand_total = sum(value for key, value in totals.items() if key != "wide")
     sheet.write(row_number, 0, "ИТОГО рассчитанная стоимость", total_style); sheet.write(row_number, 7, grand_total, total_style); row_number += 1
     sheet.write(row_number, 0, "Стоимость за 1 шт.", total_style); sheet.write(row_number, 7, grand_total / max(int(order.printing or 1), 1), total_style)
     output = BytesIO(); workbook.save(output); return output.getvalue()
