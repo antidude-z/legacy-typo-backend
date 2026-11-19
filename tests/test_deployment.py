@@ -33,6 +33,8 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotIn('8000:8000', content)
         self.assertIn('SESSION_SECRET: ${SESSION_SECRET:?', content)
         self.assertIn('condition: service_healthy', content)
+        self.assertIn('--protocol=TCP', content)
+        self.assertIn('SELECT 1', content)
 
 
 if __name__ == "__main__":
