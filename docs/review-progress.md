@@ -278,6 +278,32 @@ S03 remains OPEN: inventory and production-reference action policies, remaining
 Orders lifecycle/deleted-parent/cross-parent checks, frontend alignment, approved
 grant assignments and complete post-fix disposable browser/MySQL matrices.
 
+## S03 paper/material inventory — verified local slice
+
+Inventory administration requires the matching `view_menu_references_paper` or
+`view_menu_references_materials` read grant. Each has dedicated
+`edit_reference_<kind>` and `delete_reference_<kind>` capabilities; catalog
+initialization does not grant them to existing roles. Draft/create/update require
+edit; delete/restore require delete plus existing lifecycle gates where applicable.
+Material session filtering requires read only. Generic form/detail/list paths
+use the same inventory boundary. Order-production metadata remains separate.
+
+API responses supply composed capabilities; frontend readers have disabled
+editing fields and no create/delete actions. Material creation consumes the
+form-options capabilities so authorized writers can still submit.
+
+Real-session disposable SQLite covers both kinds, valid records, denied reads
+and writes, all-table snapshots on denial, editor create/update success, filters,
+generic-trash-without-domain-delete denial, restore and permanent-delete success.
+Full backend 286 run, OK, 24 MySQL skips with warnings treated as errors; targeted
+inventory/bootstrap suite 15 passed; final focused suite 7 passed; frontend 19
+helpers and production build passed. No VM or working database changed.
+
+S03 remains OPEN: printer/field/process/stage, afterprint, compilation and work
+catalog policies; Orders lifecycle/deleted-parent/cross-parent gaps; approved grant
+rollout; frontend alignment and full browser/MySQL acceptance. These fixes are
+not deployed and Phase 2 workflow execution has not started.
+
 ## S03 dictionary action boundaries — verified local slice
 
 Paper types, paper formats, measures and customer groups now require their

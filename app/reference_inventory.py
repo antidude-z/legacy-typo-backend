@@ -12,6 +12,19 @@ from .models import Measure, Material, Paper, PaperFormat, PaperType
 
 WORK_TYPES = {"print": "Печать", "afterprint": "Постпечать", "compile": "Сборка"}
 
+INVENTORY_CAPABILITIES = tuple(
+    (f'{action}_reference_{kind}', f'{action.title()} {kind}')
+    for kind in ('paper', 'materials') for action in ('edit', 'delete')
+)
+
+
+def inventory_permissions(user, kind):
+    delete = user.has_permission(f'delete_reference_{kind}')
+    return {'can_edit': user.has_permission(f'edit_reference_{kind}'),
+            'can_delete': delete,
+            'can_restore': delete and user.has_permission('restore_trashed'),
+            'can_delete_trashed': delete and user.has_permission('delete_trashed')}
+
 
 def integer(value):
     number = Decimal(str(value))
@@ -38,7 +51,18 @@ def material_values(payload, db):
 
 def auth_user(request, current_user, db):
     user = current_user(request, db)
-    return user, None if user else JSONResponse({"error": "unauthorized"}, status_code=401)
+    if user is None:
+        return user, JSONResponse({'error': 'unauthorized'}, status_code=401)
+    kind = request.url.path.split('/')[3]
+    if kind not in {'paper', 'materials'}:
+        return user, JSONResponse({'error': 'not_found'}, status_code=404)
+    required = [f'view_menu_references_{kind}']
+    if request.method not in {'GET', 'HEAD', 'OPTIONS'} and not request.url.path.endswith('/filter'):
+        lifecycle = request.method == 'DELETE' or request.url.path.endswith('/restore')
+        required.append(f'{"delete" if lifecycle else "edit"}_reference_{kind}')
+    if any(not user.has_permission(permission) for permission in required):
+        return user, JSONResponse({'error': 'forbidden'}, status_code=403)
+    return user, None
 
 
 def form_options(kind, db):
@@ -56,7 +80,7 @@ def register_inventory_routes(app, current_user):
         user, error = auth_user(request, current_user, db)
         if error: return error
         if kind not in {"paper", "materials"}: return JSONResponse({"error": "not_found"}, status_code=404)
-        return {"metadata": form_options(kind, db)}
+        return {"metadata": form_options(kind, db), **inventory_permissions(user, kind)}
 
     @app.get("/api/references/{kind}/{identity}", tags=["references"])
     def inventory_detail(kind: str, identity: int, request: Request, db: Session = Depends(get_db)):
@@ -67,7 +91,7 @@ def register_inventory_routes(app, current_user):
         if row is None or (row.deleted_at and not user.has_permission("view_trashed")):
             return JSONResponse({"error": "not_found"}, status_code=404)
         fields = ("title", "type_id", "format_id", "weight", "markup") if kind == "paper" else ("title", "description", "measure_id", "work_type", "production_book", "production_poly", "production_souvenir", "production_wide")
-        return {"item": {"id": row.id, "deleted": row.deleted_at is not None, **{field: getattr(row, field) for field in fields}}, "metadata": form_options(kind, db), "can_restore": user.has_permission("restore_trashed"), "can_delete_trashed": user.has_permission("delete_trashed")}
+        return {"item": {"id": row.id, "deleted": row.deleted_at is not None, **{field: getattr(row, field) for field in fields}}, "metadata": form_options(kind, db), **inventory_permissions(user, request.url.path.split("/")[3])}
 
     @app.get("/api/references/paper", tags=["references"])
     def paper_list(request: Request, page: int = Query(1, ge=1), per_page: int = Query(30, ge=1), sort: str = "id", order: str = "desc", db: Session = Depends(get_db)):
@@ -79,7 +103,7 @@ def register_inventory_routes(app, current_user):
         column = getattr(Paper, sort if sort in {"id", "title", "type_id", "weight", "format_id"} else "id")
         total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = db.scalars(query.order_by(column.asc() if order == "asc" else column.desc()).offset((page - 1) * per_page).limit(per_page)).all()
-        return {"items": [{"id": row.id, "title": row.title, "type_id": row.type_id, "type": row.paper_type.title if row.paper_type else "", "format_id": row.format_id, "format": row.paper_format.title if row.paper_format else "", "weight": row.weight, "markup": row.markup, "deleted": row.deleted_at is not None} for row in rows], "metadata": {"types": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperType).where(PaperType.deleted_at.is_(None)).order_by(PaperType.title)).all()], "formats": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperFormat).where(PaperFormat.deleted_at.is_(None)).order_by(PaperFormat.title)).all()]}, "page": page, "last_page": max(1, (total + per_page - 1) // per_page), "can_restore": user.has_permission("restore_trashed"), "can_delete_trashed": user.has_permission("delete_trashed")}
+        return {"items": [{"id": row.id, "title": row.title, "type_id": row.type_id, "type": row.paper_type.title if row.paper_type else "", "format_id": row.format_id, "format": row.paper_format.title if row.paper_format else "", "weight": row.weight, "markup": row.markup, "deleted": row.deleted_at is not None} for row in rows], "metadata": {"types": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperType).where(PaperType.deleted_at.is_(None)).order_by(PaperType.title)).all()], "formats": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperFormat).where(PaperFormat.deleted_at.is_(None)).order_by(PaperFormat.title)).all()]}, "page": page, "last_page": max(1, (total + per_page - 1) // per_page), **inventory_permissions(user, request.url.path.split("/")[3])}
 
     @app.post("/api/references/paper/create", tags=["references"])
     def paper_create(request: Request, db: Session = Depends(get_db)):
@@ -144,7 +168,7 @@ def register_inventory_routes(app, current_user):
         total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
         column = getattr(Material, sort if sort in {"id", "title", "measure_id", "work_type"} else "id")
         rows = db.scalars(query.order_by(column.asc() if order == "asc" else column.desc()).offset((page - 1) * per_page).limit(per_page)).all()
-        return {"items": [{"id": x.id, "title": x.title, "description": x.description or "", "measure_id": x.measure_id, "measure": x.measure.short if x.measure else "", "work_type": x.work_type, "work_type_title": WORK_TYPES.get(x.work_type, x.work_type or ""), "production": {"book": x.production_book, "poly": x.production_poly, "souvenir": x.production_souvenir, "wide": x.production_wide}, "deleted": x.deleted_at is not None} for x in rows], "metadata": {"measures": [{"id": x.id, "title": x.title} for x in db.scalars(select(Measure).where(Measure.deleted_at.is_(None)).order_by(Measure.title)).all()], "work_types": WORK_TYPES}, "filter": {"filter_text": filter_text, "filter_type": filter_type}, "page": page, "last_page": max(1, (total + per_page - 1) // per_page), "can_restore": user.has_permission("restore_trashed"), "can_delete_trashed": user.has_permission("delete_trashed")}
+        return {"items": [{"id": x.id, "title": x.title, "description": x.description or "", "measure_id": x.measure_id, "measure": x.measure.short if x.measure else "", "work_type": x.work_type, "work_type_title": WORK_TYPES.get(x.work_type, x.work_type or ""), "production": {"book": x.production_book, "poly": x.production_poly, "souvenir": x.production_souvenir, "wide": x.production_wide}, "deleted": x.deleted_at is not None} for x in rows], "metadata": {"measures": [{"id": x.id, "title": x.title} for x in db.scalars(select(Measure).where(Measure.deleted_at.is_(None)).order_by(Measure.title)).all()], "work_types": WORK_TYPES}, "filter": {"filter_text": filter_text, "filter_type": filter_type}, "page": page, "last_page": max(1, (total + per_page - 1) // per_page), **inventory_permissions(user, request.url.path.split("/")[3])}
 
     @app.post("/api/references/materials/filter", tags=["references"])
     def material_filter(request: Request, payload: dict, db: Session = Depends(get_db)):
