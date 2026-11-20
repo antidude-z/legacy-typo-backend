@@ -16,7 +16,7 @@ class ReferenceWorksTests(unittest.TestCase):
             self.assertEqual(self.client.patch(f'{base}/{created}', json={field:''}).status_code, 422)
             self.assertEqual(self.client.delete(f'{base}/{created}').status_code, 200)
             self.permission_mock.return_value = False
-            self.assertEqual(self.client.get(f'{base}/{created}').status_code, 404)
+            self.assertEqual(self.client.get(f'{base}/{created}').status_code, 403)
             self.assertEqual(self.client.post(f'{base}/{created}/restore').status_code, 403)
             self.permission_mock.return_value = True
             self.assertEqual(self.client.post(f'{base}/{created}/restore').status_code, 200)

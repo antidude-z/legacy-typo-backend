@@ -152,7 +152,8 @@ def _initialize_database(database_engine) -> None:
         from .printer_authorization import PRINTER_CAPABILITIES
         from .reference_afterprints import AFTERPRINT_CAPABILITIES
         from .reference_compiles import COMPILE_CAPABILITIES
-        for identity, title in CUSTOMER_CAPABILITIES + INVENTORY_CAPABILITIES + PRINTER_CAPABILITIES + AFTERPRINT_CAPABILITIES + COMPILE_CAPABILITIES:
+        from .reference_works import WORK_CAPABILITIES
+        for identity, title in CUSTOMER_CAPABILITIES + INVENTORY_CAPABILITIES + PRINTER_CAPABILITIES + AFTERPRINT_CAPABILITIES + COMPILE_CAPABILITIES + WORK_CAPABILITIES:
             if db.get(Permission, identity) is None:
                 db.add(Permission(id=identity, title=title, module='references'))
         for identity, kind, form, title, model in REPORTS:

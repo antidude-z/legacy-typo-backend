@@ -13,6 +13,11 @@ WORKS = {
     "prepresses": (Prepress, "Работы по дизайну/препресс", "Новая работа по дизайну/препресс", "prepress_title"),
     "redactions": (Redaction, "Работы по редактуре", "Новая работа по редактуре", "redaction_title"),
 }
+WORK_CAPABILITIES = tuple(
+    (f'{action}_reference_{kind}', f'{label} {kind} catalog')
+    for kind in WORKS
+    for action, label in (('edit', 'Create and edit'), ('delete', 'Delete and restore'))
+)
 
 
 def register_work_routes(app, current_user):
@@ -20,6 +25,12 @@ def register_work_routes(app, current_user):
         user = current_user(request, db)
         if user is None: raise HTTPException(401, "Unauthorized")
         if kind not in WORKS: raise HTTPException(404, "Not found")
+        required = [f'view_menu_references_{kind}']
+        if request.method not in {'GET', 'HEAD', 'OPTIONS'} or request.url.path.endswith('/form-options'):
+            lifecycle = request.method == 'DELETE' or request.url.path.endswith('/restore')
+            required.append(f'{"delete" if lifecycle else "edit"}_reference_{kind}')
+        if not all(user.has_permission(permission) for permission in required):
+            raise HTTPException(403, 'Недостаточно прав.')
         return user, WORKS[kind]
 
     def item(model, identity, db):
@@ -33,9 +44,17 @@ def register_work_routes(app, current_user):
             raise HTTPException(422, "Введите название работы (не более 50 символов).")
         return title
 
-    def permissions(user):
-        return {"can_restore": user.has_permission("restore_trashed"),
-                "can_delete_trashed": user.has_permission("delete_trashed")}
+    def permissions(user, kind):
+        can_delete = user.has_permission(f'delete_reference_{kind}')
+        return {"can_edit": user.has_permission(f'edit_reference_{kind}'),
+                "can_delete": can_delete,
+                "can_restore": can_delete and user.has_permission("restore_trashed"),
+                "can_delete_trashed": can_delete and user.has_permission("delete_trashed")}
+
+    @app.get("/api/reference-works/{kind}/form-options", tags=["references"])
+    def form_options(kind: str, request: Request, db: Session = Depends(get_db)):
+        user, _ = context(kind, request, db)
+        return permissions(user, kind)
 
     @app.get("/api/reference-works/{kind}", tags=["references"])
     def listing(kind: str, request: Request, page: int = Query(1, ge=1), per_page: int = Query(30, ge=1),
@@ -52,7 +71,7 @@ def register_work_routes(app, current_user):
         return {"items": [{"id": row.id, "title": row.title, "deleted": row.deleted_at is not None} for row in rows],
                 "heading": heading, "new_heading": new_heading, "field": field,
                 "page": page, "per_page": per_page, "last_page": max(1, (total + per_page - 1) // per_page),
-                "sort": sort, "order": order, **permissions(user)}
+                "sort": sort, "order": order, **permissions(user, kind)}
 
     @app.get("/api/reference-works/{kind}/{identity}", tags=["references"])
     def detail(kind: str, identity: int, request: Request, db: Session = Depends(get_db)):
@@ -60,7 +79,7 @@ def register_work_routes(app, current_user):
         row = item(model, identity, db)
         if row.deleted_at and not user.has_permission("view_trashed"): raise HTTPException(404)
         return {"item": {"id": row.id, "title": row.title, "deleted": row.deleted_at is not None},
-                "heading": heading, "new_heading": new_heading, "field": field, **permissions(user)}
+                "heading": heading, "new_heading": new_heading, "field": field, **permissions(user, kind)}
 
     @app.post("/api/reference-works/{kind}", tags=["references"])
     def create(kind: str, request: Request, payload: dict, db: Session = Depends(get_db)):

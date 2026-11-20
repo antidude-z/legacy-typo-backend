@@ -9,7 +9,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 |---|---|---|
 | S01 | verified | Domain/lifecycle gates, self-disable and privileged-target restrictions, shared writer serialization, projected last-admin invariant; verified on SQLite and isolated MySQL InnoDB/MyISAM. See completion evidence below. |
 | S02 | in progress | Default-disabled registration and pending-account business admission verified locally; 242 backend tests OK (19 MySQL skips), 17 Chromium workflows pass. Disposable MySQL admission verification and pre-rollout account inventory remain; no deployment. |
-| S03 | unstarted | Business write authorization across domains and aliases. |
+| S03 | in progress | Reference action boundaries implemented through work catalogs; Orders edge cases, policy manifest, approved grants and complete browser/MySQL acceptance remain. See increments below. |
 | S04 | unstarted | Role delegation and privileged-target policy. |
 | S05 | unstarted | Report domain-read authorization. |
 | S06 | unstarted | Bill domain deletion authorization. |
@@ -398,3 +398,39 @@ Full backend: 313 run, OK, 24 opt-in MySQL skips with warnings as errors. Fronte
 19 helper tests and build pass. No deployment/database changes. S03 remains OPEN:
 prepress/redaction work catalogs, Orders lifecycle/deleted-parent/ownership edges,
 approved role grants, policy manifest reconciliation and browser/MySQL acceptance.
+
+## S03 prepress/redaction catalogs — verified local API slice
+
+Inspected both archived catalog controllers, active models, API handlers, frontend
+caller and existing tests. Real-session regressions reproduced unrelated staff
+reading catalog rows and a revoked writer still creating rows (HTTP 200).
+
+Both catalog families now require their own `view_menu_references_<kind>` grant.
+Create/update and creation form options additionally require
+`edit_reference_<kind>`; delete/restore require `delete_reference_<kind>`.
+Restore and permanent deletion additionally require the corresponding generic
+lifecycle grant. Prepress permissions do not authorize redaction administration.
+Four capabilities are cataloged idempotently without assigning existing roles.
+Order-scoped selectors and calculation behavior are unchanged.
+
+Frontend creation fetches authorized form options; list/edit/delete controls use
+backend capabilities. Readers can inspect disabled forms but cannot save or delete.
+Real-session SQLite tests check both families, revoked grants, invalid/missing and
+deleted rows, repeated restore, successful writes/lifecycle, generic-only and
+domain-only lifecycle denial, and unchanged snapshots of every modeled table.
+
+Validation: focused API/bootstrap suite 17 passed; full backend 323 run, OK with
+24 opt-in MySQL skips, warnings treated as errors; frontend 19 helpers and build
+passed. New Chromium reader/writer test completed all assertions (1 passed), but
+the runner timed out during teardown at 120 seconds and exited nonzero: this is
+NOT a clean browser-suite pass. Earlier attempts encountered a browser launch
+hang and an overly strict test URL assertion; the latter now permits the existing
+pagination query string. Local Node is 25.2.1, not the documented Node 26.
+The catalog-reader login also exposes an existing Orders screen error on its
+forbidden landing route (`Cannot read properties of undefined (reading 'page')`);
+that frontend admission/error-handling edge remains to be addressed.
+
+S03 remains OPEN for Orders lifecycle/deleted-parent/ownership edges, manifest
+reconciliation, operator-approved grants and guarded MySQL/full browser acceptance.
+No VM, working database or deployed service changed. Phase 2 has not started;
+scenarios.md was not read or executed.
