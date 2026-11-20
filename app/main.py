@@ -43,6 +43,8 @@ def require_staff_admission(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="unauthorized")
     if user.role is None or not user.role.permissions:
         raise HTTPException(status_code=403, detail="staff_approval_required")
+    from .order_authorization import require_order_action
+    require_order_action(request, user)
 
 
 @asynccontextmanager

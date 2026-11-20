@@ -61,9 +61,10 @@ class OrderOperationTests(unittest.TestCase):
         created = self.client.post('/api/orders/10/prepresses', json={'prepress_id': 10, 'quantity': 1})
         item_id = created.json()['id']
         self.assertEqual(self.client.delete(f'/api/orders/10/prepresses/{item_id}').status_code, 200)
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name != 'view_trashed'
         self.assertEqual(self.client.get('/api/orders/10/operations').json()['operations']['prepresses'], [])
 
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         visible = self.client.get('/api/orders/10/operations').json()
         self.assertEqual(visible['operations']['prepresses'][0]['deleted'], True)

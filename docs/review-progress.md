@@ -205,3 +205,26 @@ code; this step adds tests/evidence only. S02 implementation and disposable
 acceptance are complete. Remaining rollout blocker: operator must obtain/review
 a fresh read-only live account inventory before enabling this build. Do not delete
 or reassign accounts automatically. Phase 2 scenario execution has not started.
+
+## S03 Orders action boundary — in progress
+
+Added dedicated `edit_orders` and `delete_orders` capabilities to the catalog,
+without granting either to existing roles (including administrator). Operators
+must approve assignments before rollout. Orders reads require `view_menu_orders`;
+create/edit/copy/recalculate require that read grant plus `edit_orders`;
+delete/restore require the read grant plus `delete_orders`. Explicit restore and
+permanent-delete paths additionally require their generic lifecycle grant. The
+shared dependency covers Orders aliases and nested operation/blank endpoints.
+Session-only filter mutations remain read-authorized. Shared-team visibility is
+retained; no owner-only policy was invented.
+
+Real-session disposable SQLite regressions prove valid existing-resource reads,
+denial without database changes for seven mutation paths, editor success without
+delete authority, and rejection of unrelated admitted staff on read aliases.
+Full backend: 255 run, OK, 24 opt-in MySQL skips, warnings treated as errors.
+
+S03 remains a release blocker: payer and all reference-family action policies;
+deleted-parent/cross-parent/lifecycle matrices and implicit permanent-delete
+paths; narrowly scoped selectors; frontend capabilities; deliberate approved-role
+grant migration; guarded MySQL and browser verification. No deployed service or
+working database changed. Phase 2 has not started.

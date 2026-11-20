@@ -138,6 +138,10 @@ def _initialize_database(database_engine) -> None:
         # do not silently grant it to existing roles during an upgrade.
         if db.get(Permission, "edit_reports_payrolls") is None:
             db.add(Permission(id="edit_reports_payrolls", title="Редактирование расчета зарплаты менеджеров", module="reports"))
+        from .order_authorization import ORDER_CAPABILITIES
+        for identity, title in ORDER_CAPABILITIES:
+            if db.get(Permission, identity) is None:
+                db.add(Permission(id=identity, title=title, module='orders'))
         for identity, kind, form, title, model in REPORTS:
             if db.get(Report, identity) is None:
                 db.add(Report(id=identity, kind=kind, form=form, title=title, model=model, model_title="Заказ" if "Order" in model else "Счет"))
