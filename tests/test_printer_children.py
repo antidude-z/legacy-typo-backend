@@ -30,10 +30,11 @@ class PrinterChildrenTests(unittest.TestCase):
         self.assertEqual(self.client.patch(f'{stages}/{stage_id}', json=values).status_code, 200)
         self.assertEqual(self.client.get(stages + '/items').json()['items'][0]['title'], 'Setup')
         self.assertEqual(self.client.delete(f'{stages}/{stage_id}').status_code, 200)
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name == 'view_menu_references_printers'
         self.assertEqual(self.client.get(f'{stages}/{stage_id}').status_code, 404)
         self.assertEqual(self.client.post(f'{stages}/{stage_id}/restore').status_code, 403)
         self.assertEqual(self.client.delete(f'{stages}/{stage_id}').status_code, 403)
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         self.assertEqual(self.client.post(f'{stages}/{stage_id}/restore').status_code, 200)
         self.client.delete(f'{stages}/{stage_id}')

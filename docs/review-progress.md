@@ -304,6 +304,38 @@ catalog policies; Orders lifecycle/deleted-parent/cross-parent gaps; approved gr
 rollout; frontend alignment and full browser/MySQL acceptance. These fixes are
 not deployed and Phase 2 workflow execution has not started.
 
+## S03 printer production hierarchy — verified local slice
+
+Printer definitions, fields, processes and stages share a domain boundary:
+`view_menu_references_printers` for reads, plus `edit_reference_printers` for
+draft/create/update, or `delete_reference_printers` for delete/restore. Restore
+and permanent deletion still require their separate generic lifecycle grant.
+The two new capabilities are cataloged without automatic role assignment.
+Authorization runs before resource lookup; existing printer/process ownership
+checks and deleted-parent rejection remain enforced. No calculation formulas or
+order-production selector contracts changed.
+
+Frontend parent/child lists, forms and confirmations consume composed capability
+flags. Readers retain navigation but cannot edit, create or trigger lifecycle
+actions. Backend remains authoritative for direct requests.
+
+Real-session disposable SQLite tests cover valid parent/child resources, reader
+write denial, writer success, generic-trash-only denial, domain-delete without
+generic lifecycle denial, permitted restore/permanent deletion, wrong printer or
+process ownership, and deleted printer/process rejection. Rejected calls compare
+all modeled tables for unchanged state.
+
+Validation: initial targeted suite 31 passed; expanded focused suite 9 passed
+(including inherited S01 checks); full backend 295 run, OK, 24 opt-in MySQL skips,
+warnings treated as errors; 19 frontend helpers and final production build passed.
+An intermediate Svelte closing-block error was caught and corrected before commit.
+No VM, working database or deployed service changed.
+
+S03 remains OPEN: afterprint/compilation/work-catalog action policies, remaining
+Orders lifecycle/parent gaps, approved role assignment rollout, policy-manifest
+reconciliation, and complete post-fix browser/disposable MySQL acceptance. Phase 2
+scenario execution has not started.
+
 ## S03 dictionary action boundaries — verified local slice
 
 Paper types, paper formats, measures and customer groups now require their

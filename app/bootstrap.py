@@ -149,7 +149,8 @@ def _initialize_database(database_engine) -> None:
                 db.add(Permission(id=identity, title=title, module='options'))
         from .reference_customers import CUSTOMER_CAPABILITIES
         from .reference_inventory import INVENTORY_CAPABILITIES
-        for identity, title in CUSTOMER_CAPABILITIES + INVENTORY_CAPABILITIES:
+        from .printer_authorization import PRINTER_CAPABILITIES
+        for identity, title in CUSTOMER_CAPABILITIES + INVENTORY_CAPABILITIES + PRINTER_CAPABILITIES:
             if db.get(Permission, identity) is None:
                 db.add(Permission(id=identity, title=title, module='references'))
         for identity, kind, form, title, model in REPORTS:

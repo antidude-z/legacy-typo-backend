@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import PaperFormat, Printer, PrinterField, PrinterProcess, PrinterProcessStage
 from .reference_inventory import integer
+from .printer_authorization import require_printer_action, printer_permissions
 
 
 FIELDS = {
@@ -45,9 +46,7 @@ def child_values(kind, payload, db):
 
 def register_printer_child_routes(app, current_user):
     def context(printer_id, kind, request, db, process_id=None):
-        user = current_user(request, db)
-        if user is None:
-            raise HTTPException(401, "Unauthorized")
+        user = require_printer_action(request, current_user(request, db))
         if kind not in MODELS or (kind == "stages") != (process_id is not None):
             raise HTTPException(404, "Not found")
         printer = db.get(Printer, printer_id)
@@ -75,8 +74,8 @@ def register_printer_child_routes(app, current_user):
     @app.get("/api/references/printers/{printer_id}/{kind}/form")
     @app.get("/api/references/printers/{printer_id}/processes/{process_id}/{kind}/form")
     def new_form(printer_id: int, kind: str, request: Request, process_id: int | None = None, db: Session = Depends(get_db)):
-        context(printer_id, kind, request, db, process_id)
-        return {"fields": FIELDS[kind], "formats": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperFormat).where(PaperFormat.deleted_at.is_(None)).order_by(PaperFormat.id)).all()]}
+        user, _ = context(printer_id, kind, request, db, process_id)
+        return {"fields": FIELDS[kind], **printer_permissions(user), "formats": [{"id": x.id, "title": x.title} for x in db.scalars(select(PaperFormat).where(PaperFormat.deleted_at.is_(None)).order_by(PaperFormat.id)).all()]}
 
     @app.get("/api/references/printers/{printer_id}/{kind}/items")
     @app.get("/api/references/printers/{printer_id}/processes/{process_id}/{kind}/items")
@@ -87,22 +86,22 @@ def register_printer_child_routes(app, current_user):
             query = query.where(model.deleted_at.is_(None))
         rows = db.scalars(query.order_by(model.weight if kind == "stages" else model.id)).all()
         return {"items": [serialize(row, kind) for row in rows], "fields": FIELDS[kind],
-                "can_restore": user.has_permission("restore_trashed"), "can_delete_trashed": user.has_permission("delete_trashed"),
+                **printer_permissions(user),
                 "can_view_prices": user.has_permission("view_menu_prices")}
 
     @app.post("/api/references/printers/{printer_id}/{kind}/create")
     @app.post("/api/references/printers/{printer_id}/processes/{process_id}/{kind}/create")
     def draft(printer_id: int, kind: str, request: Request, process_id: int | None = None, db: Session = Depends(get_db)):
-        _, model = context(printer_id, kind, request, db, process_id)
+        user, model = context(printer_id, kind, request, db, process_id)
         if kind == "fields":
-            return {"item": {key: 0 for key, _, _ in FIELDS[kind]}}
+            return {"item": {key: 0 for key, _, _ in FIELDS[kind]}, **printer_permissions(user)}
         if kind == "processes":
             row = model(printer_id=printer_id, title="", colors_front=1, colors_back=0, rejection=0, resolution=0)
         else:
             weight = db.scalar(select(func.max(model.weight)).where(model.printer_process_id == process_id, model.deleted_at.is_(None)))
             row = model(printer_process_id=process_id, title="", together=1, colors=1, waste=0, weight=0 if weight is None else weight + 1)
         db.add(row); db.commit()
-        return {"item": serialize(row, kind)}
+        return {"item": serialize(row, kind), **printer_permissions(user)}
 
     @app.post("/api/references/printers/{printer_id}/fields")
     def store_field(printer_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
@@ -123,7 +122,7 @@ def register_printer_child_routes(app, current_user):
         if row.deleted_at and not user.has_permission("view_trashed"):
             raise HTTPException(404, "Not found")
         return {"item": serialize(row, kind), "fields": FIELDS[kind],
-                "can_delete_trashed": user.has_permission("delete_trashed")}
+                **printer_permissions(user)}
 
     @app.patch("/api/references/printers/{printer_id}/{kind}/{identity}")
     @app.patch("/api/references/printers/{printer_id}/processes/{process_id}/{kind}/{identity}")
