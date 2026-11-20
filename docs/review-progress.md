@@ -176,3 +176,32 @@ Remaining S02 gates: run admission regressions on guarded disposable MySQL;
 run the read-only account inventory before rollout and have an operator review
 unassigned accounts. Registration date cannot be inferred from the mapped schema.
 Per-action permissions/delegation remain S03/S04. Phase 2 has not started.
+
+## S02 disposable MySQL verification completed
+
+Five real-session admission tests passed on a temporary MySQL 8.0 server with
+tmpfs data, isolated Docker network and database-restricted credentials. The
+database/grant guard ran before fixture writes. Tests cover disabled registration
+aliases, opt-in pending registration, guest/roleless/empty-role denial across all
+registered business methods, approval/revocation and logout. Denied calls preserve
+all modeled tables. Authentication/permission decisions were not mocked.
+
+Evidence: `docs/s02-mysql-results.txt`; opt-in reproduction module:
+`tests.test_review_registration_mysql.MySQLRegistrationReviewTests`, enabled by
+`S02_MYSQL_URL` pointing to an empty guarded test database. The temporary server
+and network were removed after the run. The first attempt failed before test
+execution because the source mount was read-only; setting the unused default
+SQLite URL to `/tmp` corrected the harness without weakening admission.
+
+Imported only users, roles, permissions and assignments from the original dump
+into container-local disposable SQLite, then ran the read-only inventory:
+`docs/s02-source-account-inventory.json` reports no pending accounts. This is a
+source-dump inventory, NOT an inventory of subsequently registered live accounts.
+No working service, database or existing account was changed.
+
+Local full suite: 247 run, OK, 24 MySQL-only skips, warnings treated as errors.
+Prior browser evidence: 17 Chromium workflows passed on the same S02 application
+code; this step adds tests/evidence only. S02 implementation and disposable
+acceptance are complete. Remaining rollout blocker: operator must obtain/review
+a fresh read-only live account inventory before enabling this build. Do not delete
+or reassign accounts automatically. Phase 2 scenario execution has not started.

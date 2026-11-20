@@ -1,0 +1,12 @@
+9ac609b67bb4db0636b15bc7700d3a9095142cb12a849f2b85557eee010c9ce2
+00eabd94dee54d936b6d0289adff63c26b8e692bc596af47a82512a5ff8bd3f6
+test_approval_revocation_and_logout (tests.test_review_registration_mysql.MySQLRegistrationReviewTests.test_approval_revocation_and_logout) ... ok
+test_guest_business_routes_and_inventory_are_read_only (tests.test_review_registration_mysql.MySQLRegistrationReviewTests.test_guest_business_routes_and_inventory_are_read_only) ... ok
+test_opt_in_registration_is_pending (tests.test_review_registration_mysql.MySQLRegistrationReviewTests.test_opt_in_registration_is_pending) ... ok
+test_pending_roleless_and_empty_role_all_business_routes (tests.test_review_registration_mysql.MySQLRegistrationReviewTests.test_pending_roleless_and_empty_role_all_business_routes) ... ok
+test_registration_disabled_aliases_preserve_data (tests.test_review_registration_mysql.MySQLRegistrationReviewTests.test_registration_disabled_aliases_preserve_data) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 14.974s
+
+OK
