@@ -377,3 +377,24 @@ modeled tables after denial. Full suite before the final added lifecycle test:
 tests, build and diff checks passed. No working database or deployment changed.
 S03 remains open for compilation/work catalogs, Orders edge cases, grant rollout,
 policy manifest and browser/MySQL acceptance. Phase 2 has not started.
+
+## S03 compilation hierarchy — verified local slice
+
+Compilation definitions, stages and stage-material assignments now require
+view_menu_references_compiles for reads; edit_reference_compiles for create/edit;
+delete_reference_compiles for delete/restore plus the applicable trash grant.
+Capabilities are seeded without automatically assigning roles. Child operations
+reject deleted definitions; material operations reject deleted stages, even for
+view_trashed holders. Existing parent ownership checks remain enforced.
+Frontend create/edit/delete actions consume composed backend capabilities.
+
+Real-session disposable SQLite tests cover unrelated staff, readers, writers,
+domain/generic lifecycle combinations, successful mutations, wrong ownership,
+deleted parents and all-modeled-table snapshots after denial. The first copied
+fixture cleared a production flag during definition editing; the fixture now
+explicitly retains that flag before testing compatible material writes.
+
+Full backend: 313 run, OK, 24 opt-in MySQL skips with warnings as errors. Frontend
+19 helper tests and build pass. No deployment/database changes. S03 remains OPEN:
+prepress/redaction work catalogs, Orders lifecycle/deleted-parent/ownership edges,
+approved role grants, policy manifest reconciliation and browser/MySQL acceptance.

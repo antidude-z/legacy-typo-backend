@@ -19,10 +19,11 @@ class CompileReferenceTests(unittest.TestCase):
         self.assertEqual(self.client.patch(base, json={'title':'Binding updated', 'fitting':10, 'production_book':True}).status_code, 200)
         self.assertEqual(self.client.patch(base, json={'title':'', 'fitting':0}).status_code, 422)
         self.client.delete(base)
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name == 'view_menu_references_compiles'
         self.assertEqual(self.client.get(base).status_code, 404)
         self.assertEqual(self.client.post(base + '/restore').status_code, 403)
         self.assertEqual(self.client.delete(base).status_code, 403)
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         self.assertEqual(self.client.post(base + '/restore').status_code, 200)
         self.client.delete(base)

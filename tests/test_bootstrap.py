@@ -19,7 +19,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(db.query(SchemaVersion).count(), 1)
             self.assertIsNotNone(db.get(SchemaVersion, SCHEMA_VERSION))
             self.assertEqual(db.query(Role).count(), 7)
-            self.assertEqual(db.query(Permission).count(), 70)
+            self.assertEqual(db.query(Permission).count(), 72)
             self.assertEqual(db.query(OrderStatus).count(), 6)
             self.assertEqual(db.query(Report).count(), 6)
             self.assertEqual(db.query(ReportParam).count(), 8)
@@ -44,7 +44,7 @@ class BootstrapTests(unittest.TestCase):
         with Session(engine) as db:
             self.assertEqual(db.query(SchemaVersion).count(), 1)
             self.assertEqual(db.query(Role).count(), 7)
-            self.assertEqual(db.query(Permission).count(), 70)
+            self.assertEqual(db.query(Permission).count(), 72)
             self.assertEqual(db.query(ReportParam).count(), 8)
             self.assertEqual(db.query(Service).count(), 1)
             self.assertEqual(db.query(Rate).count(), 7)
