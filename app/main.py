@@ -606,9 +606,10 @@ def filter_orders(
 
 @app.get("/api/orders/add/{order_type}", tags=["orders"])
 def order_create_metadata(order_type: str, request: Request, db: Session = Depends(get_db)):
-    if current_user(request, db) is None:
+    user = current_user(request, db)
+    if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
-    return {"order_type": order_type, "defaults": {"printing": 1 if order_type == "wide" else 1000}, "metadata": list_metadata(db)}
+    return {"order_type": order_type, "defaults": {"printing": 1 if order_type == "wide" else 1000}, "metadata": list_metadata(db), "permissions": order_capabilities(user)}
 
 
 def order_format_suggestions(order_type: str, format_prefix: str, db: Session) -> list[str]:
@@ -1003,13 +1004,17 @@ def operation_restore(order_id: int, operation: str, item_id: int, request: Requ
 
 @app.get("/api/orders/{order_id}/blanks", tags=["orders"])
 def blanks(order_id: int, request: Request, db: Session = Depends(get_db)):
-    if current_user(request, db) is None:
+    user = current_user(request, db)
+    if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     if db.get(Order, order_id) is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
-    items = db.scalars(select(Blank).where(Blank.order_id == order_id, Blank.deleted_at.is_(None)).order_by(Blank.id)).all()
+    query = select(Blank).where(Blank.order_id == order_id)
+    if not user.has_permission('view_trashed'):
+        query = query.where(Blank.deleted_at.is_(None))
+    items = db.scalars(query.order_by(Blank.id)).all()
     order = db.get(Order, order_id)
-    return {"items": [serialize_blank(item, db) for item in items], "metadata": blank_metadata(db, order.order_type if order else None), "calculation": "stored_cost"}
+    return {"items": [serialize_blank(item, db) for item in items], "metadata": blank_metadata(db, order.order_type if order else None), "permissions": order_capabilities(user, order), "calculation": "stored_cost"}
 
 
 @app.post("/api/orders/{order_id}/blanks", tags=["orders"])

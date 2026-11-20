@@ -85,6 +85,24 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(db.scalar(select(Role)).permissions, [])
         engine.dispose()
 
+    def test_s03_capabilities_are_cataloged_but_never_automatically_assigned(self):
+        from app.s03_policy import policy_payload
+        capabilities = {domain[action] for domain in policy_payload()['domains'] for action in ('edit', 'delete')}
+        engine = self.make_engine()
+        initialize_database(engine)
+        with Session(engine) as db:
+            assigned_before = set(db.execute(select(role_permissions)).all())
+            self.assertTrue(all(db.get(Permission, identity) for identity in capabilities))
+            self.assertFalse(any(row.permission_id in capabilities for row in assigned_before))
+            role = db.scalar(select(Role).where(Role.title == 'Менеджер'))
+            role.permissions.append(db.get(Permission, 'edit_orders'))
+            db.commit()
+            approved = set(db.execute(select(role_permissions)).all())
+        initialize_database(engine)
+        with Session(engine) as db:
+            self.assertEqual(set(db.execute(select(role_permissions)).all()), approved)
+        engine.dispose()
+
 
 if __name__ == "__main__":
     unittest.main()

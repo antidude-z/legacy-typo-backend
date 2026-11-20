@@ -6,3 +6,5 @@ __pycache__/
 .env
 *.db
 data/mail/
+data/browser-qa-*.log
+data/s03-browser-results.json

@@ -9,7 +9,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 |---|---|---|
 | S01 | verified | Domain/lifecycle gates, self-disable and privileged-target restrictions, shared writer serialization, projected last-admin invariant; verified on SQLite and isolated MySQL InnoDB/MyISAM. See completion evidence below. |
 | S02 | in progress | Default-disabled registration and pending-account business admission verified locally; 242 backend tests OK (19 MySQL skips), 17 Chromium workflows pass. Disposable MySQL admission verification and pre-rollout account inventory remain; no deployment. |
-| S03 | in progress | Reference action boundaries implemented through work catalogs; Orders edge cases, policy manifest, approved grants and complete browser/MySQL acceptance remain. See increments below. |
+| S03 | fixed | Phase 1 implementation and local SQLite/MySQL InnoDB/MyISAM/browser acceptance complete. Production role-grant approval and Phase 2 scenarios are separate pending rollout gates; see completion evidence below. |
 | S04 | unstarted | Role delegation and privileged-target policy. |
 | S05 | unstarted | Report domain-read authorization. |
 | S06 | unstarted | Bill domain deletion authorization. |
@@ -476,3 +476,60 @@ formulas and deployed/working databases were not changed. Phase 2 not started.
 Final validation including revoked-edit and all-child reader checks: 331 backend
 tests run, OK, 24 MySQL skips; backend/frontend diff checks and browser-test syntax
 check passed. The new tests compare every modeled table after each rejected call.
+
+## S03 Phase 1 completion — 2026-11-20
+
+Supersedes the remaining implementation/acceptance gaps in the earlier increments.
+The finding is FIXED for Phase 1, not marked fully VERIFIED under the review's
+scenario-based definition of done: scenarios.md remains deferred at user request.
+
+Completed blank/create/copy frontend capabilities, disabled reader markups,
+blank trash listing/restore/permanent-delete controls, and order restore controls.
+Creation metadata requires edit authority; format suggestions remain read-scoped.
+Deleted rows cannot be edited/copied/recalculated. Existing shared-team visibility
+and narrowly scoped order selectors remain available without reference-admin rights.
+
+The checked inventory contains 127 registered route/method pairs across all S03
+families. The real-session matrix expands dynamic dictionary/inventory/work and
+order-operation kinds, verifies denial for unrelated/reader/wrong-domain/generic
+lifecycle/editor combinations, and checks every modeled table after denial.
+Existing domain suites verify successful legitimate mutations, lifecycle conjunctions,
+missing/deleted/wrong parents, revocation, and valid resource reads. S02's separate
+all-business-route tests retain guest/roleless/empty-role coverage.
+
+The audit payload now accurately declares S03 policy, includes every dedicated S03
+action grant in catalog checks, and explicitly says catalog completeness is NOT
+enforcement certification. `docs/s03-authorization.md` defines policy, repeatable
+checks and deliberate rollout. Bootstrap tests prove all 28 new domain-action
+capabilities are cataloged without automatic role assignments and approved grants
+survive repeat initialization. No grant migration based on role title was invented.
+
+Final validation:
+- Backend: 432 tests run, OK, 116 opt-in skips (including 92 new MySQL cases),
+  warnings treated as errors. An earlier run exposed an intermittent pre-existing
+  Windows S01 file-lock initialization PermissionError; unchanged rerun passed.
+  This was not hidden by modifying unrelated S01 code.
+- Dedicated temporary MySQL 8.0: 92 tests passed on InnoDB and 92 on MyISAM,
+  no skips, final runs include the updated blank visibility/revocation assertions.
+  URL/database-only grant checks run before fixture writes. Historical FK-free
+  schema used; first MyISAM setup failed on utf8mb4 key length before tests;
+  harness now uses legacy-compatible utf8mb3. Partial test-only DDL was reset.
+- Frontend: 19 helper tests and production build passed.
+- Full Chromium: 20 passed, zero skips/failures/flakes/runner errors, exit 0,
+  37.34 seconds in isolated Playwright 1.65.1 Linux container on Node 26.13.1.
+  Includes read-only Orders/blank/create/copy controls, catalog readers/writers,
+  and authorized blank soft-delete/restore/permanent-delete. An older reference
+  workflow assertion was corrected to accept the existing pagination query string.
+- Windows Playwright assertions also passed but runner shutdown still hangs on
+  both Node 25 and 26, even with externally managed servers. The clean Linux run
+  is the acceptance evidence; the bounded local harness cleans its owned servers.
+
+No production-like database or deployed service was mutated; all MySQL writes
+were to the temporary local test container, and browser writes to synthetic
+SQLite in temporary QA containers. Temporary containers/network are removed after
+verification. No physical-print/business acceptance or Phase 2 run is claimed.
+
+Remaining deployment decisions (not permission bypasses): security administrator
+must approve/assign actual staff role grants before rollout; no real role was
+broadened. S09 separately tracks initialization on historical databases without
+the version marker. S04–S12 and F01–F21 remain their own release blockers.

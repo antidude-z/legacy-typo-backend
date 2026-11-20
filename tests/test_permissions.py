@@ -62,7 +62,16 @@ class PermissionMatrixTests(unittest.TestCase):
         self.assertGreaterEqual(len(AUTHORIZATION_MATRIX), 15)
         self.assertEqual(len({(row['method'], row['path']) for row in AUTHORIZATION_MATRIX}), len(AUTHORIZATION_MATRIX))
         self.assertTrue(all(row['unauthenticated'] == 401 for row in AUTHORIZATION_MATRIX))
-        self.assertTrue(all(row['unauthorized'] == 'authenticated-only' or row['unauthorized'] in DEDICATED_PERMISSION_IDS or row['unauthorized'] in {'restore_trashed'} for row in AUTHORIZATION_MATRIX))
+        from app.s03_policy import policy_payload
+        known = set(DEDICATED_PERMISSION_IDS) | {'restore_trashed'}
+        for domain in policy_payload()['domains']:
+            known.update(domain['read_any'])
+            known.update((domain['edit'], domain['delete']))
+        for row in AUTHORIZATION_MATRIX:
+            contract = row['unauthorized']
+            if contract in {'authenticated-only', 'domain read grant; see s03_policy.domains'}:
+                continue
+            self.assertTrue(set(contract.split(' AND ')) <= known, contract)
 
     def test_authorization_matrix_executes_unauthenticated_and_denied_requests(self):
         cases = [

@@ -26,6 +26,8 @@ class PermissionAuditTests(unittest.TestCase):
         response = self.client.get('/api/options/permissions/audit')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['families']), len(ROUTE_PERMISSION_AUDIT))
+        self.assertFalse(response.json()['enforcement_verified'])
+        self.assertEqual(len(response.json()['s03_policy']['domains']), 14)
         self.permission_mock.return_value = False
         self.assertEqual(self.client.get('/api/options/permissions/audit').status_code, 403)
         self.auth_mock.return_value = None

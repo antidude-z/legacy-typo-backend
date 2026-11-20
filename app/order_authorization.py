@@ -15,7 +15,9 @@ def require_order_action(request, user):
             path == '/api/orders' or path.startswith('/api/orders/')):
         return
     required = ['view_menu_orders']
-    if request.method not in {'GET', 'HEAD', 'OPTIONS'} and not path.endswith('/filter'):
+    if '/orders/add/' in path:
+        required.append('edit_orders')
+    elif request.method not in {'GET', 'HEAD', 'OPTIONS'} and not path.endswith('/filter'):
         lifecycle = request.method == 'DELETE' or path.endswith(('/restore', '/permanent'))
         required.append('delete_orders' if lifecycle else 'edit_orders')
         if path.endswith('/restore'):
