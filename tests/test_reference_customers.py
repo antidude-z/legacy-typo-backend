@@ -28,11 +28,12 @@ class CustomerReferenceTests(unittest.TestCase):
         identity = self.client.post('/api/customer-references', json={'title':'Client'}).json()['id']
         target = f'/api/customer-references/{identity}'
         self.client.delete(target)
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name == 'view_menu_references_customers'
         self.assertEqual(self.client.get(target).status_code, 404)
         self.assertEqual(self.client.get('/api/customer-references').json()['items'], [])
         self.assertEqual(self.client.post(target + '/restore').status_code, 403)
         self.assertEqual(self.client.delete(target).status_code, 403)
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         self.assertEqual(self.client.post(target + '/restore').status_code, 200)
         self.client.delete(target)

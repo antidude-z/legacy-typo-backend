@@ -254,6 +254,30 @@ implicit-permanent-delete/deleted-parent coverage, approved grant rollout,
 frontend Orders/reference alignment and real browser/MySQL verification. This
 slice is not a completed S03 acceptance matrix. No VM or working data changed.
 
+## S03 customer administration — verified local slice
+
+All customer administration endpoints require `view_menu_references_customers`.
+Form preparation/create/update additionally require `edit_reference_customers`;
+delete/restore require `delete_reference_customers`, with restore/permanent-delete
+also requiring the corresponding generic trash grant. New capabilities are
+cataloged without assigning them to any existing role. Checks precede row lookup
+and mutation. Existing shared-team visibility is retained; owner/team scoping
+has not been invented. Order-scoped metadata continues to supply customer choices
+without exposing full customer administration to Orders-only staff.
+
+Frontend fields/actions consume composed can_edit/can_delete/lifecycle flags.
+Real-session disposable SQLite tests cover unrelated admitted staff, readers,
+writers, trash grants without domain-delete authority and successful lifecycle
+actions on existing records. Denials preserve every modeled table.
+
+Validation: 16 targeted tests passed (including inherited S01 regressions);
+full backend 279 run, OK, 24 opt-in MySQL skips, warnings treated as errors;
+19 frontend helper tests and production build passed. Browser/MySQL validation
+of this slice is still pending. No VM, working database or deployment changed.
+S03 remains OPEN: inventory and production-reference action policies, remaining
+Orders lifecycle/deleted-parent/cross-parent checks, frontend alignment, approved
+grant assignments and complete post-fix disposable browser/MySQL matrices.
+
 ## S03 dictionary action boundaries — verified local slice
 
 Paper types, paper formats, measures and customer groups now require their

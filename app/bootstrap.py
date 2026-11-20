@@ -147,6 +147,10 @@ def _initialize_database(database_engine) -> None:
         for identity, title in DICTIONARY_CAPABILITIES:
             if db.get(Permission, identity) is None:
                 db.add(Permission(id=identity, title=title, module='options'))
+        from .reference_customers import CUSTOMER_CAPABILITIES
+        for identity, title in CUSTOMER_CAPABILITIES:
+            if db.get(Permission, identity) is None:
+                db.add(Permission(id=identity, title=title, module='references'))
         for identity, kind, form, title, model in REPORTS:
             if db.get(Report, identity) is None:
                 db.add(Report(id=identity, kind=kind, form=form, title=title, model=model, model_title="Заказ" if "Order" in model else "Счет"))

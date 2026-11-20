@@ -15,14 +15,28 @@ FIELDS = [("title", "Название", "text"), ("customer_group_id", "Груп
           ("address", "Адрес", "textarea"), ("description", "Описание", "textarea")]
 
 
+CUSTOMER_CAPABILITIES = (
+    ('edit_reference_customers', 'Create and edit customers'),
+    ('delete_reference_customers', 'Delete and restore customers'),
+)
+
+
 def register_customer_routes(app, current_user):
-    def user_for(request, db):
+    def user_for(request, db, action=None):
         user = current_user(request, db)
         if user is None: raise HTTPException(401)
+        if not user.has_permission('view_menu_references_customers'):
+            raise HTTPException(403)
+        if action and not user.has_permission(action):
+            raise HTTPException(403)
         return user
 
     def permissions(user):
-        return {"can_restore": user.has_permission("restore_trashed"), "can_delete_trashed": user.has_permission("delete_trashed")}
+        delete = user.has_permission('delete_reference_customers')
+        return {'can_edit': user.has_permission('edit_reference_customers'),
+                'can_delete': delete,
+                "can_restore": delete and user.has_permission("restore_trashed"),
+                "can_delete_trashed": delete and user.has_permission("delete_trashed")}
 
     def serialize(row):
         return {"id": row.id, "deleted": row.deleted_at is not None,
@@ -74,8 +88,8 @@ def register_customer_routes(app, current_user):
 
     @app.get("/api/customer-references/form", tags=["references"])
     def form(request: Request, db: Session = Depends(get_db)):
-        user_for(request, db)
-        return {"fields": FIELDS, "groups": options(db)}
+        user = user_for(request, db, 'edit_reference_customers')
+        return {"fields": FIELDS, "groups": options(db), **permissions(user)}
 
     @app.get("/api/customer-references/{identity}", tags=["references"])
     def detail(identity: int, request: Request, db: Session = Depends(get_db)):
@@ -85,20 +99,20 @@ def register_customer_routes(app, current_user):
 
     @app.post("/api/customer-references", tags=["references"])
     def create(request: Request, payload: dict, db: Session = Depends(get_db)):
-        user_for(request, db)
+        user_for(request, db, 'edit_reference_customers')
         row = Customer(**values(payload, db)); db.add(row); db.commit()
         return {"id": row.id}
 
     @app.patch("/api/customer-references/{identity}", tags=["references"])
     def update(identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):
-        user_for(request, db); row = row_for(identity, db)
+        user_for(request, db, 'edit_reference_customers'); row = row_for(identity, db)
         if row.deleted_at: raise HTTPException(404)
         for key, value in values(payload, db, existing=row).items(): setattr(row, key, value)
         db.commit(); return {"status":"ok"}
 
     @app.delete("/api/customer-references/{identity}", tags=["references"])
     def delete(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = user_for(request, db); row = row_for(identity, db)
+        user = user_for(request, db, 'delete_reference_customers'); row = row_for(identity, db)
         if row.deleted_at:
             if not user.has_permission("delete_trashed"): raise HTTPException(403)
             db.delete(row)
@@ -107,7 +121,7 @@ def register_customer_routes(app, current_user):
 
     @app.post("/api/customer-references/{identity}/restore", tags=["references"])
     def restore(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = user_for(request, db)
+        user = user_for(request, db, 'delete_reference_customers')
         if not user.has_permission("restore_trashed"): raise HTTPException(403)
         row = row_for(identity, db); row.deleted_at = None
         db.commit(); return {"status":"ok"}
