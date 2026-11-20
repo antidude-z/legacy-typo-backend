@@ -31,6 +31,7 @@ from .diagnostics import database_diagnostics
 from .config import PRODUCTION, LOGIN_LIMIT_DB
 from .login_limits import reserve_attempt, clear_attempts
 from .config import PUBLIC_REGISTRATION_ENABLED
+from .order_authorization import order_capabilities
 
 
 def require_staff_admission(request: Request, db: Session = Depends(get_db)):
@@ -43,8 +44,9 @@ def require_staff_admission(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="unauthorized")
     if user.role is None or not user.role.permissions:
         raise HTTPException(status_code=403, detail="staff_approval_required")
-    from .order_authorization import require_order_action
+    from .order_authorization import require_order_action, require_order_resource
     require_order_action(request, user)
+    require_order_resource(request, user, db)
 
 
 @asynccontextmanager
@@ -541,6 +543,7 @@ def orders_response(
     items = db.scalars(statement.offset((page - 1) * per_page).limit(per_page)).unique().all()
     return {
         "title": "Заказы",
+        "permissions": order_capabilities(user),
         "items": [serialize_order(item) for item in items],
         "pagination": {"page": page, "per_page": per_page, "total": total, "last_page": max((total + per_page - 1) // per_page, 1)},
         "sort": sort if sort in {"id", "title", "order_type", "bill_id", "user_id", "customer_id", "status_id", "printing", "order_date", "total"} else "id",
@@ -664,7 +667,8 @@ def order_detail(order_id: int, request: Request, db: Session = Depends(get_db))
     item = db.get(Order, order_id)
     if item is None or (item.deleted_at is not None and not user.has_permission("view_trashed")):
         return JSONResponse({"error": "not_found"}, status_code=404)
-    return serialize_order_detail(db, item, user.has_permission("view_trashed"))
+    return {**serialize_order_detail(db, item, user.has_permission("view_trashed")),
+            "permissions": order_capabilities(user, item)}
 
 
 @app.get("/api/orders/{order_id}/history", tags=["orders"])
@@ -860,7 +864,7 @@ def order_operations(order_id: int, request: Request, db: Session = Depends(get_
         return JSONResponse({"error": "not_found"}, status_code=404)
     return {
         "order_id": order_id,
-        "permissions": {"restore": user.has_permission("restore_trashed"), "permanent_delete": user.has_permission("delete_trashed")},
+        "permissions": order_capabilities(user, order),
         "choices": {key: operation_reference_choices(key, order.order_type, db) for key in OPERATION_REFERENCES},
         "operations": {
             key: [{"id": item.id, "reference_id": getattr(item, foreign_key), "quantity": str(item.quantity), "fitting": bool(getattr(item, "fitting", False)), "deleted": item.deleted_at is not None} for item in db.scalars((select(model).where(model.order_id == order_id).order_by(model.id) if user.has_permission("view_trashed") else select(model).where(model.order_id == order_id, model.deleted_at.is_(None)).order_by(model.id))).all()]
@@ -1131,6 +1135,8 @@ def blank_delete(order_id: int, blank_id: int, request: Request, db: Session = D
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
+    if item.deleted_at is not None:
+        return blank_permanent_delete(order_id, blank_id, request, db)
     item.deleted_at = utc_now()
     db.commit()
     return {"status": "ok"}

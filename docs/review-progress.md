@@ -434,3 +434,45 @@ S03 remains OPEN for Orders lifecycle/deleted-parent/ownership edges, manifest
 reconciliation, operator-approved grants and guarded MySQL/full browser acceptance.
 No VM, working database or deployed service changed. Phase 2 has not started;
 scenarios.md was not read or executed.
+
+## S03 Orders resource/trash boundary — local regression increment
+
+Pushed preceding backend 24230fe (fix/mysql-runtime) and frontend 5071bda (main)
+to GitHub; remote branch hashes verified. No VM pull/rebuild or deployment.
+
+Inspected archived Blank/OrderPrepress lifecycle behavior, current route dispatch,
+models, operation/calculation tests and frontend consumers. Real-session SQLite
+tests reproduced four gaps: deleted-parent updates, deleted-child updates,
+permanent deletion of active blanks, and repeated unauthorized deletes returning
+200 while changing tombstone timestamps.
+
+The shared business dependency now applies Orders resource scope before handlers:
+missing/orphan/cross-parent children return 404; nested access requires an active
+parent; deleted orders are read/history-visible only with view_trashed and reject
+ordinary edits/copy/recalculation. Deleted children reject update/copy/recalculation;
+detail requires view_trashed. Restore remains domain-delete plus restore_trashed;
+implicit and explicit permanent deletion require domain-delete plus delete_trashed.
+Active blank permanent-delete requests return 409 (soft-delete first). Repeated
+blank DELETE now follows the same guarded permanent-delete policy as operations.
+No owner-only restriction was added: shared-team visibility remains intentional.
+
+Composed edit/delete/restore/permanent-delete capabilities are returned by Orders
+list/detail/operations. Main form, calculation, list creation and operation controls
+consume them. Failed order deletion no longer navigates away as if successful.
+The catalog-only reader's forbidden Orders landing page now shows an access-denied
+alert without replacing list data with an error payload or crashing pagination.
+
+Validation before the final added revocation test: full backend 330 run, OK with
+24 opt-in MySQL skips, warnings as errors; frontend 19 helper tests/build passed.
+Both new Chromium tests completed assertions (catalog writer/reader and Orders
+reader); runner again timed out during teardown at 120s, nonzero exit. This is
+NOT a clean browser-suite pass. Follow-up test/suite results are appended below.
+
+S03 remains OPEN: blank editor/create/copy UI capability alignment, complete route
+matrix/policy-manifest reconciliation, deliberate approved role grants, guarded
+MySQL acceptance and clean full browser validation. Historical data, calculation
+formulas and deployed/working databases were not changed. Phase 2 not started.
+
+Final validation including revoked-edit and all-child reader checks: 331 backend
+tests run, OK, 24 MySQL skips; backend/frontend diff checks and browser-test syntax
+check passed. The new tests compare every modeled table after each rejected call.
