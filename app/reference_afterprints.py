@@ -17,6 +17,10 @@ STAGE_FIELDS = [("title", "Название", "text"), ("together", "В обра
                 ("waste", "Отходы за прогон", "number"), ("fitting", "Этап является приладкой", "checkbox")]
 MATERIAL_FIELDS = [("material_id", "Материал", "select"), ("quantity", "Количество", "decimal")]
 PRODUCTIONS = ("book", "poly", "souvenir", "wide")
+AFTERPRINT_CAPABILITIES = (
+    ('edit_reference_afterprints', 'Edit afterprint configuration'),
+    ('delete_reference_afterprints', 'Delete and restore afterprint configuration'),
+)
 
 
 def stage_values(payload):
@@ -42,6 +46,12 @@ def register_afterprint_routes(app, current_user):
     def user_for(request, db):
         user = current_user(request, db)
         if user is None: raise HTTPException(401, "Unauthorized")
+        required = ['view_menu_references_afterprints']
+        if request.method not in {'GET', 'HEAD', 'OPTIONS'}:
+            lifecycle = request.method == 'DELETE' or request.url.path.endswith('/restore')
+            required.append('delete_reference_afterprints' if lifecycle else 'edit_reference_afterprints')
+        if any(not user.has_permission(permission) for permission in required):
+            raise HTTPException(403, 'Afterprint permission required')
         return user
 
     def parent(identity, db, user):
@@ -51,14 +61,20 @@ def register_afterprint_routes(app, current_user):
         return row
 
     def stage_for(identity, stage_id, db, user, include_deleted=False):
-        parent(identity, db, user)
+        reference = parent(identity, db, user)
+        if reference.deleted_at:
+            raise HTTPException(404, 'Afterprint not active')
         stage = db.get(AfterprintStage, stage_id)
         if not stage or stage.afterprint_id != identity or (stage.deleted_at and not include_deleted and not user.has_permission("view_trashed")):
             raise HTTPException(404, "Stage not found")
         return stage
 
     def permissions(user):
-        return {"can_restore": user.has_permission("restore_trashed"), "can_delete_trashed": user.has_permission("delete_trashed"), "can_view_prices": user.has_permission("view_menu_prices")}
+        delete = user.has_permission('delete_reference_afterprints')
+        return {'can_edit': user.has_permission('edit_reference_afterprints'), 'can_delete': delete,
+                "can_restore": delete and user.has_permission("restore_trashed"),
+                "can_delete_trashed": delete and user.has_permission("delete_trashed"),
+                "can_view_prices": user.has_permission("view_menu_prices")}
 
     def stage_data(row):
         return {"id": row.id, "deleted": row.deleted_at is not None, "weight": row.weight,
@@ -91,7 +107,7 @@ def register_afterprint_routes(app, current_user):
         total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = db.scalars(query.order_by(column.asc() if order == "asc" else column.desc()).offset((page - 1) * per_page).limit(per_page)).all()
         return {"items": [{"id": row.id, "title": row.title, "production": {key: getattr(row, f"production_{key}") for key in PRODUCTIONS}} for row in rows],
-                "page": page, "last_page": max(1, (total + per_page - 1) // per_page)}
+                "page": page, "last_page": max(1, (total + per_page - 1) // per_page), **permissions(user)}
 
     @app.get("/api/references/afterprints/{identity}", tags=["references"])
     def detail(identity: int, request: Request, db: Session = Depends(get_db)):
@@ -117,12 +133,13 @@ def register_afterprint_routes(app, current_user):
 
     @app.get("/api/references/afterprints/{identity}/stages/form", tags=["references"])
     def stage_form(identity: int, request: Request, db: Session = Depends(get_db)):
-        parent(identity, db, user_for(request, db))
-        return {"fields": STAGE_FIELDS, "item": {"title": "", "together": 1, "waste": 0, "min_paper_weight": 0, "max_paper_weight": None, "fitting": False}}
+        user = user_for(request, db)
+        if parent(identity, db, user).deleted_at: raise HTTPException(404)
+        return {"fields": STAGE_FIELDS, **permissions(user), "item": {"title": "", "together": 1, "waste": 0, "min_paper_weight": 0, "max_paper_weight": None, "fitting": False}}
 
     @app.post("/api/references/afterprints/{identity}/stages", tags=["references"])
     def stage_create(identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):
-        parent(identity, db, user_for(request, db))
+        if parent(identity, db, user_for(request, db)).deleted_at: raise HTTPException(404)
         try: values = stage_values(payload)
         except (ValueError, TypeError, InvalidOperation) as error: raise HTTPException(422, str(error))
         weight = db.scalar(select(func.max(AfterprintStage.weight)).where(AfterprintStage.afterprint_id == identity, AfterprintStage.deleted_at.is_(None)))
@@ -148,9 +165,10 @@ def register_afterprint_routes(app, current_user):
 
     @app.get("/api/references/afterprints/{identity}/stages/{stage_id}/materials/form", tags=["references"])
     def material_form(identity: int, stage_id: int, request: Request, db: Session = Depends(get_db)):
-        user = user_for(request, db); stage_for(identity, stage_id, db, user)
+        user = user_for(request, db)
+        if stage_for(identity, stage_id, db, user).deleted_at: raise HTTPException(404)
         reference = parent(identity, db, user)
-        return {"fields": MATERIAL_FIELDS, "choices": [{"id": row.id, "title": row.title} for row in materials_for(reference, db)], "item": {"material_id": "", "quantity": "0"}}
+        return {"fields": MATERIAL_FIELDS, **permissions(user), "choices": [{"id": row.id, "title": row.title} for row in materials_for(reference, db)], "item": {"material_id": "", "quantity": "0"}}
 
     @app.post("/api/references/afterprints/{identity}/stages/{stage_id}/materials", tags=["references"])
     def material_create(identity: int, stage_id: int, request: Request, payload: dict, db: Session = Depends(get_db)):
@@ -162,7 +180,7 @@ def register_afterprint_routes(app, current_user):
         db.add(row); db.commit(); return {"id": row.id}
 
     def assignment(identity, stage_id, item_id, db, user):
-        stage_for(identity, stage_id, db, user)
+        if stage_for(identity, stage_id, db, user).deleted_at: raise HTTPException(404)
         row = db.get(AfterprintStageMaterial, item_id)
         if not row or row.afterprint_stage_id != stage_id: raise HTTPException(404)
         return row

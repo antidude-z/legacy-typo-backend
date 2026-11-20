@@ -50,9 +50,10 @@ class AfterprintReferenceTests(unittest.TestCase):
         identity = result.json()['id']
         self.assertEqual(self.client.get(f'{collection}/{identity}').json()['item']['quantity'], '0.1250')
         self.client.delete(f'{collection}/{identity}')
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name == 'view_menu_references_afterprints'
         self.assertEqual(self.client.get(f'{collection}/{identity}').status_code, 404)
         self.assertEqual(self.client.post(f'{collection}/{identity}/restore').status_code, 403)
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         self.assertEqual(self.client.post(f'{collection}/{identity}/restore').status_code, 200)
         self.client.delete(f'{collection}/{identity}')

@@ -359,3 +359,21 @@ skips with warnings treated as errors; 19 frontend helpers and build passed.
 No VM, working database or deployed service changed. S03 remains OPEN for
 customers/inventory/production reference families, Orders lifecycle and parent
 checks, approved grant rollout and post-fix browser/MySQL acceptance.
+
+## S03 afterprint hierarchy — verified local slice
+
+Definition reads and nested forms require view_menu_references_afterprints.
+Definition edits and stage/material creates/updates additionally require
+edit_reference_afterprints; child delete/restore require
+delete_reference_afterprints plus the applicable generic lifecycle permission.
+New grants are cataloged, not automatically assigned. Frontend controls follow
+composed backend capabilities. Deleted definitions reject child access/mutations;
+deleted stages reject material access/mutations even with view_trashed.
+
+Real-session disposable SQLite tests cover reader/writer/lifecycle combinations,
+unrelated staff, wrong definition/stage ownership, deleted parents and unchanged
+modeled tables after denial. Full suite before the final added lifecycle test:
+303 run, OK, 24 MySQL skips; final focused suite: 9 passed. Frontend 19 helper
+tests, build and diff checks passed. No working database or deployment changed.
+S03 remains open for compilation/work catalogs, Orders edge cases, grant rollout,
+policy manifest and browser/MySQL acceptance. Phase 2 has not started.
