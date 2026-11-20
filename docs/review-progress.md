@@ -228,3 +228,28 @@ deleted-parent/cross-parent/lifecycle matrices and implicit permanent-delete
 paths; narrowly scoped selectors; frontend capabilities; deliberate approved-role
 grant migration; guarded MySQL and browser verification. No deployed service or
 working database changed. Phase 2 has not started.
+
+## S03 payer action boundary — verified local slice
+
+All payer routes now require `view_menu_accounting_payers`. Form preparation,
+create and update also require `edit_accounting_payers`; delete and restore
+require `delete_accounting_payers`. Restore/permanent delete additionally require
+the corresponding generic lifecycle permission. Checks precede resource lookup
+and writes. New capabilities are cataloged but not granted to existing roles.
+Bill selectors retain their separate bill-scoped contract; no payer catalog
+administration access is conferred by an Orders or Bills menu grant.
+
+Responses expose can_edit/can_delete and composed lifecycle capabilities. The
+payer frontend hides unauthorized creation/deletion and makes reader fields
+read-only. Direct URLs remain protected by the API, not just hidden controls.
+
+Real-session disposable SQLite tests cover unrelated staff, read-only, writer,
+generic-trash-without-domain-delete and authorized lifecycle success, with
+all-modeled-table snapshots on denials. Targeted suite: 11 passed (including
+inherited employee regressions). Full backend: 263 run, OK, 24 MySQL skips,
+warnings treated as errors. Frontend: 19 helpers and production build passed.
+
+Remaining S03 blockers: reference-family read/write/delete policies, Orders
+implicit-permanent-delete/deleted-parent coverage, approved grant rollout,
+frontend Orders/reference alignment and real browser/MySQL verification. This
+slice is not a completed S03 acceptance matrix. No VM or working data changed.

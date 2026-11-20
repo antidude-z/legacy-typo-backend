@@ -14,6 +14,11 @@ FIELDS = [("title", "Название", "text"), ("profit", "Комиссия, %
           ("phone", "Телефон", "text"), ("inn", "ИНН", "text"),
           ("address", "Адрес", "textarea"), ("description", "Описание", "textarea")]
 
+PAYER_CAPABILITIES = (
+    ('edit_accounting_payers', 'Create and edit payers'),
+    ('delete_accounting_payers', 'Delete and restore payers'),
+)
+
 
 def payer_values(payload):
     values = {}
@@ -33,14 +38,21 @@ def payer_values(payload):
 
 
 def register_payer_routes(app, current_user):
-    def actor(request, db):
+    def actor(request, db, action=None):
         user = current_user(request, db)
         if user is None: raise HTTPException(401)
+        if not user.has_permission('view_menu_accounting_payers'):
+            raise HTTPException(403)
+        if action and not user.has_permission(action):
+            raise HTTPException(403)
         return user
 
     def flags(user):
-        return {"can_restore": user.has_permission("restore_trashed"),
-                "can_delete_trashed": user.has_permission("delete_trashed")}
+        delete = user.has_permission('delete_accounting_payers')
+        return {"can_edit": user.has_permission('edit_accounting_payers'),
+                "can_delete": delete,
+                "can_restore": delete and user.has_permission("restore_trashed"),
+                "can_delete_trashed": delete and user.has_permission("delete_trashed")}
 
     def serialize(row):
         return {"id": row.id, "deleted": row.deleted_at is not None,
@@ -66,8 +78,8 @@ def register_payer_routes(app, current_user):
 
     @app.get("/api/accounting/payers/form", tags=["accounting"])
     def form(request: Request, db: Session = Depends(get_db)):
-        actor(request, db)
-        return {"fields": FIELDS}
+        user = actor(request, db, 'edit_accounting_payers')
+        return {"fields": FIELDS, **flags(user)}
 
     @app.get("/api/accounting/payers/{identity}", tags=["accounting"])
     def detail(identity: int, request: Request, db: Session = Depends(get_db)):
@@ -77,20 +89,20 @@ def register_payer_routes(app, current_user):
 
     @app.post("/api/accounting/payers", tags=["accounting"])
     def create(request: Request, payload: dict, db: Session = Depends(get_db)):
-        actor(request, db)
+        actor(request, db, 'edit_accounting_payers')
         row = Payer(**payer_values(payload)); db.add(row); db.commit()
         return {"id": row.id}
 
     @app.patch("/api/accounting/payers/{identity}", tags=["accounting"])
     def update(identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):
-        actor(request, db); row = row_for(identity, db)
+        actor(request, db, 'edit_accounting_payers'); row = row_for(identity, db)
         if row.deleted_at: raise HTTPException(404)
         for key, value in payer_values(payload).items(): setattr(row, key, value)
         db.commit(); return {"status": "ok"}
 
     @app.delete("/api/accounting/payers/{identity}", tags=["accounting"])
     def delete(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = actor(request, db); row = row_for(identity, db)
+        user = actor(request, db, 'delete_accounting_payers'); row = row_for(identity, db)
         if row.deleted_at:
             if not user.has_permission("delete_trashed"): raise HTTPException(403)
             db.delete(row)
@@ -99,7 +111,7 @@ def register_payer_routes(app, current_user):
 
     @app.post("/api/accounting/payers/{identity}/restore", tags=["accounting"])
     def restore(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = actor(request, db)
+        user = actor(request, db, 'delete_accounting_payers')
         if not user.has_permission("restore_trashed"): raise HTTPException(403)
         row = row_for(identity, db); row.deleted_at = None
         db.commit(); return {"status": "ok"}

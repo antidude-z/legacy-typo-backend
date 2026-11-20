@@ -33,11 +33,12 @@ class PayerTests(unittest.TestCase):
         identity = self.client.post('/api/accounting/payers',json={'title':'Company','profit':0}).json()['id']
         target = f'/api/accounting/payers/{identity}'
         self.client.delete(target)
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name == 'view_menu_accounting_payers'
         self.assertEqual(self.client.get(target).status_code,404)
         self.assertEqual(self.client.get('/api/accounting/payers').json()['items'],[])
         self.assertEqual(self.client.post(target+'/restore').status_code,403)
         self.assertEqual(self.client.delete(target).status_code,403)
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         self.assertEqual(self.client.post(target+'/restore').status_code,200)
         self.client.delete(target)
