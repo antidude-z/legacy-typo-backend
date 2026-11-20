@@ -34,6 +34,20 @@ DICTIONARIES = {
     },
 }
 
+DICTIONARY_CAPABILITIES = tuple(
+    (f'{action}_dictionary_{kind.replace("-", "_")}', f'{action.title()} {config["title"]}')
+    for kind, config in DICTIONARIES.items() for action in ('edit', 'delete')
+)
+
+
+def dictionary_permissions(user, kind):
+    suffix = kind.replace('-', '_')
+    delete = user.has_permission(f'delete_dictionary_{suffix}')
+    return {'can_edit': user.has_permission(f'edit_dictionary_{suffix}'),
+            'can_delete': delete,
+            'can_restore': delete and user.has_permission('restore_trashed'),
+            'can_delete_trashed': delete and user.has_permission('delete_trashed')}
+
 
 def metadata(config):
     return {key: config[key] for key in ("title", "new", "singular", "draft")} | {
@@ -79,6 +93,19 @@ def register_reference_routes(app, current_user):
         config = DICTIONARIES.get(kind)
         if config is None:
             return None, JSONResponse({"error": "not_found"}, status_code=404)
+        read_permissions = {
+            'paper-type': ('view_menu_options_paper_type', 'view_menu_references_paper_type'),
+            'paper-format': ('view_menu_options_paper_format',),
+            'measures': ('view_menu_options_measures',),
+            'customer-group': ('view_menu_options_customer_group',),
+        }
+        if not any(user.has_permission(permission) for permission in read_permissions[kind]):
+            return None, JSONResponse({'error': 'forbidden'}, status_code=403)
+        if request.method not in {'GET', 'HEAD', 'OPTIONS'}:
+            flags = dictionary_permissions(user, kind)
+            lifecycle = request.method == 'DELETE' or request.url.path.endswith('/restore')
+            if not flags['can_delete' if lifecycle else 'can_edit']:
+                return None, JSONResponse({'error': 'forbidden'}, status_code=403)
         return (user, config), None
 
     @app.get("/api/options/{kind}", tags=["references"])
@@ -102,8 +129,7 @@ def register_reference_routes(app, current_user):
         return {"metadata": metadata(config), "items": [serialize(row, config) for row in rows],
                 "page": page, "per_page": per_page, "last_page": max(1, (total + per_page - 1) // per_page),
                 "total": total, "sort": sort, "order": order,
-                "can_restore": user.has_permission("restore_trashed"),
-                "can_delete_trashed": user.has_permission("delete_trashed")}
+                **dictionary_permissions(user, kind)}
 
     @app.post("/api/options/{kind}/create", tags=["references"])
     def create_draft(kind: str, request: Request, db: Session = Depends(get_db)):
@@ -117,7 +143,7 @@ def register_reference_routes(app, current_user):
         row = config["model"](**values)
         db.add(row)
         db.commit()
-        return {"metadata": metadata(config), "item": serialize(row, config)}
+        return {"metadata": metadata(config), "item": serialize(row, config), **dictionary_permissions(ctx[0], kind)}
 
     @app.post("/api/options/{kind}", tags=["references"])
     def store(kind: str, request: Request, payload: dict, db: Session = Depends(get_db)):
@@ -142,7 +168,7 @@ def register_reference_routes(app, current_user):
         row = db.get(config["model"], identity)
         if row is None or (row.deleted_at and not user.has_permission("view_trashed")):
             return JSONResponse({"error": "not_found"}, status_code=404)
-        return {"metadata": metadata(config), "item": serialize(row, config)}
+        return {"metadata": metadata(config), "item": serialize(row, config), **dictionary_permissions(user, kind)}
 
     @app.patch("/api/options/{kind}/{identity}", tags=["references"])
     def update(kind: str, identity: int, request: Request, payload: dict, db: Session = Depends(get_db)):

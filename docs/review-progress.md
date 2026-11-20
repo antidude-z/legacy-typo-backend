@@ -253,3 +253,27 @@ Remaining S03 blockers: reference-family read/write/delete policies, Orders
 implicit-permanent-delete/deleted-parent coverage, approved grant rollout,
 frontend Orders/reference alignment and real browser/MySQL verification. This
 slice is not a completed S03 acceptance matrix. No VM or working data changed.
+
+## S03 dictionary action boundaries — verified local slice
+
+Paper types, paper formats, measures and customer groups now require their
+existing dictionary read grant. Paper types accept either existing options or
+references read alias. Each dictionary has distinct `edit_dictionary_<kind>` and
+`delete_dictionary_<kind>` capabilities (hyphens replaced with underscores).
+These eight capabilities are cataloged but never assigned automatically.
+Draft creation, store and patch require edit; delete/restore require delete;
+generic trash permissions remain additional requirements, not substitutes.
+Unrelated dictionary writers gain no access. Order metadata selectors are
+unchanged and do not require dictionary-administration grants.
+
+Frontend create, edit, delete and lifecycle controls consume composed backend
+capabilities; read-only fields are disabled. API checks remain authoritative.
+Real-session disposable SQLite matrix covers all four dictionaries, valid rows,
+draft denial, store/patch/delete/restore denial, writer success, lifecycle success,
+cross-dictionary denial and unchanged modeled tables on rejected requests.
+
+Validation: targeted 19 tests passed; full backend 271 run, OK, 24 opt-in MySQL
+skips with warnings treated as errors; 19 frontend helpers and build passed.
+No VM, working database or deployed service changed. S03 remains OPEN for
+customers/inventory/production reference families, Orders lifecycle and parent
+checks, approved grant rollout and post-fix browser/MySQL acceptance.

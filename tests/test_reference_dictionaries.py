@@ -44,8 +44,9 @@ class ReferenceDictionaryTests(unittest.TestCase):
         identity = created['item']['id']
         self.assertEqual(self.client.patch(f'/api/options/paper-type/{identity}', json={'paper_type_title': 'Мелованная'}).status_code, 200)
         self.assertEqual(self.client.delete(f'/api/options/paper-type/{identity}').status_code, 200)
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name.startswith("view_menu_")
         self.assertEqual(len(self.client.get('/api/options/paper-type').json()['items']), 1)
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         self.assertEqual(self.client.post(f'/api/options/paper-type/{identity}/restore').status_code, 200)
         self.assertEqual(len(self.client.get('/api/options/paper-type').json()['items']), 2)
@@ -56,17 +57,19 @@ class ReferenceDictionaryTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/options/measures', json={'measure_title': 'Метр', 'measure_short': 'м'}).status_code, 200)
 
     def test_permissions_are_enforced(self):
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name.startswith("view_menu_")
         self.assertEqual(self.client.post('/api/options/paper-type/1/restore').status_code, 403)
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         self.auth_mock.return_value = None
         self.assertEqual(self.client.get('/api/options/paper-type').status_code, 401)
 
     def test_permanent_delete_requires_permission(self):
         self.client.delete('/api/options/measures/1')
-        self.permission_mock.return_value = False
+        self.permission_mock.side_effect = lambda name: name.startswith("view_menu_")
         self.assertEqual(self.client.delete('/api/options/measures/1').status_code, 403)
         self.assertEqual(self.client.get('/api/options/measures/1').status_code, 404)
+        self.permission_mock.side_effect = None
         self.permission_mock.return_value = True
         self.assertEqual(self.client.delete('/api/options/measures/1').status_code, 200)
         self.assertIsNone(self.db.get(Measure, 1))
