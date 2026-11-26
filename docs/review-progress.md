@@ -809,3 +809,10 @@ Existing Compose files plus --profile mysql and
 /root/backups/s06-candidate-images.yaml select deployed images. Actual MySQL
 volume rework_mysql_data preserved. Session/home health passed. No working DB
 mutation QA, grants broadened, or scenarios.md changes. Publication follows.
+
+Publication complete: backend ad2ef07 (fix/mysql-runtime) and frontend 68a951c
+(main) pushed and VM checkouts fast-forwarded cleanly. Deployed accounting helper,
+bill and payment source hashes match candidate; independent service/volume/
+rollback-image/session checks passed. Checkout source comparisons passed and
+session health remained good after synchronization. S06 Phase 1 complete; next
+finding S07. Phase 2 stays deferred.
