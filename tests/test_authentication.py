@@ -17,6 +17,7 @@ from app.db import Base, get_db
 from app.main import app
 from app.models import PasswordReset, User
 from app.csrf import CSRF_COOKIE
+from app.config import SESSION_COOKIE
 from app.clock import utc_now
 
 
@@ -64,6 +65,31 @@ class AuthenticationTests(unittest.TestCase):
         logout = self.client.post("/api/auth/logout", headers={"X-CSRF-Token": token}, follow_redirects=False)
         self.assertEqual(logout.status_code, 303)
         self.assertIsNone(self.db.get(User, self.user.id).remember_token)
+
+    def test_logout_revokes_copied_session_and_remember_cookies(self):
+        response = self.client.post("/api/auth/login", data={"email": self.user.email, "password": self.password, "remember": "true"}, follow_redirects=False)
+        self.assertEqual(response.status_code, 303)
+        session_cookie = self.client.cookies.get(SESSION_COOKIE)
+        remember_cookie = self.client.cookies.get("typography_remember")
+        copied_session = TestClient(app)
+        copied_remember = TestClient(app)
+        self.addCleanup(copied_session.close)
+        self.addCleanup(copied_remember.close)
+        copied_session.cookies.set(SESSION_COOKIE, session_cookie)
+        copied_remember.cookies.set("typography_remember", remember_cookie)
+        self.assertTrue(copied_session.get("/api/session").json()["authenticated"])
+        self.assertTrue(copied_remember.get("/api/session").json()["authenticated"])
+
+        token = self.client.get("/api/csrf-token").json()["token"]
+        logout = self.client.post("/api/auth/logout", headers={"X-CSRF-Token": token}, follow_redirects=False)
+        self.assertEqual(logout.status_code, 303)
+        self.assertFalse(copied_session.get("/api/session").json()["authenticated"])
+        self.assertFalse(copied_remember.get("/api/session").json()["authenticated"])
+
+    def test_guest_logout_is_idempotent(self):
+        token = self.client.get("/api/csrf-token").json()["token"]
+        response = self.client.post("/api/auth/logout", headers={"X-CSRF-Token": token}, follow_redirects=False)
+        self.assertEqual(response.status_code, 303)
 
     def test_password_reset_is_single_use_and_expires(self):
         with tempfile.TemporaryDirectory() as directory, patch("app.main.RESET_MAIL_DIR", Path(directory)), patch("app.main.RESET_MAIL_MODE", "file"):

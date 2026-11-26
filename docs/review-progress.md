@@ -14,7 +14,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 | S05 | fixed | Phase 1 SQLite/MySQL/browser validation passed; deployed 2026-11-26 with unchanged business checksums, grants and pending accounts against a fresh baseline including the developer-created bill. |
 | S06 | fixed | Explicit bill/payment domain-delete and lifecycle conjunction; 597 backend tests OK (204 skips), 4 tests per MySQL engine and 23 browser workflows pass. Backed up/deployed 2026-11-26 with unchanged business checksums and role grants. |
 | S07 | fixed | Shared credential revocation/security stamp, lifecycle and recovery policy verified; 607 backend tests OK (209 skips), 6 S07 cases per MySQL engine and 24 browser workflows passed. Schema-aware rollout completed 2026-11-26 with preserved user values/business data/grants. |
-| S08 | unstarted | Logout session revocation. |
+| S08 | fixed locally | Logout rotates the account security stamp under the serialized security writer, clears remember credentials and the local session, and expires the remember cookie. Copied signed session and remember cookies are rejected after logout. Deployment/publish pending. |
 | S09 | unstarted | Initialization grant preservation. |
 | S10 | unstarted | Actual route authorization coverage. |
 | S11 | unstarted | Production launch and strict cookie-authenticated CSRF. |

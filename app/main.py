@@ -33,6 +33,7 @@ from .login_limits import reserve_attempt, clear_attempts
 from .config import PUBLIC_REGISTRATION_ENABLED
 from .order_authorization import order_capabilities
 from .admin_safety import security_writer
+from .credentials import revoke_credentials
 
 
 def require_staff_admission(request: Request, db: Session = Depends(get_db)):
@@ -410,10 +411,11 @@ def login(
 
 @app.post("/auth/logout", tags=["auth"])
 @app.post("/api/auth/logout", tags=["auth"], include_in_schema=False)
+@security_writer
 def logout(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user:
-        user.remember_token = None
+        revoke_credentials(user)
         db.commit()
     request.session.clear()
     response = RedirectResponse("/auth/login", status_code=303)
