@@ -89,6 +89,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     password = Column(String(60), nullable=False)
     remember_token = Column(String(100), nullable=True)
+    security_stamp = Column(String(64), nullable=True)
     role_id = Column(ForeignKey("roles.id"), nullable=True)
     fired = Column(Integer, nullable=False, default=0)
     phone = Column(String(50), nullable=True)

@@ -13,7 +13,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 | S04 | fixed | Phase 1 SQLite/MySQL/browser acceptance passed; backed up and deployed on 2026-11-26 with unchanged business checksums and role grants. Phase 2 remains deferred. |
 | S05 | fixed | Phase 1 SQLite/MySQL/browser validation passed; deployed 2026-11-26 with unchanged business checksums, grants and pending accounts against a fresh baseline including the developer-created bill. |
 | S06 | fixed | Explicit bill/payment domain-delete and lifecycle conjunction; 597 backend tests OK (204 skips), 4 tests per MySQL engine and 23 browser workflows pass. Backed up/deployed 2026-11-26 with unchanged business checksums and role grants. |
-| S07 | unstarted | Password-change remember-token revocation. |
+| S07 | fixed | Shared credential revocation/security stamp, lifecycle and recovery policy verified; 607 backend tests OK (209 skips), 6 S07 cases per MySQL engine and 24 browser workflows passed. Schema-aware rollout completed 2026-11-26 with preserved user values/business data/grants. |
 | S08 | unstarted | Logout session revocation. |
 | S09 | unstarted | Initialization grant preservation. |
 | S10 | unstarted | Actual route authorization coverage. |
@@ -816,3 +816,102 @@ bill and payment source hashes match candidate; independent service/volume/
 rollback-image/session checks passed. Checkout source comparisons passed and
 session health remained good after synchronization. S06 Phase 1 complete; next
 finding S07. Phase 2 stays deferred.
+
+## Approved accountant payer-edit grant — 2026-11-26
+
+Operator explicitly approved payer creation/editing for existing accountants.
+Resolved unique live role Бухгалтерия (id 7), required existing payer-read grant,
+snapshotted roles/exact role_permissions under /root/backups/accountant-payer-grant-*
+and serialized update through security_writer. Added only edit_accounting_payers;
+verified no removals or unrelated additions before commit. First result reporting
+failed JSON serialization after successful commit; idempotent retry confirmed
+effective grant true with zero further additions/removals. Retry snapshot at
+/root/backups/accountant-payer-grant-20261126T110203Z. No payer/business data was
+created or changed; no delete/admin grants added. This is an approved operational
+grant, not an automatic bootstrap policy change.
+
+## S07 initial credential-reset increment — 2026-11-26
+
+Inspected finding, employee reset/update, session password fingerprints, persistent
+remember authentication, public password reset and existing real-session tests.
+Confirmed employee password reset left remember_token intact. Shared
+credentials.replace_password now sets password hash and clears remember digest;
+employee and public reset use it in their existing commit. Added real cookie
+regression: old password/session/remember rejected, new password accepted, unrelated
+actor session retained. Focused run: five tests passed (new case plus existing
+SQLite session suite). No S07 deployment/commit/push yet. Still required: policy
+and coverage for firing/deletion/restoration/email/role changes, missing-fingerprint
+compatibility, remember use/rotation decision and historical MySQL atomicity;
+full regression/MySQL/browser validation and normal backup/rollout sequence.
+
+### S07 security-stamp increment
+
+Added nullable per-user security_stamp and additive migration 2026-11-26-01.
+Password replacement rotates stamp and clears remember digest together on the user
+row. Employee email/role/fired transitions and soft-delete/restore do likewise;
+ordinary profile edits do not. Session validation requires password fingerprint
+and matching stamp; missing-password-version compatibility bypass removed.
+Login/registration/remember authentication record the current stamp. Existing
+unstamped sessions with a valid password fingerprint remain compatible until a
+revoking event. No automatic role grant or credential-data rewrite in migration.
+
+Real-cookie lifecycle regression covers email/role changes, firing then unfiring,
+delete then restore, ordinary profile edit continuity and unrelated actor session.
+Focused session/employee run: 30 tests OK, 12 opt-in skips. Two S07 cases passed
+on each isolated MySQL InnoDB/MyISAM engine. Added repeatable migration-preservation
+test afterward; validation pending. Full backend run started. Still open: complete
+suite/schema compatibility feedback, remember rotation decision, concurrency/reset
+atomicity review, browser/build and backup/schema rollout planning. Not deployed.
+
+### S07 serialized writers and recovery consumption
+
+Initial full suite: 601 tests OK, 206 opt-in skips. Added security_writer to
+login, password-email and public-reset aliases to serialize against employee
+credential changes. Recovery material is consumed before credential updates;
+MyISAM can lose a recovery token on failure but cannot claim transactional
+rollback across tables. Password/stamp/remember update stays on one user row.
+Employee security events discard prior recovery tokens. Remember tokens replace
+on remembered login and revoke on security changes, not on every parallel request.
+Policy/rollout constraints documented in docs/s07-credentials.md; S08 remains
+separate. Nine focused tests passed; backend image rebuilt. Five S07 cases passed
+on each disposable MySQL engine; existing 23 browser workflows and 19 helpers
+passed. Added old-column migration preservation and real browser-cookie reset
+cases afterward; their MySQL/browser reruns are in progress. No S07 server schema
+change, deployment, commit or push yet. Approved accountant grant stays intact.
+
+Latest full validation: 607 backend tests OK, 209 opt-in skips. Six S07 tests
+passed on each disposable MySQL engine, including actual old-column preservation
+across repeated upgrade. All 24 browser workflows (including saved session and
+remember-cookie rejection after employee reset) and 19 frontend helpers passed.
+Fresh locked backup /root/backups/s07-20261126T131043Z passed archive/SHA-256
+verification; rollback images retained, no restore rehearsal. Uploaded archive
+SHA-256 3940fb660f7711b39869c316df6ad8b4e9621fda6146e604bbbef3b3c46a3d08;
+both candidate images built on VM. Schema-aware rollout started; additive column
+is retained on image rollback. Existing user values compared via logical digest
+excluding new column, other business tables via counts/CHECKSUM, exact grants
+including approved accountant payer-edit assignment preserved by assertion.
+Rollout verification and publication pending.
+
+First schema rollout stopped on MySQL 1067 invalid created_at default (historical
+zero-date users column). Automatic rollback restored healthy S06 images. Updated
+additive migration to temporarily use session-local NO_AUTO_VALUE_ON_ZERO and
+restore the original SQL mode in finally, matching existing compatibility pattern.
+Extended disposable MySQL migration test with zero-date created_at default and
+SQL-mode restoration assertion; reruns pending. Do not mark S07 deployed.
+
+Zero-date test initially failed in test fixture DROP COLUMN preparation, not the
+updated migration; corrected preparation SQL mode. Six S07 tests then passed on
+each MySQL engine (including old-column preservation and original mode restored).
+Six focused SQLite tests passed. Repackaged candidate SHA-256
+365c6ae38c744faf7ea6195516ea19f685b2f73e60665d943eeb73615f808508,
+VM candidate-v2 images built; second schema-aware deployment started.
+
+S07 deployment completed. Migration command consumed remaining streamed shell
+stdin after successful DDL; corrected with /dev/null and resumed application-start
+and invariant checks in a separate script. All services healthy. Existing user
+column digest, business table counts/checksums and exact grants matched baseline;
+new stamps all null as intended, accountant payer-edit grant preserved. No business
+mutation QA or automatic credential rewrite. Active Compose override:
+/root/backups/s07-candidate-images.yaml with --profile mysql; rework_mysql_data
+preserved. Backup /root/backups/s07-20261126T131043Z and rollback tags retained.
+No restore rehearsal. Publication and independent verification follow.

@@ -179,6 +179,19 @@ def migration_2026_11_19_06(connection):
                 connection.execute(text('SET SESSION sql_mode=:mode'), {'mode': mode})
 
 
+def migration_2026_11_26_01(connection):
+    """Add revocation stamp without modifying existing credential or business data."""
+    if connection.dialect.name != 'mysql':
+        _add_columns(connection, {'users': {'security_stamp': 'VARCHAR(64)'}})
+        return
+    mode = connection.scalar(text('SELECT @@SESSION.sql_mode'))
+    connection.execute(text("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'"))
+    try:
+        _add_columns(connection, {'users': {'security_stamp': 'VARCHAR(64)'}})
+    finally:
+        connection.execute(text('SET SESSION sql_mode=:mode'), {'mode': mode})
+
+
 MIGRATIONS = (
     ("2026-11-13-01", migration_2026_11_13_01),
     ("2026-11-19-01", migration_2026_11_19_01),
@@ -187,6 +200,7 @@ MIGRATIONS = (
     ("2026-11-19-04", migration_2026_11_19_04),
     ("2026-11-19-05", migration_2026_11_19_05),
     ("2026-11-19-06", migration_2026_11_19_06),
+    ("2026-11-26-01", migration_2026_11_26_01),
 )
 
 

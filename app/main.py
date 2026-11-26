@@ -32,6 +32,7 @@ from .config import PRODUCTION, LOGIN_LIMIT_DB
 from .login_limits import reserve_attempt, clear_attempts
 from .config import PUBLIC_REGISTRATION_ENABLED
 from .order_authorization import order_capabilities
+from .admin_safety import security_writer
 
 
 def require_staff_admission(request: Request, db: Session = Depends(get_db)):
@@ -100,7 +101,9 @@ def current_user(request: Request, db: Session) -> User | None:
     )
     if user is not None:
         version = request.session.get("password_version")
-        if version is None or secrets.compare_digest(version, hashlib.sha256(user.password.encode()).hexdigest()):
+        if (isinstance(version, str) and
+                secrets.compare_digest(version, hashlib.sha256(user.password.encode()).hexdigest()) and
+                request.session.get('security_stamp') == user.security_stamp):
             return user
         request.session.clear()
     remember = request.cookies.get("typography_remember")
@@ -119,6 +122,7 @@ def current_user(request: Request, db: Session) -> User | None:
     if user:
         request.session["user_id"] = user.id
         request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
+        request.session['security_stamp'] = user.security_stamp
     return user
 
 
@@ -369,6 +373,7 @@ def login_users(db: Session = Depends(get_db)) -> dict[str, str]:
 
 @app.post("/auth/login", tags=["auth"])
 @app.post("/api/auth/login", tags=["auth"], include_in_schema=False)
+@security_writer
 def login(
     request: Request,
     email: str = Form(...),
@@ -392,6 +397,7 @@ def login(
         clear_attempts(LOGIN_LIMIT_DB, rate_key)
     request.session["user_id"] = user.id
     request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
+    request.session['security_stamp'] = user.security_stamp
     response = RedirectResponse("/orders", status_code=303)
     if remember:
         raw_token = secrets.token_urlsafe(32)
@@ -444,6 +450,7 @@ def register(
     db.add(user); db.commit()
     request.session["user_id"] = user.id
     request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
+    request.session['security_stamp'] = user.security_stamp
     return RedirectResponse("/orders", status_code=303)
 
 
@@ -474,6 +481,7 @@ def deliver_reset_mail(email: str, token: str):
 
 @app.post("/password/email", tags=["auth"])
 @app.post("/api/password/email", tags=["auth"], include_in_schema=False)
+@security_writer
 def password_email(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
     if current_user(request, db):
         return RedirectResponse("/orders", status_code=303)
@@ -499,6 +507,7 @@ def password_email(request: Request, email: str = Form(...), db: Session = Depen
 
 @app.post("/password/reset", tags=["auth"])
 @app.post("/api/password/reset", tags=["auth"], include_in_schema=False)
+@security_writer
 def password_reset(
     request: Request, token: str = Form(...), email: str = Form(...), password: str = Form(...), password_confirmation: str = Form(...), db: Session = Depends(get_db)
 ):
@@ -511,9 +520,10 @@ def password_reset(
         return _auth_error("Пароли должны совпадать и содержать минимум 6 символов.", {"password": "Неверный пароль."})
     user = db.scalar(select(User).where(User.email == email.strip().lower(), User.deleted_at.is_(None)))
     if not user: return _auth_error("Ссылка для сброса пароля недействительна.")
-    user.password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    user.remember_token = None
-    db.delete(row); db.commit()
+    from .credentials import replace_password, discard_password_resets
+    discard_password_resets(db, user.email)
+    replace_password(user, bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode())
+    db.commit()
     return RedirectResponse("/auth/login", status_code=303)
 
 

@@ -10,6 +10,7 @@ from .db import get_db
 from .models import Action, Role, User
 from .reference_inventory import integer
 from .admin_safety import require_surviving_admin, security_writer
+from .credentials import replace_password, revoke_credentials, discard_password_resets
 
 ADMIN_PERMISSION = "view_menu_options_permissions"
 ROLE_PERMISSION = "user_assign_role"
@@ -171,7 +172,16 @@ def register_user_reference_routes(app, current_user):
         changes.pop("_role", None)
         require_surviving_admin(db, identity=row.id, changes=changes)
         audit_change(db, user, row, changes)
-        for key,value in changes.items(): setattr(row,key,value)
+        if any(getattr(row, key) != changes[key] for key in ('email', 'role_id', 'fired')):
+            discard_password_resets(db, row.email)
+            revoke_credentials(row)
+        elif 'password' in changes:
+            discard_password_resets(db, row.email)
+        for key,value in changes.items():
+            if key == 'password':
+                replace_password(row, value)
+            else:
+                setattr(row,key,value)
         db.commit(); return {"status":"ok"}
 
     @app.delete("/api/employee-references/{identity}", tags=["references"])
@@ -186,7 +196,10 @@ def register_user_reference_routes(app, current_user):
         if row.deleted_at:
             if not user.has_permission("delete_trashed"): raise HTTPException(403)
             db.delete(row)
-        else: row.deleted_at = datetime.now()
+        else:
+            discard_password_resets(db, row.email)
+            revoke_credentials(row)
+            row.deleted_at = datetime.now()
         db.commit(); return {"status":"ok"}
 
     @app.post("/api/employee-references/{identity}/restore", tags=["references"])
@@ -197,4 +210,7 @@ def register_user_reference_routes(app, current_user):
         row = account(identity,db)
         if not can_manage_target(user, row):
             raise HTTPException(403, "Недостаточно прав для восстановления администратора.")
+        if row.deleted_at is not None:
+            discard_password_resets(db, row.email)
+            revoke_credentials(row)
         row.deleted_at = None; db.commit(); return {"status":"ok"}
