@@ -14,7 +14,32 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 | S05 | fixed | Phase 1 SQLite/MySQL/browser validation passed; deployed 2026-11-26 with unchanged business checksums, grants and pending accounts against a fresh baseline including the developer-created bill. |
 | S06 | fixed | Explicit bill/payment domain-delete and lifecycle conjunction; 597 backend tests OK (204 skips), 4 tests per MySQL engine and 23 browser workflows pass. Backed up/deployed 2026-11-26 with unchanged business checksums and role grants. |
 | S07 | fixed | Shared credential revocation/security stamp, lifecycle and recovery policy verified; 607 backend tests OK (209 skips), 6 S07 cases per MySQL engine and 24 browser workflows passed. Schema-aware rollout completed 2026-11-26 with preserved user values/business data/grants. |
-| S08 | fixed locally | Logout rotates the account security stamp under the serialized security writer, clears remember credentials and the local session, and expires the remember cookie. Copied signed session and remember cookies are rejected after logout. Deployment/publish pending. |
+| S08 | fixed | Logout rotates the account security stamp under the serialized security writer, clears remember credentials and the local session, and expires the remember cookie. Copied signed session and remember cookies are rejected after logout. Deployed and independently verified 2026-11-26. |
+
+## S08 deployment — 2026-11-26
+
+S08 was packaged from the pushed backend/frontend commits into
+`s08-source.tar.gz`, SHA-256
+`c8ba4389bfe1bdc8fa2cfd1af3fadea8e6efa3ebf3e615c4c379d2de886ce153`, and
+verified remotely before image builds. A fresh live backup was captured at the
+path recorded in `/root/backups/s08-latest-path`; database, checkout/config and
+backend-data archives passed gzip/tar and SHA256SUMS checks. The backup health
+probe saw transient 502 responses while services restarted, but subsequent
+read-only inspection confirmed the pre-deploy S07 services healthy and all
+health/session/root endpoints returned 200.
+
+Candidate images `s08-candidate-backend` and `s08-candidate-frontend` built
+successfully. The additive migration command applied successfully with stdin
+closed; deployment recreated only backend/frontend under the MySQL profile.
+`rework_mysql_data` remained mounted and MySQL was not recreated. Independent
+verification returned `S08_VERIFY_OK` / `SSH_EXIT=0`: all services healthy,
+source hashes matched the candidate, pre/post user/business/grant invariants
+matched, the rollback image remained available, and the guest employee route
+returned 401. No business data mutation was performed.
+
+VM checkout synchronization returned `S08_SYNC_OK` / `SSH_EXIT=0` at backend
+`55eab8c4cf064b0474e719fc5d1ddbbb371c0b7d` and frontend
+`aea6954083dcd1b16f519a6540919600deeb9969`. Both remote checkouts were clean.
 | S09 | unstarted | Initialization grant preservation. |
 | S10 | unstarted | Actual route authorization coverage. |
 | S11 | unstarted | Production launch and strict cookie-authenticated CSRF. |
