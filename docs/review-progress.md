@@ -675,3 +675,12 @@ S04 is FIXED for Phase 1; deferred Phase 2 prevents a fully verified migration
 claim. Explicit operator grant decisions remain necessary for staff delegation.
 Git commit/push and exact VM checkout reconciliation follow the successful
 deployment; their results must be recorded separately. S05 is next.
+
+S04 Git publication completed after successful deployment: backend 1134fc5 on
+origin/fix/mysql-runtime; frontend ca82138 on origin/main. Both VM repositories
+fast-forwarded cleanly to those exact revisions. Compared deployed candidate
+employee API/UI source against checkout source successfully. Final frontend,
+backend and MySQL health checks passed; HTTP session read succeeded. Running
+application images remain the explicit candidates via the preserved override;
+future Compose operations must include that override or deliberately rebuild
+the synced checkouts. Backup and previous image tags remain available.
