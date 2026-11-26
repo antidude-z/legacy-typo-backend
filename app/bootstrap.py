@@ -3,11 +3,11 @@ from .clock import utc_now
 
 from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
 from .db import Base, engine
-from .models import Option, Permission, Role, Report, ReportParam, SchemaVersion, OrderStatus, Service, Rate, role_permissions
+from .models import Option, Permission, Role, Report, ReportParam, SchemaVersion, OrderStatus, Service, Rate, User, role_permissions
 
 
 SCHEMA_VERSION = "2026-11-13-01"
@@ -100,6 +100,34 @@ def initialize_database(database_engine=engine) -> None:
             _initialize_database(database_engine)
 
 
+def preview_initialization(database_engine=engine):
+    """Read-only access diff; never create tables, migrate, or assign grants."""
+    with database_engine.connect() as connection:
+        tables = set(inspect(connection).get_table_names())
+        populated = any(
+            table.name in tables and connection.execute(select(table).limit(1)).first() is not None
+            for table in (Role.__table__, User.__table__, Permission.__table__, role_permissions)
+        )
+        marked = (SchemaVersion.__tablename__ in tables and
+                  connection.execute(select(SchemaVersion.version).where(
+                      SchemaVersion.version == SCHEMA_VERSION)).first() is not None)
+        fresh = not populated and not marked
+        grants = []
+        if role_permissions.name in tables:
+            grants = [dict(row) for row in connection.execute(select(role_permissions).order_by(
+                role_permissions.c.role_id, role_permissions.c.permission_id)).mappings()]
+        additions = []
+        if fresh:
+            for title in ('Администратор', 'Руководство'):
+                additions.extend({'role_title': title, 'permission_id': identity}
+                                 for identity, _, _ in PERMISSIONS)
+            additions.extend({'role_title': 'Менеджер', 'permission_id': identity}
+                             for identity in ('view_menu_orders', 'view_menu_references',
+                                              'view_menu_references_customers'))
+        return {'mode': 'fresh' if fresh else 'upgrade', 'existing_grants': grants,
+                'grant_additions': additions, 'grant_removals': [], 'applied': False}
+
+
 def _initialize_database(database_engine) -> None:
     """Create the local schema and add legacy-confirmed catalog data.
 
@@ -112,6 +140,18 @@ def _initialize_database(database_engine) -> None:
     apply_migrations(database_engine)
     with Session(database_engine) as db:
         if db.get(SchemaVersion, SCHEMA_VERSION) is None:
+            # A missing marker is ambiguous: old imports predate this table, but
+            # a fresh database also has no marker. Only an actually empty account
+            # catalog may receive the documented baseline role grants. Existing
+            # roles/users are evidence of a legacy installation, so preserve its
+            # exact assignments and add definitions without inferring authority
+            # from role titles.
+            fresh_install = (
+                db.scalar(select(Role.id).limit(1)) is None
+                and db.scalar(select(User.id).limit(1)) is None
+                and db.scalar(select(Permission.id).limit(1)) is None
+                and db.execute(select(role_permissions).limit(1)).first() is None
+            )
             for title in ROLES:
                 if db.scalar(select(Role).where(Role.title == title)) is None:
                     db.add(Role(title=title))
@@ -122,15 +162,16 @@ def _initialize_database(database_engine) -> None:
                 if db.scalar(select(OrderStatus).where(OrderStatus.title == title)) is None:
                     db.add(OrderStatus(title=title, sequence=sequence))
             db.flush()
-            permissions = {row.id: row for row in db.scalars(select(Permission)).all()}
-            roles = {row.title: row for row in db.scalars(select(Role)).all()}
-            for role_title in ("Администратор", "Руководство"):
-                role = roles.get(role_title)
-                if role:
-                    role.permissions = list({*role.permissions, *permissions.values()})
-            manager = roles.get("Менеджер")
-            if manager:
-                manager.permissions = list({*manager.permissions, *(permissions[x] for x in ("view_menu_orders", "view_menu_references", "view_menu_references_customers"))})
+            if fresh_install:
+                permissions = {identity: db.get(Permission, identity) for identity, _, _ in PERMISSIONS}
+                roles = {row.title: row for row in db.scalars(select(Role)).all()}
+                for role_title in ("Администратор", "Руководство"):
+                    role = roles.get(role_title)
+                    if role:
+                        role.permissions = list({*role.permissions, *permissions.values()})
+                manager = roles.get("Менеджер")
+                if manager:
+                    manager.permissions = list({*manager.permissions, *(permissions[x] for x in ("view_menu_orders", "view_menu_references", "view_menu_references_customers"))})
             db.add(SchemaVersion(version=SCHEMA_VERSION, applied_at=utc_now()))
             db.commit()
 
@@ -183,5 +224,16 @@ def _initialize_database(database_engine) -> None:
 
 
 if __name__ == "__main__":
-    initialize_database()
-    print(f"initialized schema {SCHEMA_VERSION}")
+    import argparse
+    import json
+    parser = argparse.ArgumentParser(description='Initialize catalogs without broadening imported grants.')
+    parser.add_argument('--preview', action='store_true', help='Read-only access diff; no migrations or writes')
+    args = parser.parse_args()
+    try:
+        if args.preview:
+            print(json.dumps(preview_initialization(), ensure_ascii=False, indent=2))
+        else:
+            initialize_database()
+            print(f"initialized schema {SCHEMA_VERSION}")
+    finally:
+        engine.dispose()

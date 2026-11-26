@@ -40,7 +40,7 @@ returned 401. No business data mutation was performed.
 VM checkout synchronization returned `S08_SYNC_OK` / `SSH_EXIT=0` at backend
 `55eab8c4cf064b0474e719fc5d1ddbbb371c0b7d` and frontend
 `aea6954083dcd1b16f519a6540919600deeb9969`. Both remote checkouts were clean.
-| S09 | unstarted | Initialization grant preservation. |
+| S09 | in progress | Local implementation and SQLite/InnoDB/MyISAM acceptance complete; missing markers no longer broaden imported role grants. Read-only bootstrap preview added. Backup/deploy/independent live verification and publication pending; see docs/s09-initialization.md. |
 | S10 | unstarted | Actual route authorization coverage. |
 | S11 | unstarted | Production launch and strict cookie-authenticated CSRF. |
 | S12 | unstarted | Discovery, abuse controls and administrative auditing. |
