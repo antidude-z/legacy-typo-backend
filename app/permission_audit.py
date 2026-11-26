@@ -50,9 +50,9 @@ ROUTE_PERMISSION_AUDIT = (
         "family": "user administration",
         "paths": ["/api/employee-references", "/api/employee-references/*"],
         "read": "view_menu_references_users",
-        "write": ["user_create", "user_edit"],
+        "write": ["user_create", "user_edit", "user_assign_role", "user_reset_credentials"],
         "lifecycle": ["user_delete", "restore_trashed", "delete_trashed"],
-        "notes": "Dedicated lifecycle and administrator-survival checks apply; delegation remains S04.",
+        "notes": "Role changes require explicit delegation; credential changes require reset authority. Non-security administrators may only manage targets/assign roles whose grants are a subset of their own. Self-role changes are denied; lifecycle and last-admin checks still apply. S04 acceptance remains in progress.",
     },
     {
         "family": "permissions administration",

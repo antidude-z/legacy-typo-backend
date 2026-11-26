@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import app
-from app.models import Permission, Role, User
+from app.models import Action, Permission, Role, User
 
 
 class EmployeeAuthorizationReviewTests(unittest.TestCase):
@@ -125,6 +125,131 @@ class EmployeeAuthorizationReviewTests(unittest.TestCase):
         self.assertEqual(self.client.patch(f'/api/employee-references/{self.actor.id}',
                                            headers=self.headers, json=own).status_code, 403)
         self.assertEqual(self.snapshot(), before)
+
+    def test_role_and_credential_escalation_require_explicit_delegation(self):
+        self.grant('user_edit', 'user_create')
+        admin_role = Role(title='Security administrator', permissions=[Permission(
+            id='view_menu_options_permissions', title='Security', module='options')])
+        self.db.add(admin_role); self.db.commit()
+        update = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
+                  'email': 'taken-over@example.test', 'post': 'Staff',
+                  'role_id': admin_role.id, 'fired': False,
+                  'change_password': True, 'password': 'changed-secret',
+                  'password_confirmation': 'changed-secret'}
+        before = self.snapshot()
+        self.assertEqual(self.client.patch(self.path, headers=self.headers, json=update).status_code, 403)
+        self.assertEqual(self.client.post('/api/employee-references', headers=self.headers, json={
+            'name': 'New', 'surname': 'Admin', 'phone': '123', 'email': 'new-admin@example.test',
+            'post': 'Staff', 'role_id': admin_role.id, 'password': 'new-secret',
+            'password_confirmation': 'new-secret', 'fired': False}).status_code, 403)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_delegated_editor_can_manage_equal_or_weaker_role_and_credentials(self):
+        self.grant('user_edit', 'user_create', 'user_assign_role', 'user_reset_credentials')
+        delegated = Role(title='Delegated staff', permissions=[self.db.get(Permission, 'user_edit')])
+        self.db.add(delegated); self.db.commit()
+        update = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
+                  'email': 'changed@example.test', 'post': 'Staff', 'role_id': delegated.id,
+                  'fired': False, 'change_password': True, 'password': 'changed-secret',
+                  'password_confirmation': 'changed-secret'}
+        self.assertEqual(self.client.patch(self.path, headers=self.headers, json=update).status_code, 200)
+        self.assertEqual(self.target.email, 'changed@example.test')
+        self.assertTrue(bcrypt.checkpw(b'changed-secret', self.target.password.encode()))
+        audit = self.db.scalar(select(Action).where(Action.item_id == self.target.id))
+        self.assertEqual(audit.user_id, self.actor.id)
+        self.assertIn('role_id', audit.comment)
+        self.assertIn('password', audit.comment)
+        self.assertNotIn('changed-secret', audit.comment)
+        self.assertNotIn('changed@example.test', audit.comment)
+
+    def test_stronger_non_admin_target_is_protected_even_with_delegation(self):
+        self.grant('user_edit', 'user_delete', 'user_assign_role', 'user_reset_credentials',
+                   'view_menu_references_users')
+        stronger = Role(title='Accounting specialist', permissions=[Permission(
+            id='edit_accounting_bills', title='Bills', module='accounting')])
+        self.target.role = stronger
+        self.db.commit()
+        payload = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
+                   'email': self.target.email, 'post': 'Staff', 'role_id': stronger.id,
+                   'fired': False}
+        before = self.snapshot()
+        for changes in ({'post': 'Changed'}, {'email': 'takeover@example.test'},
+                        {'fired': True}, {'role_id': self.role.id},
+                        {'change_password': True, 'password': 'new-secret',
+                         'password_confirmation': 'new-secret'}):
+            for _ in range(2):
+                response = self.client.patch(self.path, headers=self.headers, json={**payload, **changes})
+                self.assertEqual(response.status_code, 403, response.text)
+                self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.client.delete(self.path, headers=self.headers).status_code, 403)
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(self.client.get(self.path).json()['can_edit'])
+
+    def test_profile_editor_cannot_reset_credentials_or_fire_equal_target(self):
+        self.grant('user_edit')
+        self.target.role = self.role
+        self.db.commit()
+        payload = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
+                   'email': self.target.email, 'post': 'Staff', 'role_id': self.role.id,
+                   'fired': False}
+        before = self.snapshot()
+        for changes in ({'email': 'takeover@example.test'}, {'fired': True},
+                        {'change_password': True, 'password': 'new-secret',
+                         'password_confirmation': 'new-secret'}):
+            response = self.client.patch(self.path, headers=self.headers, json={**payload, **changes})
+            self.assertEqual(response.status_code, 403, response.text)
+            self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.client.patch(self.path, headers=self.headers,
+                                          json={**payload, 'post': 'Changed'}).status_code, 200)
+
+    def test_delegation_choices_creation_aliases_and_revocation(self):
+        self.grant('user_create', 'user_edit', 'view_menu_references_users', 'user_assign_role')
+        weak = Role(title='Explicit empty role')
+        strong = Role(title='Not delegable', permissions=[Permission(
+            id='edit_accounting_bills', title='Bills', module='accounting')])
+        self.db.add_all([weak, strong]); self.db.commit()
+        choices = self.client.get('/api/employee-references/form').json()
+        self.assertTrue(choices['can_create'])
+        self.assertEqual({row['id'] for row in choices['roles']}, {weak.id, self.role.id})
+        payload = {'user_name': 'New', 'user_surname': 'Staff', 'user_phone': '123',
+                   'user_email': 'new@example.test', 'user_post': 'Staff',
+                   'user_role': weak.id, 'user_password': 'test-secret',
+                   'user_password_confirmation': 'test-secret'}
+        before = self.snapshot()
+        self.assertEqual(self.client.post('/api/employee-references', headers=self.headers,
+                                          json={**payload, 'user_role': strong.id}).status_code, 403)
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.client.post('/api/employee-references', headers=self.headers,
+                                          json={**payload, 'user_role': ''}).status_code, 422)
+        self.assertEqual(self.snapshot(), before)
+        response = self.client.post('/api/employee-references', headers=self.headers, json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        created = self.db.get(User, response.json()['id'])
+        self.assertEqual(created.role_id, weak.id)
+        audit = self.db.scalar(select(Action).where(Action.item_id == created.id))
+        self.assertIsNotNone(audit)
+        self.assertNotIn('test-secret', audit.comment)
+        self.role.permissions.remove(self.db.get(Permission, 'user_assign_role'))
+        self.db.commit()
+        before = self.snapshot()
+        self.assertFalse(self.client.get('/api/employee-references/form').json()['can_create'])
+        self.assertEqual(self.client.post('/api/employee-references', headers=self.headers,
+                                          json={**payload, 'user_email': 'another@example.test'}).status_code, 403)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_security_admin_still_requires_sensitive_action_grants(self):
+        self.grant('user_edit', 'view_menu_options_permissions')
+        self.target.role = self.role
+        self.db.commit()
+        payload = {'name': 'Target', 'surname': 'Staff', 'phone': '123',
+                   'email': self.target.email, 'post': 'Staff', 'role_id': self.role.id,
+                   'fired': False, 'change_password': True, 'password': 'new-secret',
+                   'password_confirmation': 'new-secret'}
+        before = self.snapshot()
+        self.assertEqual(self.client.patch(self.path, headers=self.headers, json=payload).status_code, 403)
+        self.assertEqual(self.snapshot(), before)
+        self.grant('user_reset_credentials')
+        self.assertEqual(self.client.patch(self.path, headers=self.headers, json=payload).status_code, 200)
 
     def test_admin_can_disable_peer_but_cannot_revoke_last_admin_grant(self):
         self.grant('user_delete', 'user_edit', 'view_menu_options_permissions')

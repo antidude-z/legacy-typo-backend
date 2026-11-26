@@ -10,7 +10,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 | S01 | verified | Domain/lifecycle gates, self-disable and privileged-target restrictions, shared writer serialization, projected last-admin invariant; verified on SQLite and isolated MySQL InnoDB/MyISAM. See completion evidence below. |
 | S02 | in progress | Default-disabled registration and pending-account business admission verified locally; 242 backend tests OK (19 MySQL skips), 17 Chromium workflows pass. Disposable MySQL admission verification and pre-rollout account inventory remain; no deployment. |
 | S03 | fixed | Phase 1 implementation and local SQLite/MySQL InnoDB/MyISAM/browser acceptance complete. Production role-grant approval and Phase 2 scenarios are separate pending rollout gates; see completion evidence below. |
-| S04 | unstarted | Role delegation and privileged-target policy. |
+| S04 | fixed | Phase 1 SQLite/MySQL/browser acceptance passed; backed up and deployed on 2026-11-26 with unchanged business checksums and role grants. Phase 2 remains deferred. |
 | S05 | unstarted | Report domain-read authorization. |
 | S06 | unstarted | Bill domain deletion authorization. |
 | S07 | unstarted | Password-change remember-token revocation. |
@@ -532,4 +532,146 @@ verification. No physical-print/business acceptance or Phase 2 run is claimed.
 Remaining deployment decisions (not permission bypasses): security administrator
 must approve/assign actual staff role grants before rollout; no real role was
 broadened. S09 separately tracks initialization on historical databases without
-the version marker. S04–S12 and F01–F21 remain their own release blockers.
+the version marker.
+S04–S12 and F01–F21 remain their own release blockers.
+
+## S04 local implementation increment — 2026-11-26
+
+Inspected the archived employee controller, current models, API, frontend and
+real-session employee regressions. Added separate user_assign_role and
+user_reset_credentials gates, cataloged additively without automatic role grants.
+Role delegation and target management compare effective permission sets, not
+role titles/IDs. Only security administrators bypass the subset boundary; domain
+and sensitive-action gates still apply. Self-role changes remain forbidden.
+Firing/unfiring additionally requires user_delete. Unchanged roles remain valid
+for profile-only edits. Create requires a deliberately selected assignable role;
+the browser no longer selects the first database row. UI sensitive fields consume
+capabilities, and role choices are filtered server-side. Employee create/update
+adds Action records containing IDs and changed field names only, never secrets.
+
+Validation before the final audit-record addition: 10 focused real-session SQLite
+tests passed with 10 MySQL skips; 5 bootstrap tests passed. Docker node:26-alpine
+ran npm ci, all 19 frontend helper tests and production build successfully.
+Full backend: 476 run, 138 opt-in skips, two deployment-test errors caused by
+hard-coded workspace backend/frontend names versus this checkout's
+legacy-typo-backend/legacy-typo-frontend names. No other failures reported.
+After the audit-record addition: 10 real-session SQLite checks passed with 10
+MySQL skips; all 6 bootstrap checks passed. The audit-content assertions added
+after that run still require final confirmation below.
+
+S04 remains IN PROGRESS: expanded role/alias/revocation and audit regressions,
+disposable MySQL/browser acceptance and deployment compatibility review remain.
+S07 credential revocation and S12 broader durable auditing are separate blockers;
+do not treat Action records as an atomic MyISAM audit guarantee. No scenarios
+were intentionally opened/executed; an earlier unscoped search inadvertently
+returned snippets, so subsequent inspection uses explicit file paths.
+
+User requires every completed safety/functional fix to be backed up and deployed
+to the service server, health-checked, then pushed to Git. No backup, transfer,
+deployment or push has occurred for this incomplete increment. No working
+database was used for mutation tests. Server authentication details are absent
+from the resumed context and must be recovered securely before rollout.
+
+## S04 expanded acceptance increment — 2026-11-26
+
+Added explicit role-choice/creation/legacy-payload/revocation checks and verified
+that security administrators still require credential-reset authority. Twelve
+real-session cases passed on isolated MySQL 8.0 InnoDB and twelve on MyISAM,
+with no skips. The disposable Docker server used tmpfs storage, random credentials,
+loopback dynamic port and database-only grants; the URL/grant guard ran before
+writes and the owned container was removed. Reproduction: scripts/s04_mysql_qa.py.
+
+Both backend and frontend Docker images built successfully. Fixed deployment-test
+path discovery for the renamed checkout repositories; all four deployment checks
+pass. Full backend: 565 run, OK with 182 opt-in skips, warnings treated as errors.
+That run double-counted imported MySQL fixture classes; imports were changed to
+module aliases and a fresh full run is pending for the corrected test count.
+
+Added the S04 browser workflow and a synthetic profile-editor fixture. The owned
+Docker browser harness uses read-only source mounts, private network and tmpfs
+SQLite; no working volumes or host service ports. Playwright image download is
+still in progress: no browser pass is claimed. Both repository diff checks pass.
+Policy/rollout contract is docs/s04-delegation.md. Deployment and Git push have
+not occurred. S04 remains in progress pending browser/final checks and rollout.
+
+## S04 final local acceptance — 2026-11-26
+
+Supersedes the pending local validation notes above:
+
+- Full backend: 577 tests run, OK, 194 opt-in skips, warnings treated as errors.
+- Guarded disposable MySQL: 12 S04 cases passed on InnoDB and 12 on MyISAM,
+  no skips in those explicit runs.
+- Frontend helper suite: 19 passed. Both application Docker images built.
+- Full isolated Chromium: 21 passed in 34.8 seconds, no skips or failures.
+  The first run skipped the historical orphan workflow because the existing
+  remote-URL guard hid it. The owned synthetic harness now explicitly advertises
+  its disposable orphan fixture; rerun included and passed that workflow.
+- Compilation reported no errors; both repository diff checks were clean.
+- Final Docker container inventory is empty; owned MySQL/browser containers
+  were removed. Source diff and all added QA scripts/tests were inspected.
+
+S04 remains IN PROGRESS under the user's required completion sequence: server
+backup, code transfer, deployment, read-only service health verification, then
+Git push are not done. Resumed context lacks server authentication details; ask
+for the SSH endpoint/user and secure authentication method, without recording
+credentials in this document. Actual sensitive-action role grants also require
+explicit operator approval; installation does not broaden any existing role.
+Do not deploy by guessing database/volume mappings or silently granting roles.
+
+Phase 2 remains deferred. S05–S12 and all functional findings remain open; these
+test results do not establish full migration readiness. No working service or
+business database has been mutated during this S04 local acceptance.
+
+### S04 rollout access restored; terminal execution blocked
+
+The user supplied the VM SSH endpoint and authentication again. Credentials are
+not recorded here. Deployment remains authorized in the required order: verified
+backup, code transfer, deployment, service health checks, then Git push.
+Two initial local command attempts failed before execution with the terminal-tool
+error "The terminal's shell process has exited; the command was not run."
+No SSH connection, backup, transfer, deployment or push occurred. File reads still
+work. Re-read deployment overlay/runbook confirms the documented working database
+typography_restored and external volume rework_mysql_validation; actual VM state
+must still be inspected read-only before any rollout action. Restore terminal
+execution first, then resume backup and deployment without guessing live mappings.
+
+## S04 deployment — 2026-11-26
+
+Supersedes previous terminal/access blockers. SSH authenticated against the existing
+trusted host key. Read-only inspection found healthy containers and clean VM
+checkouts at backend 0ba5bb5/frontend 1010dd6. Crucially, live MySQL uses volume
+rework_mysql_data, not the older documented rework_mysql_validation. Preserved
+the actual Compose pair, project name, database typography_restored, secrets,
+backend-data volume and frontend port 8080. One active pending account (ID 28)
+was inventoried without reassignment or deletion.
+
+Rollback backup: /root/backups/s04-20261126T091852Z. Contains locked MySQL dump
+(54 MyISAM and 2 InnoDB tables), checkout/config archive, backend-data archive,
+container metadata, revisions and SHA256SUMS. Application writers were stopped
+for the database/data capture and restarted. All three archive checksums and
+compression/archive checks passed. Previous image references remain tagged;
+rollback-images.yaml is in the backup. This is integrity verification, not a
+completed restore rehearsal or off-host backup.
+
+Transferred source-only archive SHA256
+e8fc49a71e10e8b2d8bf0865c652eec1d187fafde9c926bcf9819f774876001d,
+verified remotely and built backend/frontend candidates on the VM. Candidate
+backend image: 5ca03eb24e41067b4533622d99740554c612ff705d4270416b66a8cfb6891462;
+frontend: 02538193dbf66a6432ec9bc68be8d586db2f66413727b68b264b67d78235c0d1.
+Compose profile mysql is required even for configuration inspection; an initial
+inspection omitted it and failed without changing running containers.
+
+Deployed only backend/frontend with --no-deps --no-build and health-gated wait;
+MySQL was not recreated. Live override: /root/backups/s04-candidate-images.yaml.
+Both application containers and MySQL are healthy. Frontend/session HTTP reads
+succeeded; guest employee administration returned 401. S04 capability catalog
+is present. Users, roles, role_permissions, orders, bills, payments and payrolls
+counts/checksums match the predeployment snapshot, as do exact role assignments
+and pending-account IDs. No mutation acceptance tests ran on the working DB.
+Initial counts: 27 users, 7 roles, 118 grants, 32749 orders, 10053 bills,
+3618 payments, 526 payrolls. New permissions were not assigned automatically.
+
+S04 is FIXED for Phase 1; deferred Phase 2 prevents a fully verified migration
+claim. Explicit operator grant decisions remain necessary for staff delegation.
+Git commit/push and exact VM checkout reconciliation follow the successful
+deployment; their results must be recorded separately. S05 is next.

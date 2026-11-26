@@ -138,6 +138,12 @@ def _initialize_database(database_engine) -> None:
         # do not silently grant it to existing roles during an upgrade.
         if db.get(Permission, "edit_reports_payrolls") is None:
             db.add(Permission(id="edit_reports_payrolls", title="Редактирование расчета зарплаты менеджеров", module="reports"))
+        # Security delegation is explicit even for fresh installations. Never
+        # broaden historical grants or infer authority from a role title.
+        for identity, title in (("user_assign_role", "Назначение ролей пользователей"),
+                                ("user_reset_credentials", "Сброс учетных данных пользователей")):
+            if db.get(Permission, identity) is None:
+                db.add(Permission(id=identity, title=title, module="users"))
         from .order_authorization import ORDER_CAPABILITIES
         from .accounting_payers import PAYER_CAPABILITIES
         for identity, title in ORDER_CAPABILITIES + PAYER_CAPABILITIES:

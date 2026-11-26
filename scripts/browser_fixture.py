@@ -30,7 +30,9 @@ def main():
         reader = Role(title='Browser Orders reader', permissions=[db.get(Permission, 'view_menu_orders')])
         catalog_reader = Role(title='Browser work catalog reader', permissions=[
             db.get(Permission, f'view_menu_references_{kind}') for kind in ('prepresses', 'redactions')])
-        for email, name, assigned_role in [('browser@example.test', 'Browser', role), ('limited@example.test', 'Pending', None), ('reader@example.test', 'Reader', reader), ('catalog-reader@example.test', 'Catalog reader', catalog_reader)]:
+        profile_editor = Role(title='Browser profile editor', permissions=[
+            db.get(Permission, name) for name in ('view_menu_orders', 'view_menu_references_users', 'user_edit')])
+        for email, name, assigned_role in [('profile-editor@example.test', 'Profile editor', profile_editor), ('browser@example.test', 'Browser', role), ('limited@example.test', 'Pending', None), ('reader@example.test', 'Reader', reader), ('catalog-reader@example.test', 'Catalog reader', catalog_reader)]:
             user = db.scalar(select(User).where(User.email == email))
             if user is None:
                 user = User(email=email)

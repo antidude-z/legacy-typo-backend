@@ -19,7 +19,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(db.query(SchemaVersion).count(), 1)
             self.assertIsNotNone(db.get(SchemaVersion, SCHEMA_VERSION))
             self.assertEqual(db.query(Role).count(), 7)
-            self.assertEqual(db.query(Permission).count(), 76)
+            self.assertEqual(db.query(Permission).count(), 78)
             self.assertEqual(db.query(OrderStatus).count(), 6)
             self.assertEqual(db.query(Report).count(), 6)
             self.assertEqual(db.query(ReportParam).count(), 8)
@@ -44,7 +44,7 @@ class BootstrapTests(unittest.TestCase):
         with Session(engine) as db:
             self.assertEqual(db.query(SchemaVersion).count(), 1)
             self.assertEqual(db.query(Role).count(), 7)
-            self.assertEqual(db.query(Permission).count(), 76)
+            self.assertEqual(db.query(Permission).count(), 78)
             self.assertEqual(db.query(ReportParam).count(), 8)
             self.assertEqual(db.query(Service).count(), 1)
             self.assertEqual(db.query(Rate).count(), 7)
@@ -102,6 +102,19 @@ class BootstrapTests(unittest.TestCase):
         with Session(engine) as db:
             self.assertEqual(set(db.execute(select(role_permissions)).all()), approved)
         engine.dispose()
+
+    def test_s04_delegation_is_cataloged_without_automatic_grants(self):
+        engine = self.make_engine()
+        try:
+            initialize_database(engine)
+            initialize_database(engine)
+            with Session(engine) as db:
+                for identity in ('user_assign_role', 'user_reset_credentials'):
+                    self.assertIsNotNone(db.get(Permission, identity))
+                    self.assertEqual(db.execute(select(role_permissions).where(
+                        role_permissions.c.permission_id == identity)).all(), [])
+        finally:
+            engine.dispose()
 
 
 if __name__ == "__main__":

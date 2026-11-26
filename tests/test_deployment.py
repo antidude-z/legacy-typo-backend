@@ -5,6 +5,8 @@ from app.deployment import validate_compose, validate_mysql_url, validate_nginx_
 
 
 ROOT = Path(__file__).resolve().parents[2]
+BACKEND = Path(__file__).resolve().parents[1]
+FRONTEND = ROOT / ('frontend' if (ROOT / 'frontend').is_dir() else 'legacy-typo-frontend')
 
 
 class DeploymentTests(unittest.TestCase):
@@ -22,11 +24,11 @@ class DeploymentTests(unittest.TestCase):
         compose = validate_compose(ROOT / "docker-compose.yaml")
         self.assertTrue(compose["valid"])
         self.assertEqual(compose["mysql_profile"], "mysql")
-        proxy = validate_nginx_proxy(ROOT / "frontend" / "nginx.conf")
+        proxy = validate_nginx_proxy(FRONTEND / "nginx.conf")
         self.assertEqual(proxy["target"], "backend:8000")
 
     def test_tracked_compose_matches_workspace_and_has_no_database_port(self):
-        tracked = ROOT / 'backend' / 'deploy' / 'compose.yaml'
+        tracked = BACKEND / 'deploy' / 'compose.yaml'
         self.assertEqual(tracked.read_text(), (ROOT / 'docker-compose.yaml').read_text())
         content = tracked.read_text()
         self.assertNotIn('3306:3306', content)
