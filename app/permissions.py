@@ -53,7 +53,7 @@ def register_permission_routes(app, current_user):
     def permission_audit(request: Request, db: Session = Depends(get_db)):
         require_admin(request, db)
         permission_ids = db.scalars(select(Permission.id)).all()
-        return audit_payload(permission_ids)
+        return audit_payload(permission_ids, app)
 
     @app.post("/api/options/permissions", tags=["permissions"])
     @security_writer

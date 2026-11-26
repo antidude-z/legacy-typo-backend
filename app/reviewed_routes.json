@@ -1,0 +1,1464 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/accounting/bills",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/accounting/bills",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/accounting/bills/filter",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/accounting/bills/form",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/accounting/bills/search",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/accounting/bills/{bill_id}/payments",
+    "module": "app.accounting_payments",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/accounting/bills/{bill_id}/payments/form",
+    "module": "app.accounting_payments",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/accounting/bills/{bill_id}/payments/{identity}",
+    "module": "app.accounting_payments",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/accounting/bills/{bill_id}/payments/{identity}",
+    "module": "app.accounting_payments",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/accounting/bills/{bill_id}/payments/{identity}",
+    "module": "app.accounting_payments",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/accounting/bills/{bill_id}/payments/{identity}/restore",
+    "module": "app.accounting_payments",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/accounting/bills/{identity}",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/accounting/bills/{identity}",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/accounting/bills/{identity}",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/accounting/bills/{identity}/restore",
+    "module": "app.accounting_bills",
+    "policies": [
+      "bills"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/accounting/payers",
+    "module": "app.accounting_payers",
+    "policies": [
+      "payers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/accounting/payers",
+    "module": "app.accounting_payers",
+    "policies": [
+      "payers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/accounting/payers/form",
+    "module": "app.accounting_payers",
+    "policies": [
+      "payers"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/accounting/payers/{identity}",
+    "module": "app.accounting_payers",
+    "policies": [
+      "payers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/accounting/payers/{identity}",
+    "module": "app.accounting_payers",
+    "policies": [
+      "payers"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/accounting/payers/{identity}",
+    "module": "app.accounting_payers",
+    "policies": [
+      "payers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/accounting/payers/{identity}/restore",
+    "module": "app.accounting_payers",
+    "policies": [
+      "payers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/customer-references",
+    "module": "app.reference_customers",
+    "policies": [
+      "reference_customers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/customer-references",
+    "module": "app.reference_customers",
+    "policies": [
+      "reference_customers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/customer-references/form",
+    "module": "app.reference_customers",
+    "policies": [
+      "reference_customers"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/customer-references/{identity}",
+    "module": "app.reference_customers",
+    "policies": [
+      "reference_customers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/customer-references/{identity}",
+    "module": "app.reference_customers",
+    "policies": [
+      "reference_customers"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/customer-references/{identity}",
+    "module": "app.reference_customers",
+    "policies": [
+      "reference_customers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/customer-references/{identity}/restore",
+    "module": "app.reference_customers",
+    "policies": [
+      "reference_customers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee-references",
+    "module": "app.reference_users",
+    "policies": [
+      "employees"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee-references",
+    "module": "app.reference_users",
+    "policies": [
+      "employees"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee-references/form",
+    "module": "app.reference_users",
+    "policies": [
+      "employees"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/employee-references/{identity}",
+    "module": "app.reference_users",
+    "policies": [
+      "employees"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee-references/{identity}",
+    "module": "app.reference_users",
+    "policies": [
+      "employees"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/employee-references/{identity}",
+    "module": "app.reference_users",
+    "policies": [
+      "employees"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee-references/{identity}/restore",
+    "module": "app.reference_users",
+    "policies": [
+      "employees"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/options/main",
+    "module": "app.main",
+    "policies": [
+      "main_options"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/options/permissions",
+    "module": "app.permissions",
+    "policies": [
+      "permissions"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/options/permissions",
+    "module": "app.permissions",
+    "policies": [
+      "permissions"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/options/permissions/audit",
+    "module": "app.permissions",
+    "policies": [
+      "permissions"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/options/{kind}",
+    "module": "app.reference_dictionaries",
+    "policies": [
+      "dictionary_paper_type",
+      "dictionary_paper_format",
+      "dictionary_measures",
+      "dictionary_customer_group"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/options/{kind}",
+    "module": "app.reference_dictionaries",
+    "policies": [
+      "dictionary_paper_type",
+      "dictionary_paper_format",
+      "dictionary_measures",
+      "dictionary_customer_group"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/options/{kind}/create",
+    "module": "app.reference_dictionaries",
+    "policies": [
+      "dictionary_paper_type",
+      "dictionary_paper_format",
+      "dictionary_measures",
+      "dictionary_customer_group"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/options/{kind}/{identity}",
+    "module": "app.reference_dictionaries",
+    "policies": [
+      "dictionary_paper_type",
+      "dictionary_paper_format",
+      "dictionary_measures",
+      "dictionary_customer_group"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/options/{kind}/{identity}",
+    "module": "app.reference_dictionaries",
+    "policies": [
+      "dictionary_paper_type",
+      "dictionary_paper_format",
+      "dictionary_measures",
+      "dictionary_customer_group"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/options/{kind}/{identity}",
+    "module": "app.reference_dictionaries",
+    "policies": [
+      "dictionary_paper_type",
+      "dictionary_paper_format",
+      "dictionary_measures",
+      "dictionary_customer_group"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/options/{kind}/{identity}/restore",
+    "module": "app.reference_dictionaries",
+    "policies": [
+      "dictionary_paper_type",
+      "dictionary_paper_format",
+      "dictionary_measures",
+      "dictionary_customer_group"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders/add/{order_type}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/add/{order_type}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/filter",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders/formats/{order_type}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders/formats/{order_type}/{format_prefix}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/orders/{order_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders/{order_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "PUT",
+    "path": "/api/orders/{order_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders/{order_id}/blanks",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/blanks",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/orders/{order_id}/blanks/{blank_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders/{order_id}/blanks/{blank_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/orders/{order_id}/blanks/{blank_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/blanks/{blank_id}/copy",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/orders/{order_id}/blanks/{blank_id}/permanent",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/blanks/{blank_id}/recalculate",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/blanks/{blank_id}/restore",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/copy",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders/{order_id}/history",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orders/{order_id}/operations",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/recalculate",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/restore",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/{operation}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/orders/{order_id}/{operation}/{item_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/orders/{order_id}/{operation}/{item_id}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/orders/{order_id}/{operation}/{item_id}/restore",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/prices/{kind}/{item_id}/create",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/prices/{kind}/{item_id}/records/{price_id}",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/prices/{priceable_type}/{priceable_id}",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/prices/{priceable_type}/{priceable_id}/records",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/prices/{priceable_type}/{priceable_id}/records",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/prices/{priceable_type}/{priceable_id}/records/{price_id}",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/prices/{priceable_type}/{priceable_id}/records/{price_id}",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/pricing/catalog/{kind}",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/pricing/printers/{printer_id}/calculate",
+    "module": "app.main",
+    "policies": [
+      "pricing"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/reference-works/{kind}",
+    "module": "app.reference_works",
+    "policies": [
+      "reference_prepresses",
+      "reference_redactions"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/reference-works/{kind}",
+    "module": "app.reference_works",
+    "policies": [
+      "reference_prepresses",
+      "reference_redactions"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/reference-works/{kind}/form-options",
+    "module": "app.reference_works",
+    "policies": [
+      "reference_prepresses",
+      "reference_redactions"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/reference-works/{kind}/{identity}",
+    "module": "app.reference_works",
+    "policies": [
+      "reference_prepresses",
+      "reference_redactions"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/reference-works/{kind}/{identity}",
+    "module": "app.reference_works",
+    "policies": [
+      "reference_prepresses",
+      "reference_redactions"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/reference-works/{kind}/{identity}",
+    "module": "app.reference_works",
+    "policies": [
+      "reference_prepresses",
+      "reference_redactions"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/reference-works/{kind}/{identity}/restore",
+    "module": "app.reference_works",
+    "policies": [
+      "reference_prepresses",
+      "reference_redactions"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/afterprints",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/afterprints/{identity}",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/afterprints/{identity}",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/afterprints/{identity}/stages",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/afterprints/{identity}/stages/form",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}/materials",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}/materials/form",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}/materials/{item_id}",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}/materials/{item_id}",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}/materials/{item_id}",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}/materials/{item_id}/restore",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/afterprints/{identity}/stages/{stage_id}/restore",
+    "module": "app.reference_afterprints",
+    "policies": [
+      "reference_afterprints"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/compiles",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/compiles",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/compiles/{identity}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/compiles/{identity}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/compiles/{identity}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/compiles/{identity}/restore",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/compiles/{identity}/stages",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/compiles/{identity}/stages/form",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}/materials",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}/materials/form",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}/materials/{item_id}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}/materials/{item_id}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}/materials/{item_id}",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}/materials/{item_id}/restore",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/compiles/{identity}/stages/{stage_id}/restore",
+    "module": "app.reference_compiles",
+    "policies": [
+      "reference_compiles"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/materials",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_materials"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/materials",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_materials"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/materials/filter",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_materials"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/materials/{identity}",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_materials"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/materials/{identity}",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_materials"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/materials/{identity}/restore",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_materials"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/paper",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_paper"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/paper/create",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_paper"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/paper/{identity}",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_paper"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/paper/{identity}",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_paper"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/paper/{identity}/restore",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_paper"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/printers",
+    "module": "app.reference_printers",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/printers/create",
+    "module": "app.reference_printers",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/printers/{identity}",
+    "module": "app.reference_printers",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/printers/{identity}",
+    "module": "app.reference_printers",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/printers/{identity}",
+    "module": "app.reference_printers",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/printers/{identity}/restore",
+    "module": "app.reference_printers",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/printers/{printer_id}/fields",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/printers/{printer_id}/processes/{process_id}/{kind}/create",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/printers/{printer_id}/processes/{process_id}/{kind}/form",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/printers/{printer_id}/processes/{process_id}/{kind}/items",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/printers/{printer_id}/processes/{process_id}/{kind}/{identity}",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/printers/{printer_id}/processes/{process_id}/{kind}/{identity}",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/printers/{printer_id}/processes/{process_id}/{kind}/{identity}",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/printers/{printer_id}/processes/{process_id}/{kind}/{identity}/restore",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/printers/{printer_id}/{kind}/create",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/printers/{printer_id}/{kind}/form",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/printers/{printer_id}/{kind}/items",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/references/printers/{printer_id}/{kind}/{identity}",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/printers/{printer_id}/{kind}/{identity}",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/references/printers/{printer_id}/{kind}/{identity}",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/references/printers/{printer_id}/{kind}/{identity}/restore",
+    "module": "app.printer_children",
+    "policies": [
+      "reference_printers"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/{kind}/form/options",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_paper",
+      "reference_materials"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/references/{kind}/{identity}",
+    "module": "app.reference_inventory",
+    "policies": [
+      "reference_paper",
+      "reference_materials"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/report-settings",
+    "module": "app.reports",
+    "policies": [
+      "report_settings"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/report-settings/{identity}",
+    "module": "app.reports",
+    "policies": [
+      "report_settings"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/report-settings/{identity}",
+    "module": "app.reports",
+    "policies": [
+      "report_settings"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/report-settings/{identity}/params/{param_id}",
+    "module": "app.reports",
+    "policies": [
+      "report_settings"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/report-settings/{identity}/params/{param_id}",
+    "module": "app.reports",
+    "policies": [
+      "report_settings"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/reports/bills/{identity}/orders",
+    "module": "app.reports",
+    "policies": [
+      "documents"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/reports/for/{kind}/{identity}",
+    "module": "app.reports",
+    "policies": [
+      "documents"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/reports/form/{report_id}/{identity}",
+    "module": "app.reports",
+    "policies": [
+      "documents"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/reports/payrolls",
+    "module": "app.payroll",
+    "policies": [
+      "payroll"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/reports/payrolls/form",
+    "module": "app.payroll",
+    "policies": [
+      "payroll"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/reports/payrolls/{identity}",
+    "module": "app.payroll",
+    "policies": [
+      "payroll"
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/reports/payrolls/{identity}",
+    "module": "app.payroll",
+    "policies": [
+      "payroll"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/system/database",
+    "module": "app.main",
+    "policies": [
+      "diagnostics"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/system/diagnostics",
+    "module": "app.main",
+    "policies": [
+      "diagnostics"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/orders",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/orders/filter",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/orders/formats/{order_type}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/orders/formats/{order_type}/{format_prefix}",
+    "module": "app.main",
+    "policies": [
+      "orders"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/reports/payrolls/{identity}/export",
+    "module": "app.payroll",
+    "policies": [
+      "payroll"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/reports/{report_id}/item/{identity}",
+    "module": "app.reports",
+    "policies": [
+      "documents"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/reports/{report_id}/item/{identity}",
+    "module": "app.reports",
+    "policies": [
+      "documents"
+    ]
+  }
+]

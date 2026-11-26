@@ -147,8 +147,8 @@ def register_payroll_routes(app, current_user):
 
     @app.get("/api/reports/payrolls/form", tags=["reports"])
     def form(request: Request, db: Session = Depends(get_db)):
-        actor(request, db)
-        return {"managers": [{"id": user.id, "title": f"{user.surname or ''} {user.name}".strip()} for user in db.scalars(select(User).where(User.deleted_at.is_(None)).order_by(User.surname)).all()]}
+        user = actor(request, db)
+        return {"can_edit": user.has_permission('edit_reports_payrolls'), "managers": [{"id": user.id, "title": f"{user.surname or ''} {user.name}".strip()} for user in db.scalars(select(User).where(User.deleted_at.is_(None)).order_by(User.surname)).all()]}
 
     @app.post("/api/reports/payrolls", tags=["reports"])
     def create(request: Request, payload: dict, db: Session = Depends(get_db)):
@@ -166,18 +166,21 @@ def register_payroll_routes(app, current_user):
 
     @app.get("/api/reports/payrolls/{identity}", tags=["reports"])
     def detail(identity: int, request: Request, db: Session = Depends(get_db)):
-        actor(request, db); row = db.get(Payroll, identity)
+        user = actor(request, db); row = db.get(Payroll, identity)
         if not row: raise HTTPException(404)
-        refresh(row, db) if row.status == "calc" else None
-        db.commit()
-        return {"item": serialize(row, db), "markups": list(range(16))}
+        if row.status == "calc" and user.has_permission('edit_reports_payrolls'):
+            refresh(row, db)
+            db.commit()
+        return {"item": serialize(row, db), "markups": list(range(16)), "can_edit": user.has_permission('edit_reports_payrolls')}
 
     @app.get("/reports/payrolls/{identity}/export", tags=["reports"])
     def export(identity: int, request: Request, db: Session = Depends(get_db)):
-        actor(request, db)
+        user = actor(request, db)
         row = db.get(Payroll, identity)
         if not row: raise HTTPException(404)
-        if row.status == "calc": refresh(row, db); db.commit()
+        if row.status == "calc" and user.has_permission('edit_reports_payrolls'):
+            refresh(row, db)
+            db.commit()
         items = db.scalars(select(PayrollOrder).where(PayrollOrder.payroll_id == identity).order_by(PayrollOrder.order_id)).all()
         content = build_payroll_xls(row, items)
         return Response(content, media_type="application/vnd.ms-excel", headers={

@@ -5,6 +5,71 @@ compatibility behavior; the manifest makes the authorization contract
 reviewable and testable before production cutover.
 """
 
+import re
+import json
+from pathlib import Path
+
+
+PUBLIC_ROUTE_PATHS = frozenset({
+    "/", "/health", "/api/health", "/session", "/api/session", "/api/csrf-token",
+})
+
+# Exact method/path exclusions, never an auth-prefix exemption for new routes.
+EXCLUDED_ROUTES = {(method, path) for method, paths in (
+    ('GET', PUBLIC_ROUTE_PATHS | {'/auth/users', '/api/auth/users'}),
+    ('POST', {prefix + action for prefix in ('/auth/', '/api/auth/')
+              for action in ('login', 'logout', 'register')} |
+             {prefix + action for prefix in ('/password/', '/api/password/')
+              for action in ('email', 'reset')}),
+) for path in paths}
+
+
+def _route_pattern_matches(pattern: str, path: str) -> bool:
+    expression = re.escape(pattern).replace(r"\*", ".*")
+    expression = re.sub(r"\\\{[^}]+\\\}", r"[^/]+", expression)
+    return re.fullmatch(expression, path) is not None
+
+
+def route_coverage(app) -> dict:
+    """Classify registered routes; this is inventory evidence, not enforcement certification."""
+    from fastapi.routing import APIRoute
+    registered, excluded, unmatched, missing_admission = [], [], [], []
+    from .main import require_staff_admission
+
+    def has_admission(dependant):
+        return dependant.call is require_staff_admission or any(
+            has_admission(child) for child in dependant.dependencies)
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        for method in sorted(route.methods):
+            item = {"method": method, "path": route.path, "module": route.endpoint.__module__}
+            if (method, route.path) in EXCLUDED_ROUTES:
+                excluded.append(item)
+                continue
+            registered.append(item)
+            if not has_admission(route.dependant):
+                missing_admission.append(item)
+            if not any(_route_pattern_matches(pattern, route.path)
+                       for family in ROUTE_PERMISSION_AUDIT for pattern in family["paths"]):
+                unmatched.append(item)
+    key = lambda item: (item["path"], item["method"])
+    reviewed = json.loads(Path(__file__).with_name('reviewed_routes.json').read_text(encoding='utf-8'))
+    from .route_policies import POLICIES
+    identity = lambda item: (item['method'], item['path'], item['module'])
+    reviewed_keys = {identity(item) for item in reviewed}
+    registered_keys = {identity(item) for item in registered}
+    unreviewed = [item for item in registered if identity(item) not in reviewed_keys]
+    missing = [item for item in reviewed if identity(item) not in registered_keys]
+    invalid_policies = [item for item in reviewed if not item.get('policies') or
+                        any(policy not in POLICIES for policy in item['policies'])]
+    return {"registered": sorted(registered, key=key), "excluded": sorted(excluded, key=key),
+            "unmatched": sorted(unmatched, key=key),
+            "unreviewed": sorted(unreviewed, key=key), "missing": sorted(missing, key=key),
+            "reviewed": reviewed, "policies": POLICIES, "invalid_policies": invalid_policies,
+            "missing_admission": missing_admission,
+            "complete": not (unmatched or unreviewed or missing or invalid_policies or missing_admission)}
+
 ROUTE_PERMISSION_AUDIT = (
     {
         "family": "orders",
@@ -17,14 +82,14 @@ ROUTE_PERMISSION_AUDIT = (
     {
         "family": "pricing",
         "paths": ["/api/pricing/*", "/api/prices/*"],
-        "read": "authenticated session",
+        "read": "approved staff admission",
         "write": "edit_price",
         "lifecycle": ["delete_price"],
         "notes": "The migrated API deliberately enforces edit/delete permissions on writes.",
     },
     {
         "family": "accounting bills",
-        "paths": ["/api/accounting/bills/*"],
+        "paths": ["/api/accounting/bills", "/api/accounting/bills/*"],
         "read": "view_accounting_bills",
         "write": "edit_accounting_bills",
         "lifecycle": ["restore_trashed", "delete_trashed"],
@@ -32,7 +97,7 @@ ROUTE_PERMISSION_AUDIT = (
     },
     {
         "family": "accounting payers",
-        "paths": ["/api/accounting/payers/*"],
+        "paths": ["/api/accounting/payers", "/api/accounting/payers/*"],
         "read": "view_menu_accounting_payers",
         "write": "view_menu_accounting_payers AND edit_accounting_payers; delete requires delete_accounting_payers",
         "lifecycle": ["restore_trashed", "delete_trashed"],
@@ -40,7 +105,7 @@ ROUTE_PERMISSION_AUDIT = (
     },
     {
         "family": "references",
-        "paths": ["/api/options/{kind}", "/api/references/*", "/api/customer-references", "/api/customer-references/*", "/api/reference-works/*"],
+        "paths": ["/api/options/{kind}", "/api/options/{kind}/*", "/api/references/*", "/api/customer-references", "/api/customer-references/*", "/api/reference-works/*"],
         "read": "domain read grant; see s03_policy.domains",
         "write": "domain read AND dedicated domain edit/delete capability; see s03_policy.domains",
         "lifecycle": ["view_trashed", "restore_trashed", "delete_trashed"],
@@ -52,11 +117,11 @@ ROUTE_PERMISSION_AUDIT = (
         "read": "view_menu_references_users",
         "write": ["user_create", "user_edit", "user_assign_role", "user_reset_credentials"],
         "lifecycle": ["user_delete", "restore_trashed", "delete_trashed"],
-        "notes": "Role changes require explicit delegation; credential changes require reset authority. Non-security administrators may only manage targets/assign roles whose grants are a subset of their own. Self-role changes are denied; lifecycle and last-admin checks still apply. S04 acceptance remains in progress.",
+        "notes": "Role changes require explicit delegation; credential changes require reset authority. Non-security administrators may only manage targets/assign roles whose grants are a subset of their own. Self-role changes are denied; lifecycle and last-admin checks still apply.",
     },
     {
         "family": "permissions administration",
-        "paths": ["/api/options/permissions"],
+        "paths": ["/api/options/permissions", "/api/options/permissions/audit"],
         "read": "view_menu_options_permissions",
         "write": "view_menu_options_permissions",
         "lifecycle": [],
@@ -64,7 +129,7 @@ ROUTE_PERMISSION_AUDIT = (
     },
     {
         "family": "reports",
-        "paths": ["/api/reports/*", "/reports/*"],
+        "paths": ["/api/reports/*", "/reports/*", "/api/report-settings", "/api/report-settings/*"],
         "read": "parent domain read: view_accounting_bills or view_menu_orders; bill order-document collection requires both",
         "write": "view_menu_options_reports for report settings",
         "lifecycle": [],
@@ -79,6 +144,14 @@ ROUTE_PERMISSION_AUDIT = (
         "notes": "Payroll route handlers enforce dedicated report permissions.",
     },
     {
+        "family": "system and main settings",
+        "paths": ["/api/system/*", "/api/options/main"],
+        "read": "main options: view_menu_options_main; diagnostics: approved staff plus permission administration in PRODUCTION",
+        "write": "read-only system/settings routes",
+        "lifecycle": [],
+        "notes": "Operational diagnostics and main options are explicitly classified.",
+    },
+    {
         "family": "authentication",
         "paths": ["/api/auth/*", "/api/password/*"],
         "read": "guest or authenticated session by workflow",
@@ -89,7 +162,8 @@ ROUTE_PERMISSION_AUDIT = (
 )
 
 DEDICATED_PERMISSION_IDS = frozenset({
-    "edit_price", "delete_price", "view_accounting_bills", "edit_accounting_bills",
+    "edit_price", "delete_price", "view_accounting_bills", "edit_accounting_bills", "delete_accounting_bills",
+    "user_assign_role", "user_reset_credentials",
     "user_create", "user_edit", "user_delete", "view_menu_options_permissions",
     "view_menu_options_reports", "view_menu_reports_payrolls", "edit_reports_payrolls",
 })
@@ -107,15 +181,16 @@ AUTHORIZATION_MATRIX = (
     {"family": "references", "method": "GET", "path": "/api/references/{kind}", "unauthenticated": 401, "unauthorized": "domain read grant; see s03_policy.domains"},
     {"family": "user administration", "method": "POST", "path": "/api/employee-references", "unauthenticated": 401, "unauthorized": "user_create"},
     {"family": "user administration", "method": "PATCH", "path": "/api/employee-references/{id}", "unauthenticated": 401, "unauthorized": "user_edit"},
+    {"family": "user administration", "method": "DELETE", "path": "/api/employee-references/{id}", "unauthenticated": 401, "unauthorized": "user_delete", "permanent_additionally": "delete_trashed"},
     {"family": "permissions administration", "method": "GET", "path": "/api/options/permissions", "unauthenticated": 401, "unauthorized": "view_menu_options_permissions"},
-    {"family": "reports", "method": "GET", "path": "/api/reports/for/{model}/{id}", "unauthenticated": 401, "unauthorized": "authenticated-only"},
+    {"family": "reports", "method": "GET", "path": "/api/reports/for/{model}/{id}", "unauthenticated": 401, "unauthorized": "domain read grant; see s03_policy.domains", "parent_read_by_model": {"bills": "view_accounting_bills", "orders": "view_menu_orders"}},
     {"family": "report settings", "method": "PATCH", "path": "/api/report-settings/{id}", "unauthenticated": 401, "unauthorized": "view_menu_options_reports"},
     {"family": "payroll", "method": "GET", "path": "/api/reports/payrolls/{id}", "unauthenticated": 401, "unauthorized": "view_menu_reports_payrolls"},
     {"family": "payroll", "method": "POST", "path": "/api/reports/payrolls", "unauthenticated": 401, "unauthorized": "edit_reports_payrolls"},
 )
 
 
-def audit_payload(permission_ids=None) -> dict:
+def audit_payload(permission_ids=None, app=None) -> dict:
     from .s03_policy import policy_payload
     s03 = policy_payload()
     dedicated = DEDICATED_PERMISSION_IDS | {domain[action] for domain in s03['domains'] for action in ('edit', 'delete')}
@@ -129,4 +204,5 @@ def audit_payload(permission_ids=None) -> dict:
         "missing_catalog_permissions": sorted(dedicated - available) if permission_ids is not None else [],
         "catalog_complete": permission_ids is None or not (dedicated - available),
         "authorization_matrix": [dict(item) for item in AUTHORIZATION_MATRIX],
+        "route_coverage": route_coverage(app) if app is not None else None,
     }

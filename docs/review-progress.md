@@ -64,7 +64,7 @@ Published backend commit: `2d70291931d25a848a84677e96164d22a3298705`.
 Frontend remained at published `aea6954083dcd1b16f519a6540919600deeb9969`.
 Final VM checkout synchronization returned `S09_SYNC_OK`, `SSH_EXIT=0`; both
 checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
-| S10 | unstarted | Actual route authorization coverage. |
+| S10 | fixed | Phase 1 local acceptance: exact runtime route/policy inventory and admission checks, real-session residual grant/revocation tests, reader-safe payroll and frontend capability regression. 634 backend tests OK (218 skips), 6 S10 tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. Not deployed; Phase 2 deferred. See docs/s10-authorization-audit.md. |
 | S11 | unstarted | Production launch and strict cookie-authenticated CSRF. |
 | S12 | unstarted | Discovery, abuse controls and administrative auditing. |
 | F01 | unstarted | Recalculation routing. |

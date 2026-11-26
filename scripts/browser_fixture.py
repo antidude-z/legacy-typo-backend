@@ -5,7 +5,7 @@ import argparse
 import bcrypt
 from sqlalchemy import create_engine, select
 from app.bootstrap import initialize_database
-from app.models import User, Role, Permission, Prepress, Bill, Customer
+from app.models import User, Role, Permission, Prepress, Bill, Customer, Payroll
 from sqlalchemy.orm import Session
 from app.mysql_test_guard import verify_test_database
 
@@ -34,6 +34,14 @@ def main():
             db.get(Permission, name) for name in ('view_menu_orders', 'view_menu_references_users', 'user_edit')])
         bill_editor = Role(title='Browser bill editor without delete', permissions=[
             db.get(Permission, name) for name in ('view_menu_orders', 'view_accounting_bills', 'edit_accounting_bills', 'view_trashed', 'restore_trashed', 'delete_trashed')])
+        payroll_reader = Role(title='Browser payroll reader', permissions=[
+            db.get(Permission, name) for name in ('view_menu_orders', 'view_menu_reports_payrolls')])
+        payroll_user = User(email='payroll-reader@example.test', name='Payroll reader', surname='QA', role=payroll_reader,
+                            password=bcrypt.hashpw(b'Browser-test-123', bcrypt.gensalt()).decode())
+        db.add(payroll_user)
+        db.flush()
+        from datetime import date
+        db.add(Payroll(id=88001, user_id=payroll_user.id, salary=123, period=date(2026, 1, 1), status='calc'))
         for email, name, assigned_role in [('profile-editor@example.test', 'Profile editor', profile_editor), ('browser@example.test', 'Browser', role), ('limited@example.test', 'Pending', None), ('reader@example.test', 'Reader', reader), ('catalog-reader@example.test', 'Catalog reader', catalog_reader)]:
             user = db.scalar(select(User).where(User.email == email))
             if user is None:
