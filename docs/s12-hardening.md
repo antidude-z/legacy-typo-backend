@@ -100,10 +100,37 @@ logins (24 workflows passed, 2 setup logins denied). Thresholds were not weakene
 browser acceptance now uses two fresh owned stacks (3 accessibility workflows,
 23 business workflows), with enforcement enabled and the same default budgets.
 Enabled browser and cross-container persistence completion remain pending.
+Superseded by completed acceptance: **3 accessibility + 23 business workflows
+passed**, enforcement enabled with unchanged default thresholds on separate owned
+stacks. Owned limiter volume survived container recreation and rejected the
+fourth registration reservation. No working limiter file was used for those tests.
 
-- Finish full suite/build/browser and guarded MySQL acceptance for abuse controls;
-  commit/publish and perform backed-up deployment. Verify persistent limiter
-  enablement explicitly on the HTTP VM; do not claim protection while disabled.
+## Abuse-control rollout — 2026-11-26 UTC
+
+Implementation `21350682417d68b2ff165df2f522defcd9d1a581`, frontend unchanged
+`5f1d4a58edf66ae1fbd3fcddc484e8da1060cb9d`. Verified source SHA-256:
+`a780f808004a4199f601cade967b30224b8bc0adddb0649a579c6297a9a8e97f`.
+Fresh verified backup `/root/backups/s12a-20261126T214555Z`; archives and checksums
+passed, including independent verification after restart.
+
+Persistent HTTP enforcement is enabled in the existing `compose.mysql.yaml`
+backend environment; tracked `compose.auth-abuse.yaml` was also installed.
+The original launch overlay is retained in the backup for image/config rollback.
+LOGIN_LIMIT_DB remains `/app/data/login-limits.db` on the persistent volume.
+HTTP/cookie/TLS settings and MySQL volume `rework_mysql_data` were retained.
+
+Deployment, independent verification and synchronization returned
+`S12A_DEPLOYMENT_OK`, `S12A_VERIFY_OK`, `S12A_SYNC_OK`, SSH exit 0. Services
+healthy; all-table count/checksum, exact user and grant invariants unchanged,
+including accountant payer-edit authority. Source hashes, 179 reviewed routes,
+CSRF and empty-roster probes passed. Both resolved launch configuration and live
+environment confirm AUTH_ABUSE_ENABLED=true. Oversized auth POST returned 413
+without consuming real account budgets; invariants compared again afterward.
+Live throttling was not exercised against staff accounts. Evidence:
+`s12a-{backup,backup-check,stage,deploy,verify,sync}-result.txt`,
+`s12a-persistence-result.txt`, `s12a-browser-result.txt`.
+
+## Still open
 - Generic registration/reset responses, including mail delivery failure behavior,
   must avoid revealing whether an account exists while preserving operator diagnostics.
 - Dedicated durable security events for employee lifecycle, role/credential changes,
