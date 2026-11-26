@@ -65,7 +65,7 @@ Frontend remained at published `aea6954083dcd1b16f519a6540919600deeb9969`.
 Final VM checkout synchronization returned `S09_SYNC_OK`, `SSH_EXIT=0`; both
 checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
 | S10 | fixed | Exact route/policy inventory, real-session grant/revocation coverage and reader-safe payroll. Deployed and independently verified 2026-11-26 UTC after fixing a historical rate-seed precision blocker; all-table/user/grant invariants preserved on retry. 635 backend tests OK (219 skips), 6 S10 and 3 bootstrap tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. Phase 2 deferred. See docs/s10-authorization-audit.md. |
-| S11 | in progress | Session-bound cookie CSRF and fail-closed production overlay implemented. 646 backend tests OK (221 skips), 28 targeted tests, 2 tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. VM preflight confirms HTTP-only validation setup; backed-up containment rollout and production TLS acceptance pending. See docs/s11-production-csrf.md. |
+| S11 | in progress | Cookie-CSRF containment backed up, deployed, independently verified and synchronized 2026-11-26 with unchanged all-table/user/grant invariants. 646 backend tests OK (221 skips), 28 targeted tests, 2 tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. Production overlay validated but not activated: verified TLS origin/certificate/proxy remains the blocker; HTTP validation access retained. See docs/s11-production-csrf.md. |
 | S12 | unstarted | Discovery, abuse controls and administrative auditing. |
 | F01 | unstarted | Recalculation routing. |
 | F02 | unstarted | Sale total and order fields. |

@@ -65,5 +65,35 @@ mode, nonsecure cookies, HTTP APP_URL and only LAN port 8080 (no 80/443 listener
 The containment rollout preserves those validation settings; production overlay
 activation remains blocked on provisioned, externally verified TLS.
 
-S11 remains in progress pending backed-up rollout and production TLS acceptance. Phase 2
+## Containment deployment — 2026-11-26 UTC
+
+Published implementation: `c5ef310cebbbaa0170a1ebf2f27c6c94cfb7b53b`;
+frontend unchanged at `cf7c25debaf9dd2843bd46083e7555f0a8a0fc0b`.
+Source archive SHA-256:
+`557822bbb2eac86662352953a66793fbfc178beaaba7df6f3c10c878137efced`.
+Fresh backup `/root/backups/s11-20261126T210118Z` passed gzip/tar integrity and
+SHA256SUMS, with independent backup verification after service restart.
+
+Deployment returned `S11_DEPLOYMENT_OK` / SSH exit 0: backend/frontend/MySQL
+healthy, all-table counts/checksums, exact users and role grants unchanged,
+including role 7's accountant payer-edit grant. MySQL and `rework_mysql_data`
+were not recreated. HTTP validation settings and the signing secret were retained.
+
+The first independent verifier stopped on a generated-script ordering error
+(referencing after-probe evidence before creating it). No application failure or
+restart resulted. Corrected independent verification returned
+`S11_ROUTE_INVENTORY_OK 179`, `S11_CSRF_PROBES_OK`, `S11_VERIFY_OK`, SSH exit 0.
+Backend source hashes matched; guest employee access remained 401. Anonymous
+cookies-only probes confirmed absent CSRF and deleted-CSRF-cookie requests return
+419, and a valid session-bound token reaches a nonexistent route (404). No real
+account login/logout or business mutation was performed. All invariants were
+compared again after probes. Rollback images remain available in the backup.
+
+VM checkout synchronization returned `S11_SYNC_OK`, SSH exit 0, both clean at
+the implementation/frontend revisions above. Local evidence is under workspace
+`s11-{backup,backup-check,stage,deploy,verify-final,sync}-result.txt`.
+
+S11 remains in progress solely for production TLS acceptance and activation of
+the production launch contract. Provision/verify the HTTPS origin and certificate,
+local TLS proxy and HTTP redirect before changing secure-cookie settings. Phase 2
 is deferred; no scenario specification was opened or executed.
