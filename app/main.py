@@ -34,6 +34,7 @@ from .config import PUBLIC_REGISTRATION_ENABLED
 from .order_authorization import order_capabilities
 from .admin_safety import security_writer
 from .credentials import revoke_credentials
+from .auth_abuse import AuthBodyLimitMiddleware, guard as guard_auth_abuse
 
 
 def require_staff_admission(request: Request, db: Session = Depends(get_db)):
@@ -65,6 +66,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_middleware(CSRFMiddleware)
+app.add_middleware(AuthBodyLimitMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
@@ -377,11 +379,12 @@ def login_users(db: Session = Depends(get_db)) -> dict[str, str]:
 @security_writer
 def login(
     request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
+    email: str = Form(..., max_length=255),
+    password: str = Form(..., max_length=72),
     remember: bool = Form(False),
     db: Session = Depends(get_db),
 ):
+    guard_auth_abuse(request, 'login', email)
     rate_key = f"{request.client.host if request.client else 'unknown'}:{email.strip().lower()}"
     if login_rate_limited(rate_key):
         return JSONResponse({"message": "Слишком много попыток входа. Повторите позднее."}, status_code=429, headers={"Retry-After": str(LOGIN_RATE_WINDOW_SECONDS)})
@@ -431,12 +434,13 @@ def _auth_error(message: str, fields: dict | None = None):
 @app.post("/api/auth/register", tags=["auth"], include_in_schema=False)
 def register(
     request: Request,
-    name: str = Form(...),
-    email: str = Form(...),
-    password: str = Form(...),
-    password_confirmation: str = Form(...),
+    name: str = Form(..., max_length=255),
+    email: str = Form(..., max_length=255),
+    password: str = Form(..., max_length=72),
+    password_confirmation: str = Form(..., max_length=72),
     db: Session = Depends(get_db),
 ):
+    guard_auth_abuse(request, 'register', email)
     if not PUBLIC_REGISTRATION_ENABLED:
         return JSONResponse({"error": "registration_disabled", "message": "Регистрация отключена. Обратитесь к администратору."}, status_code=403)
     if current_user(request, db):
@@ -484,7 +488,8 @@ def deliver_reset_mail(email: str, token: str):
 @app.post("/password/email", tags=["auth"])
 @app.post("/api/password/email", tags=["auth"], include_in_schema=False)
 @security_writer
-def password_email(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
+def password_email(request: Request, email: str = Form(..., max_length=255), db: Session = Depends(get_db)):
+    guard_auth_abuse(request, 'reset-email', email)
     if current_user(request, db):
         return RedirectResponse("/orders", status_code=303)
     email = email.strip().lower()
@@ -511,8 +516,9 @@ def password_email(request: Request, email: str = Form(...), db: Session = Depen
 @app.post("/api/password/reset", tags=["auth"], include_in_schema=False)
 @security_writer
 def password_reset(
-    request: Request, token: str = Form(...), email: str = Form(...), password: str = Form(...), password_confirmation: str = Form(...), db: Session = Depends(get_db)
+    request: Request, token: str = Form(..., max_length=256), email: str = Form(..., max_length=255), password: str = Form(..., max_length=72), password_confirmation: str = Form(..., max_length=72), db: Session = Depends(get_db)
 ):
+    guard_auth_abuse(request, 'reset', email)
     if current_user(request, db):
         return RedirectResponse("/orders", status_code=303)
     row = db.get(PasswordReset, email.strip().lower())

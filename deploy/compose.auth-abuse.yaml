@@ -1,0 +1,6 @@
+# Persistent opt-in for a shared HTTP validation stack. Production enforces
+# these budgets independently. Does not change cookies, TLS, images or volumes.
+services:
+  backend:
+    environment:
+      AUTH_ABUSE_ENABLED: "true"

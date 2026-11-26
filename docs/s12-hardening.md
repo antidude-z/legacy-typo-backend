@@ -28,7 +28,7 @@ dropdown option; the new discovery workflow itself passed. The assertion now
 waits for the typed-email input; clean full browser rerun is required before release.
 No migration, grant change or historical account repair is required.
 
-## Remaining S12 work (not claimed implemented)
+## Discovery rollout evidence
 
 Discovery rollout completed 2026-11-26 UTC. Backend implementation:
 `a3e1d4b5e10c9dfa3cbf2f12b8cc709a5fa5f5a8`; frontend:
@@ -49,10 +49,61 @@ verified empty/no-store directly on the backend, and the SPA proxy response was
 also empty. VM checkouts clean at released implementation revisions. Evidence:
 workspace `s12-{backup,backup-check,stage,deploy,verify,sync}-result.txt`.
 
-- Account/IP/global limits for login, registration, reset initiation and reset
-  consumption; aliases must share budgets. Bound request and field sizes before
-  expensive password hashing/mail/database processing. Shared durable state must
-  fail closed and use test-owned paths in regressions, not working data files.
+## Abuse-control implementation increment (not deployed)
+
+`app/auth_abuse.py` adds atomic SQLite account/IP/global budgets, shared across
+both aliases and workers using LOGIN_LIMIT_DB. Every accepted attempt consumes
+all three budgets in one BEGIN IMMEDIATE transaction; rejected attempts consume
+none. Expired rows are removed. Successful login does not reset these independent
+spray budgets; the older failure limiter remains in place. Account keys are
+case-folded and only SHA-256 identifiers are stored (not encryption/anonymity
+against offline guessing by a privileged file reader). Storage failure returns
+generic 503 before business/auth side effects.
+
+Fixed 15-minute budgets (account/IP/global): login 20/100/1000; registration
+3/10/100; reset initiation 3/10/100; reset consumption 10/50/500. Returns 429 with
+Retry-After 900. Production always enables this control. HTTP validation requires
+explicit AUTH_ABUSE_ENABLED=true; isolated endpoint tests patch only enablement
+and point the store at a TemporaryDirectory. This is a single-host persistent
+volume solution, not a distributed/multi-host limiter. Forwarded identity is not
+trusted: proxy users may share an IP budget. Threshold tuning requires review.
+
+Exact authentication POST aliases (including slash-normalized paths) have a
+16 KiB actual-byte cap before form parsing; streamed/chunked bodies are counted,
+not trusted based on Content-Length. Form fields cap email/name at 255, password
+and confirmation at 72 characters (existing bcrypt byte checks still apply), and
+reset token at 256. Field validation precedes hashing, mail and account lookup;
+body limiting does not implement connection timeouts or replace proxy DoS controls.
+
+Final expanded focused run: **21 tests OK**, including real endpoint CSRF,
+alias sharing, no token replacement/mail after denial, storage failure, atomic
+concurrency, expiry, IP/global ceilings, field/body bounds and enabled-registration
+denial without hashing or account creation. Full run started before the final
+added regression/body-cap refinement: **656 tests OK, 221 skips**, exit 0,
+188.385s (`s12-abuse-full-result.txt`). It is not an exact-final-tree full pass.
+Fresh backend/frontend builds, frontend production build, **21 helpers** and
+**26 browser workflows** passed (`s12-abuse-browser-result.txt`, 42.6s). The
+browser fixture does not enable the new budgets, so this proves compatibility,
+not enabled-budget browser acceptance. Final focused result:
+`s12-abuse-final-err.txt` (21 tests OK, 7.955s).
+No deployment, live limiter probes or working-data mutations occurred in this
+increment. Before rollout, enable the HTTP VM via a persistent Compose overlay,
+verify owned-store persistence, back up, deploy and compare business invariants.
+
+## Remaining S12 work
+
+Final acceptance increment: **665 backend tests OK, 229 opt-in skips**, exit 0,
+193.564s. **8 auth-side-effect tests per InnoDB/MyISAM engine passed** against
+owned guarded historical FK-free schemas. Limiter files remained test-owned.
+The first enabled browser run hit its account budget after repeated synthetic
+logins (24 workflows passed, 2 setup logins denied). Thresholds were not weakened:
+browser acceptance now uses two fresh owned stacks (3 accessibility workflows,
+23 business workflows), with enforcement enabled and the same default budgets.
+Enabled browser and cross-container persistence completion remain pending.
+
+- Finish full suite/build/browser and guarded MySQL acceptance for abuse controls;
+  commit/publish and perform backed-up deployment. Verify persistent limiter
+  enablement explicitly on the HTTP VM; do not claim protection while disabled.
 - Generic registration/reset responses, including mail delivery failure behavior,
   must avoid revealing whether an account exists while preserving operator diagnostics.
 - Dedicated durable security events for employee lifecycle, role/credential changes,

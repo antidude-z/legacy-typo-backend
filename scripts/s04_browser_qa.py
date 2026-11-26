@@ -1,5 +1,6 @@
 """Owned Docker browser QA with synthetic tmpfs SQLite and no working mounts."""
 from pathlib import Path
+import os
 import subprocess
 import time
 from uuid import uuid4
@@ -12,6 +13,11 @@ def main():
         frontend = backend.parent / 'frontend'
     name = 's04-browser-' + uuid4().hex[:12]
     containers = [name + '-backend', name + '-frontend', name + '-runner']
+    group = os.getenv('BROWSER_QA_GROUP', '')
+    if group not in {'', 'accessibility', 'business'}:
+        raise ValueError('Unsupported browser group')
+    selection = (' --grep "responsive accessibility"' if group == 'accessibility'
+                 else ' --grep-invert "responsive accessibility"' if group == 'business' else '')
     def docker(*args, **kwargs):
         return subprocess.run(['docker', *args], check=True, **kwargs)
     try:
@@ -19,6 +25,7 @@ def main():
         docker('run', '-d', '--name', containers[0], '--network', name, '--network-alias', 'backend',
                '--tmpfs', '/app/data', '--mount', f'type=bind,source={backend / "scripts"},target=/app/scripts,readonly',
                '-e', 'DATABASE_URL=sqlite:///./data/browser-e2e.db',
+                '-e', 'AUTH_ABUSE_ENABLED=' + ('true' if os.getenv('BROWSER_QA_AUTH_ABUSE') == '1' else 'false'),
                '-e', 'SESSION_SECRET=isolated-browser-tests-only', 'typography-s04-backend',
                'sh', '-c', '.venv/bin/python -m scripts.browser_fixture && exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000',
                stdout=subprocess.DEVNULL)
@@ -41,7 +48,7 @@ def main():
                '-e', 'BROWSER_QA_URL=http://frontend:8081',
                '-e', 'BROWSER_QA_SYNTHETIC_ORPHANS=1',
                'mcr.microsoft.com/playwright:v1.65.1-noble', 'sh', '-c',
-               'cp -r /source /tmp/frontend && cd /tmp/frontend && npm ci && npm test && npm run test:e2e -- --reporter=line',
+               'cp -r /source /tmp/frontend && cd /tmp/frontend && npm ci && npm test && npm run test:e2e -- --reporter=line' + selection,
                timeout=900)
     finally:
         for container in reversed(containers):

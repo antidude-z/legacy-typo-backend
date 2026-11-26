@@ -1,5 +1,17 @@
 # Compose deployment
 
+## Authentication abuse budgets on shared validation deployments
+
+Production enforces account/IP/global budgets automatically. An HTTP validation
+stack must explicitly include `deploy/compose.auth-abuse.yaml`, or retain
+`AUTH_ABUSE_ENABLED: "true"` in its always-used backend environment overlay.
+Keep LOGIN_LIMIT_DB under the persistent backend-data volume; do not use a
+container-layer path. Restarting/recreating a container must not reset budgets.
+This setting does not enable production mode or change secure cookies/TLS.
+Backend health does not prove limiter storage writable; test an owned QA store
+and verify actual environment/config privately before rollout. Storage failure
+fails authentication closed with 503. Do not probe throttling using real users.
+
 ## S11 production launch contract
 
 The base Compose file is for local development/validation, NOT production.
