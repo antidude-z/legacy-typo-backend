@@ -100,6 +100,8 @@ class SessionSecurityScenarios:
         payment = self.db.get(Payment, response.json()['id']); self.payments.append(payment)
         path = f'/api/accounting/bills/{first.id}/payments/{payment.id}'
         wrong = f'/api/accounting/bills/{other.id}/payments/{payment.id}'
+        self.assertEqual(self.client.delete(path, headers=self.headers).status_code, 403)
+        self.grant('delete_accounting_bills')
         for method, suffix, payload in [('GET', '', None), ('PATCH', '', {'payment_amount': '2', 'payment_date': '2024-01-01'}), ('DELETE', '', None)]:
             response = self.client.request(method, wrong + suffix, headers=self.headers, json=payload)
             self.assertEqual(response.status_code, 404, (method, response.text))

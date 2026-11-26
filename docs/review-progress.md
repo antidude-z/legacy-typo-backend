@@ -12,7 +12,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 | S03 | fixed | Phase 1 implementation and local SQLite/MySQL InnoDB/MyISAM/browser acceptance complete. Production role-grant approval and Phase 2 scenarios are separate pending rollout gates; see completion evidence below. |
 | S04 | fixed | Phase 1 SQLite/MySQL/browser acceptance passed; backed up and deployed on 2026-11-26 with unchanged business checksums and role grants. Phase 2 remains deferred. |
 | S05 | fixed | Phase 1 SQLite/MySQL/browser validation passed; deployed 2026-11-26 with unchanged business checksums, grants and pending accounts against a fresh baseline including the developer-created bill. |
-| S06 | unstarted | Bill domain deletion authorization. |
+| S06 | fixed | Explicit bill/payment domain-delete and lifecycle conjunction; 597 backend tests OK (204 skips), 4 tests per MySQL engine and 23 browser workflows pass. Backed up/deployed 2026-11-26 with unchanged business checksums and role grants. |
 | S07 | unstarted | Password-change remember-token revocation. |
 | S08 | unstarted | Logout session revocation. |
 | S09 | unstarted | Initialization grant preservation. |
@@ -762,3 +762,50 @@ states healthy, report discovery/form/generation guest denials 401, deployed
 report/resource-read hashes match candidate, actual MySQL volume and rollback
 images retained. Session health passed after checkout synchronization. S05 Phase 1
 is complete; Phase 2 remains deferred. Next finding is S06.
+
+## S06 bill/payment deletion authorization — 2026-11-26
+
+Confirmed bills and bill-owned payments used edit authority for DELETE/restore.
+Implemented shared lifecycle policy: view_accounting_bills AND existing
+delete_accounting_bills; restore additionally requires restore_trashed and
+permanent deletion additionally requires delete_trashed. Payments deliberately
+share bill-delete authority rather than introducing/auto-granting a new permission.
+Payment lifecycle requires an active matching bill; restore the parent first.
+Delete does not require edit; editors without delete can still save.
+API capability flags and bill/payment controls now distinguish edit from delete.
+No grant/bootstrap changes, working-database mutation QA or scenarios.md edits.
+
+Four real-session regressions cover repeated denied requests with all-table
+snapshots, editor saves, trash-only/delete-without-read denial, domain+lifecycle
+success without edit, parent mismatch/deleted parent, and grant revocation.
+Focused run: 13 tests passed. Isolated MySQL: four passed on InnoDB and four
+on MyISAM. Backend Docker image built. Local frontend build could not start
+because local Vite dependencies are absent; existing disposable browser harness
+installs lockfile dependencies. Full backend and browser validations started;
+S06 backup/deployment/commit/push not started.
+
+Full first run: 597 tests, one failure (old session test expected edit-only
+payment deletion). Updated test to assert edit-only denial then explicitly grant
+delete before ownership/lifecycle assertions; full rerun started. Existing 22
+browser workflows passed. Added synthetic bill-editor fixture and dedicated S06
+browser case; first run served stale prebuilt frontend and found the legacy delete
+link, so current frontend image rebuild and browser rerun are required before
+acceptance. Do not interpret the stale-image run as validating the changed UI.
+
+Validation completed after rebuilding the frontend image: full backend 597 tests
+OK (204 opt-in skips); 23 browser workflows including S06 and 19 frontend helper
+tests passed. Both application images built locally and on VM. New locked backup
+verified at /root/backups/s06-20261126T103926Z (gzip/tar and SHA-256; rollback
+images retained, no restore rehearsal). Candidate archive SHA-256
+1b746e6a1373ba2826032207b9607b71b5df072b90fe4538e2e4ffaf3d4a70d8.
+Fresh baseline: 10058 bills; other business counts and pending account [28]
+recorded. Application-only deployment started; integrity/health verification and
+Git publication remain required before marking complete.
+
+S06 rollout succeeded: s06-candidate-backend/frontend healthy, MySQL unchanged
+and healthy. All compared business counts/checksums, exact role grants and pending
+accounts unchanged, including 10058 bills. S04 permission catalog preserved.
+Existing Compose files plus --profile mysql and
+/root/backups/s06-candidate-images.yaml select deployed images. Actual MySQL
+volume rework_mysql_data preserved. Session/home health passed. No working DB
+mutation QA, grants broadened, or scenarios.md changes. Publication follows.

@@ -16,7 +16,7 @@ def docker(*args, **kwargs):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--finding', choices=('S04', 'S05'), default='S04')
+    parser.add_argument('--finding', choices=('S04', 'S05', 'S06'), default='S04')
     finding = parser.parse_args().finding
     backend = Path(__file__).resolve().parents[1]
     name = 'typography-s04-qa-' + uuid4().hex[:12]
@@ -49,7 +49,8 @@ def main():
                         'S03_MYSQL_ENGINE': storage}
             test_env[f'{finding}_MYSQL_ENABLED'] = '1'
             suite = ('tests.test_review_s04_mysql.MySQLDelegationReviewTests' if finding == 'S04'
-                     else 'tests.test_review_s05_mysql.MySQLReportAuthorizationReviewTests')
+                     else 'tests.test_review_s05_mysql.MySQLReportAuthorizationReviewTests' if finding == 'S05'
+                     else 'tests.test_review_s06_mysql.MySQLAccountingDeletionTests')
             subprocess.run([sys.executable, '-W', 'error', '-m', 'unittest',
                             suite, '-v'],
                            cwd=backend, env=test_env, check=True, timeout=300)

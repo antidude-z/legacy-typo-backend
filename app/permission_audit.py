@@ -28,7 +28,7 @@ ROUTE_PERMISSION_AUDIT = (
         "read": "view_accounting_bills",
         "write": "edit_accounting_bills",
         "lifecycle": ["restore_trashed", "delete_trashed"],
-        "notes": "Bill and payment access is parent-scoped and permission checked.",
+        "notes": "Bill/payment lifecycle requires view_accounting_bills AND delete_accounting_bills; restore/permanent deletion also require restore_trashed/delete_trashed. Payments require an active matching parent bill. Edit does not imply delete; grants are unchanged.",
     },
     {
         "family": "accounting payers",

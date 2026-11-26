@@ -32,6 +32,8 @@ def main():
             db.get(Permission, f'view_menu_references_{kind}') for kind in ('prepresses', 'redactions')])
         profile_editor = Role(title='Browser profile editor', permissions=[
             db.get(Permission, name) for name in ('view_menu_orders', 'view_menu_references_users', 'user_edit')])
+        bill_editor = Role(title='Browser bill editor without delete', permissions=[
+            db.get(Permission, name) for name in ('view_menu_orders', 'view_accounting_bills', 'edit_accounting_bills', 'view_trashed', 'restore_trashed', 'delete_trashed')])
         for email, name, assigned_role in [('profile-editor@example.test', 'Profile editor', profile_editor), ('browser@example.test', 'Browser', role), ('limited@example.test', 'Pending', None), ('reader@example.test', 'Reader', reader), ('catalog-reader@example.test', 'Catalog reader', catalog_reader)]:
             user = db.scalar(select(User).where(User.email == email))
             if user is None:
@@ -40,6 +42,8 @@ def main():
             user.name = name; user.surname = 'QA'; user.role = assigned_role
             user.fired = 0; user.deleted_at = None
             user.password = bcrypt.hashpw(b'Browser-test-123', bcrypt.gensalt()).decode()
+        db.add(User(email='bill-editor@example.test', name='Bill editor', surname='QA', role=bill_editor,
+                    password=bcrypt.hashpw(b'Browser-test-123', bcrypt.gensalt()).decode()))
         if db.scalar(select(Prepress).where(Prepress.title == 'Browser prepress')) is None:
             db.add(Prepress(title='Browser prepress'))
         if not args.mysql_clone:

@@ -9,6 +9,7 @@ from .db import get_db
 from .models import Bill, Order, Payer, Payment, User
 from .reference_inventory import integer
 from .resource_reads import readable_resource
+from .accounting_authorization import accounting_capabilities, require_accounting_delete
 
 
 def bill_date(value):
@@ -63,7 +64,7 @@ def register_bill_routes(app, current_user):
         return user
 
     def flags(user):
-        return {"can_edit":user.has_permission("edit_accounting_bills"), "can_restore":user.has_permission("restore_trashed"), "can_delete_trashed":user.has_permission("delete_trashed")}
+        return accounting_capabilities(user)
 
     def options(db):
         return {"managers":[{"id":x.id,"title":f"{x.surname or ''} {x.name}".strip()} for x in db.scalars(select(User).where(User.deleted_at.is_(None)).order_by(User.surname)).all()],
@@ -160,18 +161,20 @@ def register_bill_routes(app, current_user):
 
     @app.delete("/api/accounting/bills/{identity}", tags=["accounting"])
     def delete(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = actor(request,db,True); row = db.get(Bill,identity)
+        user = actor(request,db)
+        require_accounting_delete(user)
+        row = db.get(Bill,identity)
         if not row: raise HTTPException(404)
         if row.deleted_at:
-            if not user.has_permission("delete_trashed"): raise HTTPException(403)
+            require_accounting_delete(user, 'delete_trashed')
             db.delete(row)
         else: row.deleted_at = datetime.now()
         db.commit(); return {"status":"ok"}
 
     @app.post("/api/accounting/bills/{identity}/restore", tags=["accounting"])
     def restore(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = actor(request,db,True)
-        if not user.has_permission("restore_trashed"): raise HTTPException(403)
+        user = actor(request,db)
+        require_accounting_delete(user, 'restore_trashed')
         row = db.get(Bill,identity)
         if not row: raise HTTPException(404)
         row.deleted_at = None; db.commit(); return {"status":"ok"}

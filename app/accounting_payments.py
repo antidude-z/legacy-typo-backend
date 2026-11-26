@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from .accounting_bills import bill_date
 from .db import get_db
 from .models import Bill, Payment
+from .accounting_authorization import accounting_capabilities, require_accounting_delete
 
 
 def payment_values(payload):
@@ -36,9 +37,7 @@ def register_payment_routes(app, current_user):
         return row
 
     def flags(user):
-        return {"can_edit": user.has_permission("edit_accounting_bills"),
-                "can_restore": user.has_permission("restore_trashed"),
-                "can_delete_trashed": user.has_permission("delete_trashed")}
+        return accounting_capabilities(user)
 
     @app.get("/api/accounting/bills/{bill_id}/payments/form", tags=["accounting"])
     def form(bill_id: int, request: Request, db: Session = Depends(get_db)):
@@ -72,17 +71,18 @@ def register_payment_routes(app, current_user):
 
     @app.delete("/api/accounting/bills/{bill_id}/payments/{identity}", tags=["accounting"])
     def delete(bill_id: int, identity: int, request: Request, db: Session = Depends(get_db)):
-        user, _ = context(bill_id, request, db, True, True)
+        user, _ = context(bill_id, request, db)
+        require_accounting_delete(user)
         row = row_for(bill_id, identity, db)
         if row.deleted_at:
-            if not user.has_permission("delete_trashed"): raise HTTPException(403)
+            require_accounting_delete(user, 'delete_trashed')
             db.delete(row)
         else: row.deleted_at = datetime.now()
         db.commit(); return {"status": "ok"}
 
     @app.post("/api/accounting/bills/{bill_id}/payments/{identity}/restore", tags=["accounting"])
     def restore(bill_id: int, identity: int, request: Request, db: Session = Depends(get_db)):
-        user, _ = context(bill_id, request, db, True, True)
-        if not user.has_permission("restore_trashed"): raise HTTPException(403)
+        user, _ = context(bill_id, request, db)
+        require_accounting_delete(user, 'restore_trashed')
         row = row_for(bill_id, identity, db); row.deleted_at = None
         db.commit(); return {"status": "ok"}
