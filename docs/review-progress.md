@@ -40,7 +40,30 @@ returned 401. No business data mutation was performed.
 VM checkout synchronization returned `S08_SYNC_OK` / `SSH_EXIT=0` at backend
 `55eab8c4cf064b0474e719fc5d1ddbbb371c0b7d` and frontend
 `aea6954083dcd1b16f519a6540919600deeb9969`. Both remote checkouts were clean.
-| S09 | in progress | Local implementation and SQLite/InnoDB/MyISAM acceptance complete; missing markers no longer broaden imported role grants. Read-only bootstrap preview added. Backup/deploy/independent live verification and publication pending; see docs/s09-initialization.md. |
+| S09 | fixed | Initialization preserves imported role grants and users when the schema marker is missing; fresh baseline seeding is explicit and previewable. SQLite/InnoDB/MyISAM acceptance, backup, deployment, independent verification, publication, and VM synchronization completed 2026-11-26; see docs/s09-initialization.md. |
+
+## S09 deployment — 2026-11-26
+
+Packaged and remotely verified source archive SHA-256:
+`2206e5917f5b0789d087529632573e1fd0d9082f8d18a6bfb9cac2c5aabf669f`.
+Fresh backup: `/root/backups/s09-20261126T145626Z`; database, checkout/config,
+and backend-data archives passed integrity and SHA256SUMS checks. The backup
+restart probe briefly observed services in health-starting/502 state; follow-up
+read-only inspection confirmed S08 backend/frontend/MySQL healthy before rollout.
+
+S09 candidate images built and deployed under the MySQL profile. No migration or
+business-data write was performed; only backend/frontend were recreated and
+`rework_mysql_data` was retained. The live candidate preview reported `mode:
+upgrade` with zero grant additions and zero removals. Pre/post exact user-column
+digests (including `security_stamp`), business counts/checksums, and role grants
+matched; the accountant payer-edit grant remained present. Candidate services,
+MySQL volume, rollback image, source hashes, and guest employee 401 passed
+independent verification: `S09_VERIFY_OK`, `SSH_EXIT=0`.
+
+Published backend commit: `2d70291931d25a848a84677e96164d22a3298705`.
+Frontend remained at published `aea6954083dcd1b16f519a6540919600deeb9969`.
+Final VM checkout synchronization returned `S09_SYNC_OK`, `SSH_EXIT=0`; both
+checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
 | S10 | unstarted | Actual route authorization coverage. |
 | S11 | unstarted | Production launch and strict cookie-authenticated CSRF. |
 | S12 | unstarted | Discovery, abuse controls and administrative auditing. |
