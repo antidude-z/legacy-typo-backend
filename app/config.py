@@ -24,17 +24,20 @@ def validate_production_settings(environ=None):
     """Fail closed before connecting to a database in production."""
     from urllib.parse import urlsplit
     values = os.environ if environ is None else environ
+    if values.get('APP_ENV', 'development') not in {'development', 'test', 'production'}:
+        raise ValueError('APP_ENV must be development, test or production')
     if values.get('APP_ENV') != 'production':
         return
     secret = values.get('SESSION_SECRET', '')
     if len(secret) < 32 or secret in {'development-only-change-me', 'replace-with-a-local-secret'}:
         raise ValueError('Production requires a random SESSION_SECRET of at least 32 characters')
     url = urlsplit(values.get('APP_URL', ''))
-    if url.scheme != 'https' or not url.hostname or url.username or url.query or url.fragment:
+    if (url.scheme != 'https' or not url.hostname or url.username or url.password
+            or url.query or url.fragment or url.path not in {'', '/'}):
         raise ValueError('Production APP_URL must be an HTTPS URL without credentials/query/fragment')
     if values.get('SESSION_SECURE', '').lower() != 'true':
         raise ValueError('Production requires SESSION_SECURE=true')
-    if values.get('FORWARDED_ALLOW_IPS') == '*':
+    if '*' in {entry.strip() for entry in values.get('FORWARDED_ALLOW_IPS', '').split(',')}:
         raise ValueError('Trust only explicit reverse proxy IPs, not all forwarded headers')
     if values.get('RESET_MAIL_MODE', 'disabled') not in {'disabled', 'smtp'}:
         raise ValueError('Production reset mail must use SMTP or be explicitly disabled')

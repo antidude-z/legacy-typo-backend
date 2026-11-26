@@ -24,6 +24,12 @@ class ProductionSecurityTests(unittest.TestCase):
                 validate_production_settings({**good, key: value})
         with self.assertRaises(ValueError):
             validate_production_settings({**good, 'RESET_MAIL_MODE': 'smtp'})
+        for value in ('https://example.test/subpath', 'https://user:pass@example.test',
+                      'https://example.test?query=1', 'https://example.test#fragment'):
+            with self.subTest(url=value), self.assertRaises(ValueError):
+                validate_production_settings({**good, 'APP_URL': value})
+        with self.assertRaises(ValueError):
+            validate_production_settings({**good, 'APP_ENV': 'prodution'})
 
     def test_shared_attempts_are_atomic_and_expire(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -4,7 +4,10 @@ from app.models import Material, Paper
 
 
 class ReferenceInventoryTests(unittest.TestCase):
-    setUp = fixtures.ReferenceDictionaryTests.setUp
+    def setUp(self):
+        fixtures.ReferenceDictionaryTests.setUp(self)
+        token = self.client.get('/api/csrf-token').json()['token']
+        self.client.headers['X-CSRF-Token'] = token
     tearDown = fixtures.ReferenceDictionaryTests.tearDown
 
     def test_existing_inventory_schema_upgrade_preserves_data(self):

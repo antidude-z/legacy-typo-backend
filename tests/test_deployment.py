@@ -38,6 +38,16 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn('--protocol=TCP', content)
         self.assertIn('SELECT 1', content)
 
+    def test_production_overlay_forces_security_and_replaces_public_ports(self):
+        content = (BACKEND / 'deploy' / 'compose.production.yaml').read_text()
+        self.assertIn('APP_ENV: production', content)
+        self.assertIn('SESSION_SECURE: "true"', content)
+        self.assertIn('APP_URL: ${APP_URL:?', content)
+        self.assertIn('--no-proxy-headers', content)
+        self.assertIn('ports: !override', content)
+        self.assertIn('127.0.0.1:${FRONTEND_PORT:-8080}:80', content)
+        self.assertNotIn('FRONTEND_BIND', content)
+
 
 if __name__ == "__main__":
     unittest.main()

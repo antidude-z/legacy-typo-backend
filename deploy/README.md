@@ -1,5 +1,34 @@
 # Compose deployment
 
+## S11 production launch contract
+
+The base Compose file is for local development/validation, NOT production.
+The production overlay requires Docker Compose 2.24.4+ (`!override` support).
+For production add `backend/deploy/compose.production.yaml` after the base and
+MySQL overlays, retaining the deployed project name and actual external volume
+mapping. Do not apply the historical validation-volume example blindly.
+
+```sh
+docker compose --project-directory "$PWD" -f backend/deploy/compose.yaml \
+  -f backend/deploy/mysql.yaml -f backend/deploy/compose.production.yaml \
+  --profile mysql config --quiet
+```
+
+Before `up`, privately inspect the resolved ports: frontend must publish only on
+127.0.0.1, with no backend/MySQL publication. The overlay forces APP_ENV=production,
+secure cookies and disables Uvicorn proxy-header trust; APP_URL must be the
+externally verified HTTPS origin and SESSION_SECRET must be random (32+ chars).
+Put a locally managed TLS proxy in front of loopback frontend; verify certificate,
+hostname, HTTPS login/logout and HTTP redirect before inviting users. This
+conservative contract does not consume forwarded client IPs: production throttles
+may group clients behind the proxy. Distributed limits and proxy-aware client-IP
+policy require a separate reviewed configuration. A remote TLS proxy requires a
+separate explicit network/trust review, not a wildcard trust setting.
+
+Do not set SESSION_SECURE on the HTTP-only validation VM until TLS is provisioned.
+Back up before rollout; preserve the actual MySQL volume and secrets. Do not
+claim production acceptance based on config validation alone.
+
 `compose.yaml` is the tracked source for the workspace `docker-compose.yaml`.
 Run commands from the directory containing `backend/` and `frontend/`, always
 passing `--project-directory "$PWD"` so relative build paths resolve correctly.

@@ -4,7 +4,7 @@ import secrets
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from .config import PRODUCTION
+from .config import PRODUCTION, SESSION_COOKIE
 
 
 
@@ -22,19 +22,22 @@ def token_for_session(request) -> str:
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
-    """Require double-submit CSRF protection for opted-in browser sessions.
+    """Protect cookie-bearing mutations, independently of a CSRF opt-in cookie.
 
-    A browser opts in by requesting ``/api/csrf-token``; stateless compatibility
-    callers that never establish that token remain outside this contract.
+    Production also protects anonymous authentication/reset requests. Only local
+    compatibility requests without any authentication/CSRF cookie are exempt;
+    this is not a stateless API credential or a production authentication mode.
     """
 
     async def dispatch(self, request, call_next):
-        if request.method not in SAFE_METHODS and (PRODUCTION or request.cookies.get(CSRF_COOKIE)):
+        cookie_bearing = any(name in request.cookies for name in
+                             (SESSION_COOKIE, 'typography_remember', CSRF_COOKIE))
+        if request.method not in SAFE_METHODS and (PRODUCTION or cookie_bearing):
             cookie_token = request.cookies.get(CSRF_COOKIE)
             header_token = request.headers.get(CSRF_HEADER)
             session_token = request.session.get('csrf_token')
             if (not cookie_token or not header_token or not secrets.compare_digest(cookie_token, header_token)
-                    or (PRODUCTION and (not session_token or not secrets.compare_digest(session_token, header_token)))):
+                    or not session_token or not secrets.compare_digest(session_token, header_token)):
                 return JSONResponse({"error": "csrf_failed", "message": "Недействительный CSRF-токен."}, status_code=419)
         response = await call_next(request)
         return response

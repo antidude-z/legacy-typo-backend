@@ -5,7 +5,10 @@ from app.models import Bill, Order, Payer, Payment, User
 
 
 class BillTests(unittest.TestCase):
-    setUp = fixtures.ReferenceDictionaryTests.setUp
+    def setUp(self):
+        fixtures.ReferenceDictionaryTests.setUp(self)
+        token = self.client.get('/api/csrf-token').json()['token']
+        self.client.headers['X-CSRF-Token'] = token
     tearDown = fixtures.ReferenceDictionaryTests.tearDown
 
     def seed(self):

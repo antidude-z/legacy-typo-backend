@@ -1,0 +1,15 @@
+# Use with compose.yaml, not on its own. TLS terminates at an operator-managed
+# local reverse proxy. No forwarded headers are trusted by the application.
+services:
+  backend:
+    environment:
+      APP_ENV: production
+      APP_URL: ${APP_URL:?Set the externally verified HTTPS origin}
+      SESSION_SECRET: ${SESSION_SECRET:?Set a random production signing secret}
+      SESSION_SECURE: "true"
+      RESET_MAIL_MODE: ${RESET_MAIL_MODE:-disabled}
+    command: [.venv/bin/uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000", --no-proxy-headers]
+  frontend:
+    # Compose 2.24.4+: replace LAN publications, do not append a loopback port.
+    ports: !override
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
