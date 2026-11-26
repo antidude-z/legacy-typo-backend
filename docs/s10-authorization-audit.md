@@ -105,5 +105,29 @@ it does not rewrite existing rates or modify schema. A disposable MySQL
 regression uses the exact historical two-decimal columns and verifies repeated
 initialization preserves every rate row on both storage engines.
 
-A fresh backup and baseline are required before retry. Phase 2 remains deferred;
-the scenario specification was not read or executed.
+## Successful retry — 2026-11-26 UTC
+
+Fresh verified backup: `/root/backups/s10-20261126T201924Z`. The original
+attempt's backup remains at `/root/backups/s10-20261126T200725Z`.
+
+Released archive SHA-256:
+`f1c8eb5efa2f1d3377780e92af86e9747ea53036540a6a13bcb5435e5f96f3ca`.
+Backend implementation revision: `3e9887eb6108c246f842e856ce0f5307894dba29`
+(includes S10 `cae748334e61a16944f4ff2b2fa94976bb83e0e9`). Frontend:
+`cf7c25debaf9dd2843bd46083e7555f0a8a0fc0b`.
+
+After the precision fix, **635 backend tests OK (219 skips)** and **3 bootstrap
+tests per InnoDB/MyISAM engine passed**, including historical two-decimal rate
+restart idempotency. Earlier S10 acceptance results remain recorded above.
+
+The retry returned `S10_DEPLOYMENT_OK`, `S10_VERIFY_OK` and `S10_SYNC_OK`, each
+with SSH exit 0. Every table's count/checksum, exact user-column digest and all
+role grants matched the new predeploy baseline; the accountant role 7
+`edit_accounting_payers` grant remains present. Independent verification repeated
+the invariant comparison, verified live backend file hashes, healthy services,
+guest denial and all **179** registered business-route inventory entries.
+The MySQL volume `rework_mysql_data` was retained; no S10 schema migration or
+business-data repair was performed. Existing rate duplicates were not removed.
+Both VM checkouts fast-forwarded to the released commits and were clean.
+
+Phase 2 remains deferred; the scenario specification was not read or executed.
