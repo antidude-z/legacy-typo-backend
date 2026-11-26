@@ -368,8 +368,8 @@ def csrf_token(request: Request):
 @app.get("/auth/users", tags=["auth"])
 @app.get("/api/auth/users", tags=["auth"], include_in_schema=False)
 def login_users(db: Session = Depends(get_db)) -> dict[str, str]:
-    users = db.scalars(select(User).where(User.fired.is_(False), User.deleted_at.is_(None)).order_by(User.surname, User.name)).all()
-    return {user.email: f"{user.surname or ''} {user.name}".strip() for user in users}
+    # Keep both compatibility URLs without exposing a public staff directory.
+    return JSONResponse({}, headers={'Cache-Control': 'no-store'})
 
 
 @app.post("/auth/login", tags=["auth"])
