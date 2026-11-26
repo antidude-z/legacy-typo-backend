@@ -65,10 +65,10 @@ ROUTE_PERMISSION_AUDIT = (
     {
         "family": "reports",
         "paths": ["/api/reports/*", "/reports/*"],
-        "read": "authenticated session",
+        "read": "parent domain read: view_accounting_bills or view_menu_orders; bill order-document collection requires both",
         "write": "view_menu_options_reports for report settings",
         "lifecycle": [],
-        "notes": "Generation is authenticated; report settings require the options permission.",
+        "notes": "Discovery, forms and GET/POST generation require active readable parents. Raw transcripts require Orders read. Settings authority does not grant document access. Payroll has its separate policy below.",
     },
     {
         "family": "payroll",

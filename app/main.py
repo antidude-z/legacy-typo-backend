@@ -665,9 +665,8 @@ def order_detail(order_id: int, request: Request, db: Session = Depends(get_db))
     user = current_user(request, db)
     if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
-    item = db.get(Order, order_id)
-    if item is None or (item.deleted_at is not None and not user.has_permission("view_trashed")):
-        return JSONResponse({"error": "not_found"}, status_code=404)
+    from .resource_reads import readable_resource
+    item = readable_resource(db, user, Order, order_id)
     return {**serialize_order_detail(db, item, user.has_permission("view_trashed")),
             "permissions": order_capabilities(user, item)}
 

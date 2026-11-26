@@ -11,7 +11,7 @@ Scenario report pairs will be initialized at Phase 2 entry as required by scenar
 | S02 | in progress | Default-disabled registration and pending-account business admission verified locally; 242 backend tests OK (19 MySQL skips), 17 Chromium workflows pass. Disposable MySQL admission verification and pre-rollout account inventory remain; no deployment. |
 | S03 | fixed | Phase 1 implementation and local SQLite/MySQL InnoDB/MyISAM/browser acceptance complete. Production role-grant approval and Phase 2 scenarios are separate pending rollout gates; see completion evidence below. |
 | S04 | fixed | Phase 1 SQLite/MySQL/browser acceptance passed; backed up and deployed on 2026-11-26 with unchanged business checksums and role grants. Phase 2 remains deferred. |
-| S05 | unstarted | Report domain-read authorization. |
+| S05 | fixed | Phase 1 SQLite/MySQL/browser validation passed; deployed 2026-11-26 with unchanged business checksums, grants and pending accounts against a fresh baseline including the developer-created bill. |
 | S06 | unstarted | Bill domain deletion authorization. |
 | S07 | unstarted | Password-change remember-token revocation. |
 | S08 | unstarted | Logout session revocation. |
@@ -684,3 +684,72 @@ backend and MySQL health checks passed; HTTP session read succeeded. Running
 application images remain the explicit candidates via the preserved override;
 future Compose operations must include that override or deliberately rebuild
 the synced checkouts. Backup and previous image tags remain available.
+
+## S05 parent-document authorization — 2026-11-26
+
+Inspected archived report controller, report models/contracts, current bill/order
+detail, all report discovery/form/generation handlers and frontend callers.
+Confirmed report handlers had authentication-only access independently of domain
+read checks. Added shared bill/order read helpers and used them for detail and
+report consumers. Bill documents require view_accounting_bills; Orders documents
+(including raw calculation transcripts) require view_menu_orders. The bill-linked
+order-document collection requires both. Existing bill-document linked order
+summaries remain bill-scoped as in bill detail; raw order reports do not inherit
+bill-read authority. Shared-team visibility is retained; no owner-only rule or
+new export grant was invented. Settings authority does not imply document access.
+
+Discovery, form metadata and GET/POST generation reject deleted parents even
+with view_trashed; missing/unknown/deleted report and parent IDs are independent.
+Authorization precedes rendering. Updated permission manifest; payroll remains
+under its existing separate policy. No role grants or financial formulas changed.
+
+First real-session run failed fixture setup (missing order status); corrected
+fixture and reused session helpers without inheriting unrelated employee tests.
+Six focused SQLite cases then passed; existing 15 report tests passed. Expanded
+matrix covers all eight supported report types, both generation methods, repeated
+denials/all-table snapshots, guests, pending/unrelated staff, domain readers,
+deleted/missing parents, unknown models and revocation. Six cases passed on each
+guarded disposable MySQL InnoDB/MyISAM schema, no skips. Local backend image built.
+Full backend run completed: 589 tests OK, including 200 opt-in skips. Full
+isolated browser run completed: 22 workflows and 19 frontend helper tests passed.
+Final review corrected a manifest-only description accidentally placed under
+pricing; pricing policy is unchanged. No scenarios.md edits. Backup, deployment
+and push have not started for S05: SSH key authentication was denied and no
+S04_SSH_PASSWORD is available in the resumed process environment. Existing live
+deployment is unchanged; do not mark S05 deployed until verified backup, rollout,
+health/data checks and publication complete.
+
+### S05 deployment attempt — 2026-11-26
+
+SSH access restored using process-only credentials. Verified clean VM checkouts
+(backend 1134fc5, frontend ca82138), healthy S04 images and actual MySQL volume
+rework_mysql_data. Fresh locked dump, checkout/config and data archives verified
+with gzip/tar and SHA-256 at /root/backups/s05-20261126T095151Z; rollback image
+tags retained. No restore rehearsal. Uploaded source archive SHA-256
+6e2f2afb69540fe8351a126932ed23bea1bf64d21c6abda3cf4cff2c3df065a8;
+both VM S05 candidate images built.
+
+First attempt reached healthy candidate containers but an operational checker
+indentation error triggered automatic application rollback; corrected checker.
+Second attempt reached healthy candidates but integrity comparison detected bills
+count 10057 -> 10058 and checksum 2954883252 -> 3442940039. Other compared
+business tables, role grants and pending accounts were unchanged. Automatic
+application rollback completed; frontend/backend/MySQL healthy and session health
+endpoint passed. Do not assume concurrent activity explains the added bill.
+Paused pending investigation/operator confirmation; no database restore, deletion,
+grant broadening, Git commit/push or VM checkout synchronization performed.
+
+### S05 successful rollout — 2026-11-26
+
+Operator confirmed the extra bill was created by another developer and authorized
+continuation. Preserved that data; took a new locked backup at
+/root/backups/s05-20261126T101416Z, verified gzip/tar and SHA-256, and retained
+rollback images. No restore rehearsal. Fresh baseline includes 10058 bills.
+Application-only rollout succeeded with s05-candidate-backend and
+s05-candidate-frontend; both healthy, MySQL unchanged and healthy. Compared
+users/roles/role_permissions/orders/bills/payments/payrolls counts/checksums,
+exact role grants and pending accounts: unchanged. Existing S04 permission catalog
+preserved. Session/home health checks passed. Active deployment uses existing
+Compose files with --profile mysql and /root/backups/s05-candidate-images.yaml.
+Actual database volume remains rework_mysql_data. No working-database mutation
+QA or automatic grant changes performed. Git publication/synchronization follows.

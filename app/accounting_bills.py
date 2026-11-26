@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import Bill, Order, Payer, Payment, User
 from .reference_inventory import integer
+from .resource_reads import readable_resource
 
 
 def bill_date(value):
@@ -138,7 +139,7 @@ def register_bill_routes(app, current_user):
 
     @app.get("/api/accounting/bills/{identity}", tags=["accounting"])
     def detail(identity: int, request: Request, db: Session = Depends(get_db)):
-        user = actor(request,db); row = row_for(identity,user,db)
+        user = actor(request,db); row = readable_resource(db,user,Bill,identity)
         orders = db.scalars(select(Order).where(Order.bill_id == identity,Order.deleted_at.is_(None)).order_by(Order.id)).all()
         query = select(Payment).where(Payment.bill_id == identity)
         if not user.has_permission("view_trashed"): query = query.where(Payment.deleted_at.is_(None))

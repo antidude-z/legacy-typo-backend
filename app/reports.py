@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import Bill, Blank, Order, OrderMarkup, OrderStatus, Report, ReportParam
 from .php_serialization import loads
+from .resource_reads import readable_resource, require_resource_read
 
 
 MODELS = {"orders": (Order, "App\\Order"), "bills": (Bill, "App\\Bill")}
@@ -491,11 +492,10 @@ def register_report_routes(app, current_user):
 
     @app.get("/api/reports/for/{kind}/{identity}", tags=["reports"])
     def for_item(kind: str, identity: int, request: Request, db: Session = Depends(get_db)):
-        actor(request,db)
+        user = actor(request,db)
         if kind not in MODELS: raise HTTPException(404)
         model,model_name = MODELS[kind]
-        item = db.get(model,identity)
-        if not item or item.deleted_at: raise HTTPException(404)
+        item = readable_resource(db,user,model,identity,active_only=True)
         rows = db.scalars(select(Report).where(Report.model == model_name,Report.deleted_at.is_(None)).order_by(Report.id)).all()
         return {"items":[serialize_report(row) | {
             "available":((row.id in {"order_transcript"} and row.program == "ipc" and row.kind == "html") or (row.id in {"order_passport", "order_passport_wide"} and row.program == "ipc" and row.kind == "pdf") or (row.id in {"order_economy", "order_economy_wide", "order_design"} and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_payment" and row.model == "App\\Bill" and row.program == "ipc" and row.kind in {"xls", "xlsx"}) or (row.id == "order_shipping" and row.model == "App\\Bill" and row.program == "ipc" and row.kind == "pdf")) and (row.id in {"order_payment", "order_shipping"} or not row.form),
@@ -506,10 +506,9 @@ def register_report_routes(app, current_user):
     @app.get("/api/reports/bills/{identity}/orders", tags=["reports"])
     def bill_order_reports(identity: int, request: Request, db: Session = Depends(get_db)):
         """Return the legacy bill-level collection of order documents."""
-        actor(request, db)
-        bill = db.get(Bill, identity)
-        if not bill or bill.deleted_at:
-            raise HTTPException(404)
+        user = actor(request, db)
+        require_resource_read(user, Order)
+        readable_resource(db,user,Bill,identity,active_only=True)
         reports = db.scalars(select(Report).where(
             Report.id.in_(["order_passport", "order_economy", "order_economy_wide", "order_shipping"]),
             Report.model == "App\\Order", Report.deleted_at.is_(None),
@@ -530,12 +529,11 @@ def register_report_routes(app, current_user):
 
     @app.get("/api/reports/form/{report_id}/{identity}", tags=["reports"])
     def report_form(report_id: str, identity: int, request: Request, db: Session = Depends(get_db)):
-        actor(request, db)
+        user = actor(request, db)
         report = report_for(report_id, db)
         if report.model != "App\\Bill" or report_id not in {"order_shipping", "order_payment"}:
             raise HTTPException(404, "Форма отчёта не существует.")
-        if db.get(Bill, identity) is None:
-            raise HTTPException(404, "Счёт не существует.")
+        readable_resource(db,user,Bill,identity,active_only=True)
         params = [param_data(row) for row in params_for(report_id, db)]
         if report_id == "order_shipping":
             accountants = [row["value"] for row in params if row["alias"] == "buh"]
@@ -550,6 +548,10 @@ def register_report_routes(app, current_user):
     @app.api_route("/reports/{report_id}/item/{identity}", methods=["GET", "POST"], tags=["reports"])
     def generate(report_id: str, identity: int, request: Request, payload: dict | None = None, institute: str | None = Form(None, alias="vars[institute]"), customer: str | None = Form(None, alias="vars[customer]"), buh: str | None = Form(None, alias="vars[buh]"), db: Session = Depends(get_db)):
         user = actor(request,db); report = report_for(report_id,db)
+        model = next((model for model, name in MODELS.values() if name == report.model), None)
+        if model is None:
+            raise HTTPException(404, "Неподдерживаемый тип документа.")
+        readable_resource(db,user,model,identity,active_only=True)
         if report.id == "order_shipping" and report.model == "App\\Bill" and report.program == "ipc" and report.kind == "pdf":
             bill = db.get(Bill, identity)
             if not bill or bill.deleted_at:
