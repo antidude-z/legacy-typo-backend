@@ -9,6 +9,7 @@ from sqlalchemy.schema import CreateTable
 from app.bootstrap import SCHEMA_VERSION, initialize_database, preview_initialization
 from app.db import Base
 from app.models import Permission, Role, SchemaVersion, User, role_permissions
+from app.models import Rate
 from app.mysql_test_guard import verify_test_database
 
 
@@ -75,3 +76,15 @@ class MySQLInitializationTests(unittest.TestCase):
                       for permission in role.permissions}
         self.assertEqual(actual, {(row['role_title'], row['permission_id'])
                                  for row in preview['grant_additions']})
+
+    def test_historical_two_decimal_rates_are_not_duplicated_on_restart(self):
+        with self.engine.begin() as connection:
+            connection.execute(text('ALTER TABLE rates MODIFY usd DECIMAL(10,2) NOT NULL, MODIFY eur DECIMAL(10,2) NOT NULL'))
+        initialize_database(self.engine)
+        with Session(self.engine) as db:
+            before = list(db.execute(select(Rate.__table__).order_by(Rate.id)))
+        self.assertEqual(len(before), 7)
+        for _ in range(2):
+            initialize_database(self.engine)
+        with Session(self.engine) as db:
+            self.assertEqual(list(db.execute(select(Rate.__table__).order_by(Rate.id))), before)

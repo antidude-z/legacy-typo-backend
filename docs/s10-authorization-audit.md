@@ -89,5 +89,21 @@ Saved local evidence is under the workspace root: `s10-acceptance-full-err.txt`,
 `s10-final2-ui.txt`, `s10-browser-{out,err}.txt`, and
 `s10-{backend,ui}-image-err.txt`.
 
-No deployment, publication or VM synchronization is claimed. Phase 2 remains
-deferred; the scenario specification was not read or executed.
+## First rollout attempt and rate-seed blocker
+
+The S10 source commits were published and a verified live backup was captured at
+`/root/backups/s10-20261126T200725Z`. All-table invariants detected seven new
+`rates` rows on candidate startup. Automatic application-image rollback restored
+healthy S09 services; restarting S09 added another seven rows. No live rows were
+deleted and no database backup was restored to conceal these differences.
+
+Read-only investigation confirmed historical `rates.usd/eur` are DECIMAL(10,2),
+while bootstrap looked for unrounded four-decimal constants. This pre-existing
+startup bug duplicated seven seed rates on every restart. The follow-up uses
+reflected column scale and Decimal ROUND_HALF_UP for both lookup and insertion;
+it does not rewrite existing rates or modify schema. A disposable MySQL
+regression uses the exact historical two-decimal columns and verifies repeated
+initialization preserves every rate row on both storage engines.
+
+A fresh backup and baseline are required before retry. Phase 2 remains deferred;
+the scenario specification was not read or executed.

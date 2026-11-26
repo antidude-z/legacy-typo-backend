@@ -2,6 +2,7 @@ from .clock import utc_now
 """Repeatable local database initialization and legacy catalog seeding."""
 
 from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
@@ -138,6 +139,11 @@ def _initialize_database(database_engine) -> None:
     from .schema import apply_migrations
 
     apply_migrations(database_engine)
+    rate_columns = {column['name']: column['type'] for column in inspect(database_engine).get_columns('rates')}
+    def stored_rate(value, column):
+        scale = getattr(rate_columns[column], 'scale', None)
+        amount = Decimal(value)
+        return amount if scale is None else amount.quantize(Decimal(1).scaleb(-scale), rounding=ROUND_HALF_UP)
     with Session(database_engine) as db:
         if db.get(SchemaVersion, SCHEMA_VERSION) is None:
             # A missing marker is ambiguous: old imports predate this table, but
@@ -215,6 +221,7 @@ def _initialize_database(database_engine) -> None:
                 db.add(Service(title=title, organization=organization, kind=kind))
         for usd, eur, actual_since in RATES:
             effective = date.fromisoformat(actual_since)
+            usd, eur = stored_rate(usd, 'usd'), stored_rate(eur, 'eur')
             if db.scalar(select(Rate).where(Rate.actual_since == effective, Rate.usd == usd, Rate.eur == eur, Rate.deleted_at.is_(None))) is None:
                 db.add(Rate(usd=usd, eur=eur, actual_since=effective))
         for depart, alias, title, value, actual_since in OPTIONS:
