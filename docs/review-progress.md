@@ -753,3 +753,12 @@ preserved. Session/home health checks passed. Active deployment uses existing
 Compose files with --profile mysql and /root/backups/s05-candidate-images.yaml.
 Actual database volume remains rework_mysql_data. No working-database mutation
 QA or automatic grant changes performed. Git publication/synchronization follows.
+
+Publication completed: backend implementation a0fae30 on fix/mysql-runtime and
+frontend e76d75c on main pushed successfully. Both VM checkouts fast-forwarded
+to those revisions with clean working trees; deployed application sources match
+the staged candidate. Independent verification passed: all three service health
+states healthy, report discovery/form/generation guest denials 401, deployed
+report/resource-read hashes match candidate, actual MySQL volume and rollback
+images retained. Session health passed after checkout synchronization. S05 Phase 1
+is complete; Phase 2 remains deferred. Next finding is S06.
