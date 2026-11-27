@@ -147,7 +147,11 @@ Validation:
 - Orders authorization regressions: **24 passed**.
 - Frontend suite: **22 passed**.
 - Frontend production build: **passed**, Vite 6.4.5, 159 modules transformed.
-- No browser scenario or deployment has been run for F03 yet.
+- Disposable local Playwright acceptance: **2 passed in 3.3s**. The browser
+  created a poly blank with front/back colors, details-per-sheet, distinct
+  details, production comments and a fixed manual plate count, then verified
+  the persisted API detail. It also created a wide blank and verified persisted
+  width/height. No working or deployed database was used.
 
 ## F01 recalculation routing — 2026-11-27
 

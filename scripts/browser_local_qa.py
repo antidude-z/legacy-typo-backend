@@ -16,6 +16,8 @@ from urllib.request import urlopen
 def main():
     backend = Path(__file__).resolve().parents[1]
     frontend = backend.parent / 'frontend'
+    if not frontend.is_dir():
+        frontend = backend.parent / 'legacy-typo-frontend'
     if os.getenv('BROWSER_QA_URL'):
         raise RuntimeError('Local harness cannot target remote QA')
     for port in (8000, 5173):
