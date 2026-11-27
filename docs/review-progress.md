@@ -68,7 +68,7 @@ checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
 | S11 | in progress | Cookie-CSRF containment backed up, deployed, independently verified and synchronized 2026-11-26 with unchanged all-table/user/grant invariants. 646 backend tests OK (221 skips), 28 targeted tests, 2 tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. Production overlay validated but not activated: verified TLS origin/certificate/proxy remains the blocker; HTTP validation access retained. See docs/s11-production-csrf.md. |
 | S12 | verified | Discovery, persistent abuse controls, generic registration/recovery responses and durable administrative audit are implemented. Final rollout verification and synchronization evidence is appended below; TLS remains the separate S11 blocker. |
 | F01 | verified | Specific bodyless order recalculation route is registered before the generic `{operation}` route; exact browser-shaped POST and generic-operation payload regression pass. Complete Phase 1 backend/frontend/build validation passed; deployment and Phase 2 scenario evidence are recorded separately below. |
-| F02 | unstarted | Sale total and order fields. |
+| F02 | fixed | Backend and both order forms now preserve negotiated sale total, book volume, and wide width/height with derived format/area. Localized decimal input is parsed server-side and recalculation continues to preserve sale total. Focused backend and frontend contract regressions pass; end-to-end browser acceptance and deployment remain pending. |
 | F03 | unstarted | Blank production inputs and plate automation. |
 | F04 | unstarted | Blank unit-price snapshots. |
 | F05 | unstarted | Afterprint parameter round trips. |
@@ -88,6 +88,31 @@ checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
 | F19 | unstarted | Nested routes and hash destinations. |
 | F20 | unstarted | Wide-printer currency propagation. |
 | F21 | unstarted | Atomic calculation persistence. |
+
+## F02 order fields — 2026-11-27
+
+The order API now accepts sale total, book volume, and wide width/height on the
+create, update, and copy paths. Sale total and dimensions use a shared finite
+decimal parser that accepts the legacy localized form (`12 345,67`) and returns
+422 before mutation for invalid values. Wide orders derive `format` and `volume`
+from the stored dimensions; calculation continues to use the negotiated sale
+total as `stored_total` rather than replacing it with production cost.
+
+`OrderForm.svelte` now exposes sale total for every new/copy order, book volume,
+and wide dimensions. `OrderDetail.svelte` exposes sale total and volume plus
+wide dimensions and submits them through the existing save contract.
+
+Validation on disposable/local fixtures:
+
+- Backend F02/order-authorization focused suite: **35 tests passed**.
+- Frontend helper/contract suite: **22 tests passed**, including the new F02
+  form-field/API contract test.
+- Frontend production build: **passed**, Vite 6.4.5, 159 modules transformed.
+- Complete backend discovery was launched but repeatedly stalled in the existing
+  audit-heavy tests before a summary; it was terminated locally and is not
+  claimed as a full-suite pass.
+- No working or deployed database was accessed, and no browser scenario or
+  deployment is claimed for F02 yet.
 
 ## F01 recalculation routing — 2026-11-27
 

@@ -26,6 +26,18 @@ SORTABLE_COLUMNS = {"id", "title", "order_type", "bill_id", "user_id", "customer
 def _date(value: str | None) -> date | None:
     if not value:
         return None
+
+
+def _decimal(value, default: Decimal = Decimal("0")) -> Decimal:
+    """Parse the localized decimal values used by the legacy order forms."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, str):
+        value = value.replace(" ", "").replace(",", ".")
+    parsed = Decimal(str(value))
+    if not parsed.is_finite():
+        raise ValueError("non-finite decimal")
+    return parsed
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except ValueError:
@@ -136,14 +148,14 @@ def create_order(db: Session, user_id: int, order_type: str, values: dict, sourc
         printing=int(values.get("printing") or default_printing),
         volume=values.get("volume") or "",
         format=values.get("format") or "",
-        width=values.get("width") or 0,
-        height=values.get("height") or 0,
+        width=_decimal(values.get("width")),
+        height=_decimal(values.get("height")),
         order_date=_date(values.get("order_date")) or date.today(),
         prod_date=_date(values.get("prod_date")),
         deadline=_date(values.get("deadline")),
         user_id=int(values.get("user_id") or user_id),
         customer_id=int(values["customer_id"]) if values.get("customer_id") else None,
-        total=values.get("total") or (source.total if source else 0),
+        total=_decimal(values.get("total"), source.total if source else Decimal("0")),
     )
     if order_type == "wide":
         order.format = f"{order.width}x{order.height}"

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import Base
 from app.models import Blank, Compile, CompileStage, CompileStageMaterial, Material, Order, OrderCompile, OrderMarkup, OrderOtherWork, OtherWork, Paper, Price, Rate
-from app.orders import calculate_order, serialize_order_detail
+from app.orders import calculate_order, create_order, serialize_order_detail
 
 
 class OrderCalculationTests(unittest.TestCase):
@@ -41,6 +41,25 @@ class OrderCalculationTests(unittest.TestCase):
         self.assertIn('s:7:"markups";', stored)
         self.assertIn('s:8:"printing";i:100;', stored)
         self.assertEqual(self.db.get(Order, 1).total, 250)
+
+    def test_create_order_preserves_sale_total_and_wide_dimensions(self):
+        wide = create_order(self.db, 7, "wide", {
+            "title": "Banner", "printing": 2, "total": "12 345,67",
+            "width": "1,25", "height": "2.5",
+        })
+        self.db.commit()
+        self.assertEqual(wide.total, Decimal("12345.67"))
+        self.assertEqual(wide.width, Decimal("1.25"))
+        self.assertEqual(wide.height, Decimal("2.50"))
+        self.assertEqual(wide.format, "1.25x2.5")
+        self.assertEqual(Decimal(wide.volume), Decimal("3.125"))
+
+    def test_create_order_defaults_sale_total_without_replacing_it_on_calculation(self):
+        order = create_order(self.db, 7, "book", {"title": "Book", "volume": "240"})
+        self.db.add(order)
+        self.db.commit()
+        self.assertEqual(order.total, Decimal("0"))
+        self.assertEqual(order.volume, "240")
 
     def test_detail_exposes_calculated_and_sale_totals_separately(self):
         self.db.add(self.order)

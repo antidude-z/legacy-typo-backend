@@ -23,7 +23,7 @@ from .config import APP_URL, DATABASE_MODE, DATABASE_URL, LOGIN_RATE_LIMIT, LOGI
 from .db import Base, engine, get_db
 from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, Option, OtherWork, Paper, PaperFormat, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction, PasswordReset
 from .navigation import build_navigation
-from .orders import serialize_blank, blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
+from .orders import _decimal, serialize_blank, blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 from .payroll import register_payroll_routes
 from .csrf import CSRF_COOKIE, CSRFMiddleware, token_for_session
 from .bootstrap import initialize_database
@@ -682,14 +682,21 @@ def order_create(
     request: Request,
     order_title: str = Form("Новый заказ"),
     order_format: str = Form(""),
-    order_printing: int = Form(1000),
+    order_printing: int | None = Form(None),
     order_volume: str = Form(""),
+    order_total: str = Form("0"),
+    order_width: str = Form("0"),
+    order_height: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     user = current_user(request, db)
     if user is None:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
-    item = create_order(db, user.id, order_type, {"title": order_title, "format": order_format, "printing": order_printing, "volume": order_volume})
+    try:
+        item = create_order(db, user.id, order_type, {"title": order_title, "format": order_format, "printing": order_printing, "volume": order_volume, "total": order_total, "width": order_width, "height": order_height})
+    except (ValueError, ArithmeticError):
+        db.rollback()
+        return JSONResponse({"error": "invalid_order_amount"}, status_code=422)
     db.add(Action(user_id=user.id, module="Заказы", item_id=item.id, comment="Создан заказ", url=f"orders/{item.id}"))
     db.commit()
     return {"id": item.id, "location": f"/orders/{item.id}"}
@@ -726,9 +733,15 @@ def order_update(order_id: int, request: Request, payload: dict, db: Session = D
         return JSONResponse({"error": "not_found"}, status_code=404)
     original = {"status_id": item.status_id, "user_id": item.user_id, "printing": item.printing, "total": item.total}
     values = payload.get("order", payload)
-    for source, target in [("title", "title"), ("format", "format"), ("volume", "volume"), ("printing", "printing"), ("status_id", "status_id"), ("width", "width"), ("height", "height"), ("customer_id", "customer_id"), ("user_id", "user_id"), ("bill_id", "bill_id"), ("total", "total"), ("comment", "comment"), ("files", "files")]:
+    try:
+        parsed_amounts = {field: _decimal(values[field]) for field in ("width", "height", "total") if field in values}
+    except (ValueError, ArithmeticError):
+        return JSONResponse({"error": "invalid_order_amount"}, status_code=422)
+    for source, target in [("title", "title"), ("format", "format"), ("volume", "volume"), ("printing", "printing"), ("status_id", "status_id"), ("customer_id", "customer_id"), ("user_id", "user_id"), ("bill_id", "bill_id"), ("comment", "comment"), ("files", "files")]:
         if source in values:
             setattr(item, target, values[source])
+    for field, amount in parsed_amounts.items():
+        setattr(item, field, amount)
     for date_field in ("order_date", "prod_date", "deadline"):
         if date_field in values:
             setattr(item, date_field, __import__("datetime").datetime.strptime(values[date_field], "%Y-%m-%d").date() if values[date_field] else None)
@@ -766,7 +779,7 @@ def order_copy(order_id: int, request: Request, payload: dict, db: Session = Dep
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     if source is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
-    item = create_order(db, user.id, source.order_type, {"title": payload.get("title", source.title), "format": payload.get("format", source.format), "printing": payload.get("printing", source.printing), "volume": payload.get("volume", source.volume), "total": source.total}, source)
+    item = create_order(db, user.id, source.order_type, {"title": payload.get("title", source.title), "format": payload.get("format", source.format), "printing": payload.get("printing", source.printing), "volume": payload.get("volume", source.volume), "width": payload.get("width", source.width), "height": payload.get("height", source.height), "total": payload.get("total", source.total)}, source)
     # Preserve the operational content of an order copy while keeping deleted
     # historical children out of the new order.
     source_markups = db.scalars(select(OrderMarkup).where(OrderMarkup.order_id == source.id, OrderMarkup.deleted_at.is_(None))).all()
