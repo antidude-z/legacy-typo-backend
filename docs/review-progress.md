@@ -152,6 +152,16 @@ Validation:
   details, production comments and a fixed manual plate count, then verified
   the persisted API detail. It also created a wide blank and verified persisted
   width/height. No working or deployed database was used.
+- Guarded deployment completed on 2026-11-27 from archive SHA-256
+  `ff8245be21678b8b7c61a9083941d3fd74edc96fdae7e0c3a9420f5b9c950aa7`.
+  Fresh backup `/root/backups/s12b-20261127T122046Z` passed integrity checks;
+  candidate images built and all services remained healthy. Independent rollout
+  verification returned `S12B_VERIFY_OK`, including route inventory, CSRF,
+  discovery, abuse, durable audit denial and preserved invariants. VM checkout
+  synchronization returned `S12B_SYNC_OK` at backend
+  `046565e3e70795d9fa4e3077e7e663f977152c06` and frontend
+  `9514c52ed5bd516e594ae96855a63f4860f11d29`. MySQL volume
+  `rework_mysql_data` was retained.
 
 ## F01 recalculation routing — 2026-11-27
 
