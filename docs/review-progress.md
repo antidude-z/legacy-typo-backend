@@ -111,8 +111,19 @@ Validation on disposable/local fixtures:
 - Complete backend discovery was launched but repeatedly stalled in the existing
   audit-heavy tests before a summary; it was terminated locally and is not
   claimed as a full-suite pass.
-- No working or deployed database was accessed, and no browser scenario or
-  deployment is claimed for F02 yet.
+- Fresh guarded rollout completed on 2026-11-27 from source archive SHA-256
+  `d108feaf89f9d0bb3d5128181080c95f71c796e5e9169b45affe8927e520eb57` with
+  `S12B_DEPLOYMENT_OK`, SSH exit 0, preserved `rework_mysql_data`, and backup
+  `/root/backups/s12b-20261127T110245Z`. Candidate backend/frontend images built
+  successfully; services are healthy. Independent read-only post-deploy checks
+  confirmed the candidate backend image, private durable audit store, audit CLI,
+  session endpoint and anonymous employee-route denial.
+- VM checkout synchronization completed with `S12B_SYNC_OK`, SSH exit 0, at
+  backend `eb3cbd50522d5096bf314598fc5ccad5604e851c` and frontend
+  `fdb17ee82f005eba25c338127a560d8ce4f86836`. The standard verifier still stops
+  after `S12B_ABUSE_ENABLED` at its audit command boundary; isolated bounded
+  diagnostics passed the same audit, 413 body-limit, and invariant checks, so
+  `S12B_VERIFY_OK` is not claimed. No browser scenario was run.
 
 ## F01 recalculation routing — 2026-11-27
 
