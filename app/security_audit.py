@@ -72,7 +72,7 @@ def record_admission_denial(db, request, actor):
     import re
     path = request.url.path
     match = re.fullmatch(r'/api/employee-references(?:/(\d+)(?:/restore)?)?', path)
-    if request.method not in {'POST', 'PATCH', 'DELETE'} or (not match and path != '/api/options/permissions'):
+    if request.method not in {'GET', 'POST', 'PATCH', 'DELETE'} or (not match and path != '/api/options/permissions'):
         return
     action = 'reference_users.admission_denied' if match else 'permissions.admission_denied'
     target = int(match[1]) if match and match[1] else None

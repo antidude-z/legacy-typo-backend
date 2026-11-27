@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from app import security_audit
 from app.models import User, PasswordReset
@@ -116,3 +117,23 @@ class AuditInitializationTests(unittest.TestCase):
             if os.name != 'nt':
                 self.assertEqual(path.stat().st_mode & 0o077, 0)
             self.assertEqual(security_audit.view(path), [])
+
+    def test_guest_employee_read_denial_is_durable(self):
+        request = SimpleNamespace(method='GET', url=SimpleNamespace(path='/api/employee-references'))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'audit.db'
+            with patch.dict(os.environ, {'SECURITY_AUDIT_DB': str(path)}):
+                security_audit.record_admission_denial(self._db_stub(), request, None)
+            events = security_audit.view(path)
+            self.assertEqual(events[0]['action'], 'reference_users.admission_denied')
+            self.assertEqual(events[0]['outcome'], 'denied')
+
+    @staticmethod
+    def _db_stub():
+        class Bind:
+            class Engine:
+                class Dialect:
+                    name = 'sqlite'
+                dialect = Dialect()
+                url = SimpleNamespace(database=':memory:')
+        return SimpleNamespace(get_bind=lambda: Bind.Engine())

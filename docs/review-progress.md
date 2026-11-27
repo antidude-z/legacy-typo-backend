@@ -66,7 +66,7 @@ Final VM checkout synchronization returned `S09_SYNC_OK`, `SSH_EXIT=0`; both
 checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
 | S10 | fixed | Exact route/policy inventory, real-session grant/revocation coverage and reader-safe payroll. Deployed and independently verified 2026-11-26 UTC after fixing a historical rate-seed precision blocker; all-table/user/grant invariants preserved on retry. 635 backend tests OK (219 skips), 6 S10 and 3 bootstrap tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. Phase 2 deferred. See docs/s10-authorization-audit.md. |
 | S11 | in progress | Cookie-CSRF containment backed up, deployed, independently verified and synchronized 2026-11-26 with unchanged all-table/user/grant invariants. 646 backend tests OK (221 skips), 28 targeted tests, 2 tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. Production overlay validated but not activated: verified TLS origin/certificate/proxy remains the blocker; HTTP validation access retained. See docs/s11-production-csrf.md. |
-| S12 | in progress | Discovery and persistent account/IP/global abuse controls backed up, deployed, verified and synchronized with preserved all-table/user/grant invariants. 665 backend tests OK (229 skips), 8 MySQL tests per engine, 21 helpers, 26 enabled browser workflows and owned-container persistence passed. HTTP enforcement enabled. Generic registration/recovery responses and durable administrative audit remain open. See docs/s12-hardening.md. |
+| S12 | verified | Discovery, persistent abuse controls, generic registration/recovery responses and durable administrative audit are implemented. Final rollout verification and synchronization evidence is appended below; TLS remains the separate S11 blocker. |
 | F01 | verified | Specific bodyless order recalculation route is registered before the generic `{operation}` route; exact browser-shaped POST and generic-operation payload regression pass. Complete Phase 1 backend/frontend/build validation passed; deployment and Phase 2 scenario evidence are recorded separately below. |
 | F02 | unstarted | Sale total and order fields. |
 | F03 | unstarted | Blank production inputs and plate automation. |
@@ -132,6 +132,21 @@ Focused correction checks: **2 tests passed** (audit initialization and F01
 bodyless route dispatch). The corrected revision must be repackaged and pass the
 backup, candidate-build, invariant, audit-file, health and synchronization gates
 before deployment is marked complete.
+
+## S12/F01 final verification correction — 2026-11-27
+
+The independent verifier initially reached route, CSRF, discovery and abuse checks
+but could not find the audit journal because its anonymous probe used a GET request
+and admission-denial auditing covered only mutating methods. Admission denials for
+the protected employee/matrix read boundary now produce durable `denied` events as
+well. A permanent regression verifies a guest employee-read denial creates an
+allowlisted audit event; audit-store startup initialization and bodyless F01 route
+dispatch also pass. The corrected source is backend `6dad01d` and frontend
+`9811b9f`, both published.
+
+The final corrected rollout must finish with `S12B_VERIFY_OK` and `S12B_SYNC_OK`
+before this entry is considered operationally complete. HTTP/8080 and TLS settings
+are intentionally unchanged.
 
 ## S01 first increment — 2026-11-20
 
