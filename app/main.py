@@ -23,7 +23,7 @@ from .config import APP_URL, DATABASE_MODE, DATABASE_URL, LOGIN_RATE_LIMIT, LOGI
 from .db import Base, engine, get_db
 from .models import Action, Afterprint, AfterprintStage, Blank, BlankAfterprint, BlankImagesetter, Compile, CompileStage, Material, Option, OtherWork, Paper, PaperFormat, Prepress, Price, Printer, PrinterProcess, PrinterProcessStage, Redaction, Service, User, Order, OrderCompile, OrderMarkup, OrderOtherWork, OrderPrepress, OrderRedaction, PasswordReset
 from .navigation import build_navigation
-from .orders import _decimal, serialize_blank, blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
+from .orders import _decimal, normalize_blank_production, serialize_blank, blank_metadata, calculate_afterprint, calculate_blank, calculate_order, calculate_printer, create_order, list_metadata, orders_query, resolve_price, serialize_history, serialize_order, serialize_order_detail
 from .payroll import register_payroll_routes
 from .csrf import CSRF_COOKIE, CSRFMiddleware, token_for_session
 from .bootstrap import initialize_database
@@ -1083,6 +1083,10 @@ def blank_create(order_id: int, request: Request, payload: dict, db: Session = D
     order = db.get(Order, order_id)
     if order is None:
         return JSONResponse({"error": "not_found"}, status_code=404)
+    try:
+        payload = normalize_blank_production(payload, order.order_type or "poly")
+    except ValueError as error:
+        return JSONResponse({"error": "invalid_blank_production", "message": str(error)}, status_code=422)
     item = Blank(order_id=order_id, title=payload.get("title", "Новая заготовка"), printer_id=payload.get("printer_id") or None, printer_process_id=payload.get("printer_process_id"), paper_id=payload.get("paper_id"), material_id=payload.get("material_id"), cutting=payload.get("cutting", 1), width=payload.get("width", 0), height=payload.get("height", 0), colors_front=payload.get("colors_front", 1), colors_back=payload.get("colors_back", 0), details_per_sheet=payload.get("details_per_sheet"), pages_per_sheet=payload.get("pages_per_sheet"), details_per_blank=payload.get("details_per_blank", 1), different_details=payload.get("different_details", 1), comments=payload.get("comments", ""), paper_price=payload.get("paper_price", 0), cost=payload.get("cost", 0))
     db.add(item)
     db.flush()
@@ -1105,13 +1109,19 @@ def blank_update(order_id: int, blank_id: int, request: Request, payload: dict, 
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     if item is None or item.order_id != order_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
+    order = db.get(Order, order_id)
+    if any(field in payload for field in ("colors_front", "colors_back", "details_per_sheet", "pages_per_sheet", "details_per_blank", "different_details", "cutting", "width", "height", "plates", "self_print", "fix_plates")):
+        try:
+            payload = normalize_blank_production({**serialize_blank(item), **payload}, order.order_type if order else "poly")
+        except ValueError as error:
+            return JSONResponse({"error": "invalid_blank_production", "message": str(error)}, status_code=422)
     fields = ("title", "printer_id", "printer_process_id", "paper_id", "material_id", "cutting", "width", "height", "colors_front", "colors_back", "details_per_sheet", "pages_per_sheet", "details_per_blank", "different_details", "comments", "paper_price", "cost")
     for field in fields:
         if field in payload:
             setattr(item, field, payload[field])
     image = db.scalar(select(BlankImagesetter).where(BlankImagesetter.blank_id == item.id))
     if image:
-        image.plates = payload.get("plates", image.plates)
+        image.plates = payload["plates"]
         image.self = payload.get("self_print", image.self)
         image.fix = payload.get("fix_plates", image.fix)
     for afterprint in payload.get("afterprints", []):

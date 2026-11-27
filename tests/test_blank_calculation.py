@@ -10,7 +10,7 @@ from app.models import (
     Afterprint, AfterprintStage, AfterprintStageMaterial, Blank, BlankAfterprint, BlankImagesetter,
     Material, Order, Paper, PaperFormat, PaperType, Price, Printer, PrinterField, PrinterProcess, PrinterProcessStage, Service,
 )
-from app.orders import afterprint_count, calculate_blank
+from app.orders import afterprint_count, calculate_blank, normalize_blank_production
 
 
 class BlankCalculationTests(unittest.TestCase):
@@ -120,6 +120,26 @@ class BlankCalculationTests(unittest.TestCase):
         self.assertEqual(afterprint_count('a:2:{i:3;s:3:"2.5";i:4;s:1:"9";}'), Decimal("2.5"))
         self.assertEqual(afterprint_count('{"3": "0"}'), 0)
         self.assertEqual(afterprint_count("2"), 2)
+
+    def test_blank_production_derives_plates_and_preserves_fixed_override(self):
+        values = normalize_blank_production({
+            "colors_front": 4, "colors_back": 4, "details_per_sheet": 2,
+            "pages_per_sheet": 0, "details_per_blank": 4, "different_details": 3,
+            "cutting": 1, "self_print": True,
+        })
+        self.assertEqual(values["plates"], 8)
+        self.assertFalse(values["fix_plates"])
+        fixed = normalize_blank_production({**values, "fix_plates": True, "plates": 3})
+        self.assertEqual(fixed["plates"], 3)
+
+    def test_blank_production_rejects_ambiguous_imposition_and_missing_wide_area(self):
+        with self.assertRaises(ValueError):
+            normalize_blank_production({"details_per_sheet": 2, "pages_per_sheet": 2})
+        with self.assertRaises(ValueError):
+            normalize_blank_production({"details_per_sheet": 2}, "wide")
+        wide = normalize_blank_production({"width": "2", "height": "1.5"}, "wide")
+        self.assertEqual(wide["details_per_sheet"], 0)
+        self.assertEqual(wide["pages_per_sheet"], 0)
 
     def test_blank_metadata_contains_dependent_reference_data(self):
         from app.orders import blank_metadata

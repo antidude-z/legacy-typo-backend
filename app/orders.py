@@ -26,6 +26,10 @@ SORTABLE_COLUMNS = {"id", "title", "order_type", "bill_id", "user_id", "customer
 def _date(value: str | None) -> date | None:
     if not value:
         return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def _decimal(value, default: Decimal = Decimal("0")) -> Decimal:
@@ -38,12 +42,42 @@ def _decimal(value, default: Decimal = Decimal("0")) -> Decimal:
     if not parsed.is_finite():
         raise ValueError("non-finite decimal")
     return parsed
+
+
+def normalize_blank_production(payload: dict, order_type: str = "poly") -> dict:
+    """Validate editor production inputs and derive automatic plate counts."""
+    values = dict(payload)
     try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-
+        front = int(values.get("colors_front", 1) or 0)
+        back = int(values.get("colors_back", 0) or 0)
+        details = int(values.get("details_per_sheet", 0) or 0)
+        pages = int(values.get("pages_per_sheet", 0) or 0)
+        per_blank = int(values.get("details_per_blank", 1) or 0)
+        different = int(values.get("different_details", 1) or 0)
+        cutting = int(values.get("cutting", 1) or 0)
+        width = _decimal(values.get("width"))
+        height = _decimal(values.get("height"))
+    except (TypeError, ValueError, ArithmeticError):
+        raise ValueError("invalid blank production input")
+    if front < 0 or back < 0 or front + back == 0 or per_blank < 1 or different < 1 or cutting < 1:
+        raise ValueError("invalid blank production input")
+    if details < 0 or pages < 0 or (details and pages) or (order_type != "wide" and not details and not pages):
+        raise ValueError("choose exactly one imposition mode")
+    if order_type == "wide" and (width <= 0 or height <= 0):
+        raise ValueError("wide blank dimensions are required")
+    divisor = details or pages or 1
+    automatic = ceil(different / divisor) * (front + back)
+    if values.get("self_print"):
+        automatic = ceil(automatic / 2)
+    fixed = bool(values.get("fix_plates", False))
+    plates = int(values.get("plates", automatic) or 0) if fixed else automatic
+    if plates < 0:
+        raise ValueError("invalid plate count")
+    values.update({"colors_front": front, "colors_back": back, "details_per_sheet": details,
+                   "pages_per_sheet": pages, "details_per_blank": per_blank,
+                   "different_details": min(different, per_blank), "cutting": cutting,
+                   "width": width, "height": height, "plates": plates, "fix_plates": fixed})
+    return values
 def list_metadata(db: Session) -> dict:
     statuses = db.scalars(select(OrderStatus).where(OrderStatus.deleted_at.is_(None)).order_by(OrderStatus.sequence)).all()
     managers = db.scalars(select(User).where(User.fired.is_(False)).order_by(User.surname, User.name)).all()

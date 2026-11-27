@@ -69,7 +69,7 @@ checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
 | S12 | verified | Discovery, persistent abuse controls, generic registration/recovery responses and durable administrative audit are implemented. Final rollout verification and synchronization evidence is appended below; TLS remains the separate S11 blocker. |
 | F01 | verified | Specific bodyless order recalculation route is registered before the generic `{operation}` route; exact browser-shaped POST and generic-operation payload regression pass. Complete Phase 1 backend/frontend/build validation passed; deployment and Phase 2 scenario evidence are recorded separately below. |
 | F02 | fixed | Backend and both order forms now preserve negotiated sale total, book volume, and wide width/height with derived format/area. Localized decimal input is parsed server-side and recalculation continues to preserve sale total. Focused backend and frontend contract regressions pass; end-to-end browser acceptance and deployment remain pending. |
-| F03 | unstarted | Blank production inputs and plate automation. |
+| F03 | fixed | Backend blank-production validation/plate derivation and frontend production controls are implemented. Focused blank/order tests and frontend build pass; browser acceptance and deployment remain pending. |
 | F04 | unstarted | Blank unit-price snapshots. |
 | F05 | unstarted | Afterprint parameter round trips. |
 | F06 | unstarted | Save/recalculate ordering and dirty state. |
@@ -124,6 +124,30 @@ Validation on disposable/local fixtures:
   after `S12B_ABUSE_ENABLED` at its audit command boundary; isolated bounded
   diagnostics passed the same audit, 413 body-limit, and invariant checks, so
   `S12B_VERIFY_OK` is not claimed. No browser scenario was run.
+
+## F03 blank production inputs and plate automation — 2026-11-27
+
+Blank create/update now validates production inputs before mutation. Details-per-
+sheet and pages-per-sheet are mutually exclusive and one must be selected;
+colors, detail counts, cutting and dimensions must be valid. Wide blanks require
+positive width and height. When plates are not fixed, the backend derives the
+plate count from distinct details, the selected imposition divisor and front/back
+colors, halving with ceiling for self-print. A fixed manual plate value is
+preserved. Existing partial edits that do not touch production fields remain
+compatible with historical records.
+
+The blank editor now exposes front/back colors, both imposition modes, production
+comments, and a fixed-plates toggle with read-only automatic/manual plate input.
+Changing the imposition mode clears the alternate mode; failed blank saves retain
+the form instead of reloading it as successful.
+
+Validation:
+
+- Blank calculation/production regressions: **11 passed**.
+- Orders authorization regressions: **24 passed**.
+- Frontend suite: **22 passed**.
+- Frontend production build: **passed**, Vite 6.4.5, 159 modules transformed.
+- No browser scenario or deployment has been run for F03 yet.
 
 ## F01 recalculation routing — 2026-11-27
 
