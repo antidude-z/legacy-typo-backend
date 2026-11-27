@@ -81,6 +81,9 @@ class RegistrationReviewTests(unittest.TestCase):
             response = self.client.post('/api/auth/register', data={
                 'name': 'Pending', 'email': 'pending@example.test',
                 'password': 'secret123', 'password_confirmation': 'secret123'}, follow_redirects=False)
-        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self.client.get('/api/session').json()['authenticated'])
+        login = self.client.post('/api/auth/login', data={'email': 'pending@example.test', 'password': 'secret123'}, follow_redirects=False)
+        self.assertEqual(login.status_code, 303)
         self.assertFalse(self.client.get('/api/session').json()['business_access'])
         self.assertEqual(self.client.get('/api/orders').status_code, 403)

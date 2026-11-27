@@ -14,10 +14,11 @@ def main():
     name = 's04-browser-' + uuid4().hex[:12]
     containers = [name + '-backend', name + '-frontend', name + '-runner']
     group = os.getenv('BROWSER_QA_GROUP', '')
-    if group not in {'', 'accessibility', 'business'}:
+    if group not in {'', 'accessibility', 'business', 'auth-final'}:
         raise ValueError('Unsupported browser group')
     selection = (' --grep "responsive accessibility"' if group == 'accessibility'
-                 else ' --grep-invert "responsive accessibility"' if group == 'business' else '')
+                 else ' --grep-invert "responsive accessibility|S12 generic registration"' if group == 'business'
+                 else ' --grep "S12 generic registration"' if group == 'auth-final' else '')
     def docker(*args, **kwargs):
         return subprocess.run(['docker', *args], check=True, **kwargs)
     try:
@@ -26,6 +27,7 @@ def main():
                '--tmpfs', '/app/data', '--mount', f'type=bind,source={backend / "scripts"},target=/app/scripts,readonly',
                '-e', 'DATABASE_URL=sqlite:///./data/browser-e2e.db',
                 '-e', 'AUTH_ABUSE_ENABLED=' + ('true' if os.getenv('BROWSER_QA_AUTH_ABUSE') == '1' else 'false'),
+                '-e', 'PUBLIC_REGISTRATION_ENABLED=' + ('true' if group == 'auth-final' else 'false'),
                '-e', 'SESSION_SECRET=isolated-browser-tests-only', 'typography-s04-backend',
                'sh', '-c', '.venv/bin/python -m scripts.browser_fixture && exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000',
                stdout=subprocess.DEVNULL)
@@ -47,6 +49,7 @@ def main():
                '--mount', f'type=bind,source={frontend},target=/source,readonly',
                '-e', 'BROWSER_QA_URL=http://frontend:8081',
                '-e', 'BROWSER_QA_SYNTHETIC_ORPHANS=1',
+               '-e', 'BROWSER_QA_REGISTRATION=' + ('1' if group == 'auth-final' else '0'),
                'mcr.microsoft.com/playwright:v1.65.1-noble', 'sh', '-c',
                'cp -r /source /tmp/frontend && cd /tmp/frontend && npm ci && npm test && npm run test:e2e -- --reporter=line' + selection,
                timeout=900)

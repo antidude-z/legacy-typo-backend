@@ -131,6 +131,23 @@ Live throttling was not exercised against staff accounts. Evidence:
 `s12a-persistence-result.txt`, `s12a-browser-result.txt`.
 
 ## Still open
+
+## Final S12 implementation — generic responses and durable auditing
+
+Implemented generic no-store registration and recovery responses, pending-only
+registration without auto-login, durable private security intent/outcome records,
+fail-closed intent persistence and explicit MyISAM ambiguity handling. Employee
+lifecycle/credential/role changes, matrix writes, applied operator assignment and
+staff-admission denials are covered. Restricted operator viewer, indefinite
+retention, safe structured denial/error and bulk-delete alerts, and reconciliation
+procedure are documented in `docs/s12-security-audit.md`. No public audit endpoint
+or new role grant is introduced; TLS is independent and unchanged.
+
+Acceptance: 22 focused tests OK; 16 final S12 tests per MySQL engine OK;
+27 enabled browser workflows across owned accessibility/business/opt-in-registration
+stacks passed; 21 frontend helpers and both image/production builds passed.
+Audit intent persisted across owned container recreation. Earlier full run:
+689 tests OK, 245 opt-in skips. Exact final full rerun and rollout evidence follow.
 - Generic registration/reset responses, including mail delivery failure behavior,
   must avoid revealing whether an account exists while preserving operator diagnostics.
 - Dedicated durable security events for employee lifecycle, role/credential changes,

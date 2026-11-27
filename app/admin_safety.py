@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import tempfile
 import time
+import sqlite3
 
 from fastapi import HTTPException
 from sqlalchemy import select, text
@@ -75,17 +76,65 @@ def security_writer(function):
 
     @wraps(function)
     def guarded(*args, **kwargs):
-        db = signature.bind(*args, **kwargs).arguments['db']
+        arguments = signature.bind(*args, **kwargs).arguments
+        db = arguments['db']
         if db.new or db.dirty or db.deleted:
             raise RuntimeError('Security writer requires a clean session')
         db.rollback()  # End any earlier snapshot before waiting for the lock.
         with security_lock(db):
             db.expire_all()
+            audited = function.__module__.rsplit('.', 1)[-1] in {'reference_users', 'permissions', 'assign_role'}
+            audited = audited and not (function.__name__ == 'assign_role' and not arguments.get('apply', False))
+            audit_id = None
+            if audited:
+                from . import security_audit
+                from .main import current_user
+                request = arguments.get('request')
+                actor = current_user(request, db) if request is not None else None
+                target = arguments.get('identity')
+                selector = arguments.get('user_selector', '')
+                if target is None and selector.startswith('id:') and selector[3:].isdigit():
+                    target = int(selector[3:])
+                elif target is None and selector:
+                    target = db.scalar(select(User.id).where(User.email == selector))
+                action = function.__module__.rsplit('.', 1)[-1] + '.' + function.__name__
+                try:
+                    audit_path = security_audit.destination(db)
+                    before = security_audit.snapshot(db, action, target)
+                    if request is None:
+                        before['operator_uid'] = os.getuid() if hasattr(os, 'getuid') else 'local-host-operator'
+                    payload = arguments.get('payload', {})
+                    if action == 'reference_users.update' and isinstance(payload, dict):
+                        before['credential_reset_requested'] = payload.get('user_change_password', payload.get('change_password', False)) in (True, 1, '1')
+                        before['email_field_supplied'] = 'email' in payload or 'user_email' in payload
+                    audit_id = security_audit.begin(audit_path, actor.id if actor else None, action, target, before)
+                except (OSError, RuntimeError, sqlite3.Error):
+                    raise HTTPException(503, 'Security audit unavailable; action not performed') from None
             try:
-                return function(*args, **kwargs)
-            except BaseException:
+                result = function(*args, **kwargs)
+            except BaseException as exc:
                 db.rollback()
+                if audit_id:
+                    try:
+                        security_audit.finish(audit_path, audit_id, 'denied' if isinstance(exc, (HTTPException, ValueError)) else 'error',
+                                              security_audit.snapshot(db, action, target))
+                    except Exception:
+                        # Durable intent remains unresolved. Never obscure the original error.
+                        import logging
+                        logging.getLogger(__name__).error('security_audit_outcome_unresolved event=%s', audit_id)
                 raise
+            if audit_id:
+                if target is None and isinstance(result, dict):
+                    target = result.get('id', result.get('user_id'))
+                try:
+                    security_audit.bind_target(audit_path, audit_id, target)
+                    security_audit.finish(audit_path, audit_id, 'success', security_audit.snapshot(db, action, target))
+                except Exception:
+                    # MyISAM may already be committed: no false rollback/success claim.
+                    import logging
+                    logging.getLogger(__name__).error('security_audit_outcome_unresolved event=%s', audit_id)
+                    raise HTTPException(503, 'Action outcome requires operator reconciliation') from None
+            return result
     return guarded
 
 

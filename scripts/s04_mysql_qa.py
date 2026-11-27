@@ -16,7 +16,7 @@ def docker(*args, **kwargs):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--finding', choices=('S04', 'S05', 'S06', 'S07', 'S09', 'S10', 'S11', 'S12'), default='S04')
+    parser.add_argument('--finding', choices=('S04', 'S05', 'S06', 'S07', 'S09', 'S10', 'S11', 'S12', 'S12F'), default='S04')
     finding = parser.parse_args().finding
     backend = Path(__file__).resolve().parents[1]
     name = 'typography-s04-qa-' + uuid4().hex[:12]
@@ -55,7 +55,8 @@ def main():
                      else 'tests.test_review_s09_mysql.MySQLInitializationTests' if finding == 'S09'
                      else 'tests.test_review_s10_mysql.MySQLS10AuthorizationTests' if finding == 'S10'
                      else 'tests.test_review_s11_mysql.MySQLS11CSRFTests' if finding == 'S11'
-                     else 'tests.test_review_s12_abuse_mysql.MySQLAbuseTests')
+                     else 'tests.test_review_s12_abuse_mysql.MySQLAbuseTests' if finding == 'S12'
+                     else 'tests.test_review_s12_final_mysql')
             subprocess.run([sys.executable, '-W', 'error', '-m', 'unittest',
                             suite, '-v'],
                            cwd=backend, env=test_env, check=True, timeout=300)

@@ -44,8 +44,12 @@ def require_staff_admission(request: Request, db: Session = Depends(get_db)):
         return
     user = current_user(request, db)
     if user is None:
+        from .security_audit import record_admission_denial
+        record_admission_denial(db, request, None)
         raise HTTPException(status_code=401, detail="unauthorized")
     if user.role is None or not user.role.permissions:
+        from .security_audit import record_admission_denial
+        record_admission_denial(db, request, user)
         raise HTTPException(status_code=403, detail="staff_approval_required")
     from .order_authorization import require_order_action, require_order_resource
     require_order_action(request, user)
@@ -432,6 +436,7 @@ def _auth_error(message: str, fields: dict | None = None):
 
 @app.post("/auth/register", tags=["auth"])
 @app.post("/api/auth/register", tags=["auth"], include_in_schema=False)
+@security_writer
 def register(
     request: Request,
     name: str = Form(..., max_length=255),
@@ -449,15 +454,18 @@ def register(
     errors = {}
     if not name.strip() or len(name) > 255: errors["name"] = "Укажите имя."
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(email) > 255: errors["email"] = "Укажите корректный email."
-    if db.scalar(select(User).where(User.email == email)): errors["email"] = "Этот email уже используется."
     if len(password) < 6 or len(password.encode()) > 72 or password != password_confirmation: errors["password"] = "Пароли должны совпадать: минимум 6 символов, максимум 72 байта UTF-8."
     if errors: return _auth_error("Проверьте форму регистрации.", errors)
-    user = User(name=name.strip(), email=email, password=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode())
-    db.add(user); db.commit()
-    request.session["user_id"] = user.id
-    request.session["password_version"] = hashlib.sha256(user.password.encode()).hexdigest()
-    request.session['security_stamp'] = user.security_stamp
-    return RedirectResponse("/orders", status_code=303)
+    # Same validation, hashing work and response for existing/new addresses.
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    if db.scalar(select(User.id).where(User.email == email)) is None:
+        try:
+            db.add(User(name=name.strip(), email=email, password=hashed))
+            db.commit()
+        except __import__('sqlalchemy').exc.IntegrityError:
+            db.rollback()  # A concurrent registration must not disclose existence.
+    return JSONResponse({'message': 'Если регистрация возможна, заявка принята. Обратитесь к администратору.'}, headers={'Cache-Control': 'no-store'})
+
 
 
 def _reset_digest(token: str) -> str:
@@ -500,16 +508,22 @@ def password_email(request: Request, email: str = Form(..., max_length=255), db:
     user = db.scalar(select(User).where(User.email == email, User.deleted_at.is_(None)))
     if user:
         raw_token = secrets.token_urlsafe(48)
-        existing = db.get(PasswordReset, email)
-        if existing: db.delete(existing)
-        db.add(PasswordReset(email=email, token=_reset_digest(raw_token), created_at=utc_now()))
         try:
+            # Do not replace a valid token until delivery succeeds (MyISAM cannot rollback).
             deliver_reset_mail(email, raw_token)
+            existing = db.get(PasswordReset, email)
+            if existing:
+                existing.token = _reset_digest(raw_token)
+                existing.created_at = utc_now()
+            else:
+                db.add(PasswordReset(email=email, token=_reset_digest(raw_token), created_at=utc_now()))
             db.commit()
         except (OSError, smtplib.SMTPException, RuntimeError, KeyError, ValueError):
             db.rollback()
-            return JSONResponse({"message": "Не удалось отправить письмо. Повторите позднее."}, status_code=503)
-    return {"message": "Если учетная запись существует, инструкция отправлена."}
+            import logging
+            logging.getLogger(__name__).error('password_reset_delivery_failed')
+    return JSONResponse({'message': 'Если учетная запись существует, инструкция отправлена.'}, headers={'Cache-Control': 'no-store'})
+
 
 
 @app.post("/password/reset", tags=["auth"])

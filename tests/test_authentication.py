@@ -41,16 +41,18 @@ class AuthenticationTests(unittest.TestCase):
         self.engine.dispose()
 
     @patch('app.main.PUBLIC_REGISTRATION_ENABLED', True)
-    def test_registration_validates_and_creates_session(self):
+    def test_registration_validates_without_disclosing_or_creating_session(self):
         invalid = self.client.post("/api/auth/register", data={"name": "", "email": "bad", "password": "short", "password_confirmation": "other"})
         self.assertEqual(invalid.status_code, 422)
         response = self.client.post("/api/auth/register", data={"name": "New User", "email": "new@example.test", "password": "secret123", "password_confirmation": "secret123"}, follow_redirects=False)
-        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.status_code, 200)
         created = self.db.query(User).filter_by(email="new@example.test").one()
         self.assertNotEqual(created.password, "secret123")
         self.client.cookies.clear()
         duplicate = self.client.post("/api/auth/register", data={"name": "Again", "email": "new@example.test", "password": "secret123", "password_confirmation": "secret123"})
-        self.assertEqual(duplicate.status_code, 422)
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertEqual(response.json(), duplicate.json())
+        self.assertFalse(self.client.get('/api/session').json()['authenticated'])
 
     def test_remember_me_cookie_is_revoked_by_logout(self):
         response = self.client.post("/api/auth/login", data={"email": self.user.email, "password": self.password, "remember": "true"}, follow_redirects=False)
