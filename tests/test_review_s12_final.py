@@ -1,5 +1,6 @@
 """S12 private audit and generic auth responses with disposable fixtures."""
 from pathlib import Path
+import os
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -104,3 +105,14 @@ class GenericResponseTests(unittest.TestCase):
         self.assertEqual((known.status_code, known.json()), (unknown.status_code, unknown.json()))
         self.assertEqual(known.status_code, 200)
         self.assertEqual(self.db.get(PasswordReset, self.user.email).token, 'preserved')
+
+
+class AuditInitializationTests(unittest.TestCase):
+    def test_initialize_creates_private_store_before_first_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'audit.db'
+            security_audit.initialize(path)
+            self.assertTrue(path.exists())
+            if os.name != 'nt':
+                self.assertEqual(path.stat().st_mode & 0o077, 0)
+            self.assertEqual(security_audit.view(path), [])

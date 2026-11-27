@@ -51,6 +51,12 @@ def connect(path):
         raise
 
 
+def initialize(path):
+    """Create the protected journal before the first administrative event."""
+    with closing(connect(path)):
+        pass
+
+
 def snapshot(db, action, target):
     if action == 'permissions.update_matrix':
         return {'grants': sorted([list(row) for row in db.execute(select(role_permissions.c.role_id, role_permissions.c.permission_id))])}

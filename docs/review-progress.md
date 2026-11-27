@@ -117,12 +117,21 @@ completed successfully. No working or deployed database was used by these tests.
 F01 is verified for Phase 1; Phase 2 scenario execution remains deferred. The
 deployment and remote synchronization evidence for this increment follows below.
 
-## F01 deployment — pending guarded rollout
+## F01 deployment — guarded rollout and audit-store correction
 
-The F01 source change is ready to package and deploy after the normal backup,
-candidate-build, invariant-comparison and health verification gates. TLS/HTTP
-settings and the MySQL volume must remain unchanged. No deployment is claimed
-until those gates complete successfully.
+The first guarded rollout reached healthy candidate services and passed route,
+CSRF, discovery and abuse verification. Independent verification then found that
+`SECURITY_AUDIT_DB=/app/data/security-audit.db` was configured but the file did
+not yet exist because the audit journal was initialized lazily only on the first
+covered event. The production probe's method-boundary 405 did not create such an
+event. This was corrected by initializing the protected audit SQLite store during
+application startup, with a permanent initialization regression. No business
+data, grants, TLS/HTTP setting or MySQL volume was changed by the failed verify.
+
+Focused correction checks: **2 tests passed** (audit initialization and F01
+bodyless route dispatch). The corrected revision must be repackaged and pass the
+backup, candidate-build, invariant, audit-file, health and synchronization gates
+before deployment is marked complete.
 
 ## S01 first increment — 2026-11-20
 

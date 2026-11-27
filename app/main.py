@@ -59,6 +59,9 @@ def require_staff_admission(request: Request, db: Session = Depends(get_db)):
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     initialize_database()
+    from .security_audit import initialize as initialize_security_audit
+    with Session(engine) as db:
+        initialize_security_audit(__import__('pathlib').Path(__import__('os').getenv('SECURITY_AUDIT_DB', '/app/data/security-audit.db')))
     yield
 
 
