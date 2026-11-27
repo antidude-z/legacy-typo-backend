@@ -875,6 +875,16 @@ OPERATION_REFERENCES = {
 }
 
 
+@app.post("/api/orders/{order_id}/recalculate", tags=["pricing"])
+def order_recalculate(order_id: int, request: Request, db: Session = Depends(get_db)):
+    if current_user(request, db) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    order = db.get(Order, order_id)
+    if order is None:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return calculate_order(db, order, "RUB")
+
+
 def operation_reference_choices(operation: str, order_type: str, db: Session) -> list[dict]:
     reference = OPERATION_REFERENCES[operation]
     model, _, _, production_prefix = reference
@@ -1151,16 +1161,6 @@ def blank_recalculate(order_id: int, blank_id: int, request: Request, db: Sessio
     calculated["result"] = str(calculated["result"])
     calculated["cost"] = calculated["result"]
     return calculated
-
-
-@app.post("/api/orders/{order_id}/recalculate", tags=["pricing"])
-def order_recalculate(order_id: int, request: Request, db: Session = Depends(get_db)):
-    if current_user(request, db) is None:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
-    order = db.get(Order, order_id)
-    if order is None:
-        return JSONResponse({"error": "not_found"}, status_code=404)
-    return calculate_order(db, order, "RUB")
 
 
 @app.delete("/api/orders/{order_id}/blanks/{blank_id}", tags=["orders"])

@@ -67,7 +67,7 @@ checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
 | S10 | fixed | Exact route/policy inventory, real-session grant/revocation coverage and reader-safe payroll. Deployed and independently verified 2026-11-26 UTC after fixing a historical rate-seed precision blocker; all-table/user/grant invariants preserved on retry. 635 backend tests OK (219 skips), 6 S10 and 3 bootstrap tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. Phase 2 deferred. See docs/s10-authorization-audit.md. |
 | S11 | in progress | Cookie-CSRF containment backed up, deployed, independently verified and synchronized 2026-11-26 with unchanged all-table/user/grant invariants. 646 backend tests OK (221 skips), 28 targeted tests, 2 tests per MySQL engine, 21 frontend helpers and 25 browser workflows passed. Production overlay validated but not activated: verified TLS origin/certificate/proxy remains the blocker; HTTP validation access retained. See docs/s11-production-csrf.md. |
 | S12 | in progress | Discovery and persistent account/IP/global abuse controls backed up, deployed, verified and synchronized with preserved all-table/user/grant invariants. 665 backend tests OK (229 skips), 8 MySQL tests per engine, 21 helpers, 26 enabled browser workflows and owned-container persistence passed. HTTP enforcement enabled. Generic registration/recovery responses and durable administrative audit remain open. See docs/s12-hardening.md. |
-| F01 | unstarted | Recalculation routing. |
+| F01 | verified | Specific bodyless order recalculation route is registered before the generic `{operation}` route; exact browser-shaped POST and generic-operation payload regression pass. Complete Phase 1 backend/frontend/build validation passed; deployment and Phase 2 scenario evidence are recorded separately below. |
 | F02 | unstarted | Sale total and order fields. |
 | F03 | unstarted | Blank production inputs and plate automation. |
 | F04 | unstarted | Blank unit-price snapshots. |
@@ -88,6 +88,41 @@ checkouts are clean. This is Phase 1 evidence, not Phase 2 scenario acceptance.
 | F19 | unstarted | Nested routes and hash destinations. |
 | F20 | unstarted | Wide-printer currency propagation. |
 | F21 | unstarted | Atomic calculation persistence. |
+
+## F01 recalculation routing — 2026-11-27
+
+The review defect was reproduced from the actual frontend caller:
+`Calculation.svelte` sends `POST /api/orders/{id}/recalculate` with no request body.
+The generic `POST /api/orders/{order_id}/{operation}` route previously appeared
+first and required `payload: dict`, so FastAPI returned 422 before the dispatcher
+could call the specific recalculation handler.
+
+The specific `/api/orders/{order_id}/recalculate` route now precedes the generic
+operation route. No `{}` workaround was added, and the generic operation contract
+remains unchanged for other operation names.
+
+Permanent real-session SQLite regressions in
+`tests/test_review_order_authorization.py` use a valid session, CSRF header, real
+order fixture and actual TestClient routing:
+
+- bodyless browser-shaped recalculation returns 200 and includes `result` and
+  `stored_total` calculation fields;
+- bodyless non-recalculation operation creation still returns 422 because its
+  payload is required.
+
+Focused F01 pair: **2 tests passed in 1.025s**. The complete backend suite then
+passed **693 tests with 247 opt-in skips** under warnings-as-errors. Frontend helper
+tests passed **21**, and the locked-dependency frontend production Docker build
+completed successfully. No working or deployed database was used by these tests.
+F01 is verified for Phase 1; Phase 2 scenario execution remains deferred. The
+deployment and remote synchronization evidence for this increment follows below.
+
+## F01 deployment — pending guarded rollout
+
+The F01 source change is ready to package and deploy after the normal backup,
+candidate-build, invariant-comparison and health verification gates. TLS/HTTP
+settings and the MySQL volume must remain unchanged. No deployment is claimed
+until those gates complete successfully.
 
 ## S01 first increment — 2026-11-20
 

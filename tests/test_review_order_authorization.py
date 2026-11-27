@@ -14,6 +14,21 @@ class OrderAuthorizationReviewTests(test_review_employee_authorization.EmployeeA
             self.db.add(model(id=20, order_id=10, **{key: 1}, quantity=1))
         self.db.commit()
 
+    def test_browser_shape_bodyless_recalculate_dispatches_specific_handler(self):
+        self.seed_children()
+        self.all_order_grants()
+        response = self.client.post('/api/orders/10/recalculate', headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertIn('result', body)
+        self.assertIn('stored_total', body)
+
+    def test_generic_operation_route_still_requires_payload_for_other_operations(self):
+        self.seed_children()
+        self.all_order_grants()
+        response = self.client.post('/api/orders/10/prepresses', headers=self.headers)
+        self.assertEqual(response.status_code, 422, response.text)
+
     def reject_unchanged(self, method, path, status=404, payload=None):
         before = self.snapshot()
         response = self.client.request(method, path, json=payload, headers=self.headers)
