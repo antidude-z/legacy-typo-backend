@@ -1,6 +1,6 @@
 # S12 — discovery, abuse controls and security auditing
 
-Status: **in progress**. No Phase 2 scenario execution is claimed.
+Status: **verified for Phase 1**. No Phase 2 scenario execution is claimed.
 
 ## Discovery increment
 
@@ -130,9 +130,9 @@ Live throttling was not exercised against staff accounts. Evidence:
 `s12a-{backup,backup-check,stage,deploy,verify,sync}-result.txt`,
 `s12a-persistence-result.txt`, `s12a-browser-result.txt`.
 
-## Still open
+## Historical open-work heading
 
-## Final S12 implementation — generic responses and durable auditing
+## Final S12 implementation — generic responses and durable administrative auditing
 
 Implemented generic no-store registration and recovery responses, pending-only
 registration without auto-login, durable private security intent/outcome records,

@@ -143,9 +143,16 @@ well. A permanent regression verifies a guest employee-read denial creates an
 allowlisted audit event; audit-store startup initialization and bodyless F01 route
 dispatch also pass. The corrected source is backend `6dad01d` and frontend
 `9811b9f`, both published.
-
-The final corrected rollout must finish with `S12B_VERIFY_OK` and `S12B_SYNC_OK`
-before this entry is considered operationally complete. HTTP/8080 and TLS settings
+Final corrected rollout completed with `S12B_DEPLOYMENT_OK`, `S12B_VERIFY_OK`
+and `S12B_SYNC_OK`, all SSH exit 0. Fresh backup:
+`/root/backups/s12b-20261127T100318Z`; database, checkout/config and backend-data
+archives passed integrity checks. Candidate backend/frontend images built and all
+services are healthy. Independent verification passed 179-route inventory, CSRF,
+discovery, abuse-enforcement, durable-audit-denial, exact user/business/grant
+invariants and retained `rework_mysql_data`. VM checkouts synchronized cleanly to
+backend `8bcee48ddd81ba7b5b3016ac940fdb11d214ec5c` and frontend
+`9811b9ff678df183aa2d73a8bc6d6406c39d62d2`. HTTP/8080 and TLS settings remain
+intentionally unchanged; S11 TLS activation is still separate.
 are intentionally unchanged.
 
 ## S01 first increment — 2026-11-20
